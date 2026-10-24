@@ -6,6 +6,7 @@ import { sfx } from './audio.js';
 import { WEAPONS, GADGETS } from './weapons.js';
 import { diff, save } from './save.js';
 import { PAL, drawGlow } from './art.js';
+import { G, has, spr, sprAspect } from './gfx.js';
 
 const C = { RUN: 182, ACC_G: 1750, DEC_G: 2100, ACC_A: 1200, GRAV: 1480, GRAV_FALL: 1720, JUMP: 515, CUT: 0.45, MAXFALL: 600, SLIDE: 115, WJX: 235, WJY: 470, DASH: 470, DASH_T: 0.17, DASH_CD: 0.38 };
 export class Player {
@@ -277,16 +278,15 @@ export class Player {
     const h = this.hook;
     if (h.s !== 'none' && h.hx !== undefined) {
       const hx0 = X + f * 7, hy0 = this.y + 16;
-      g.strokeStyle = '#2e7a3f'; g.lineWidth = 3.4; g.beginPath(); g.moveTo(hx0, hy0);
-      const mxp = (hx0 + h.hx) / 2, myp = (hy0 + h.hy) / 2 + (h.s === 'fly' || h.s === 'miss' ? Math.sin(t * 40) * 6 : 0);
-      g.quadraticCurveTo(mxp, myp, h.hx, h.hy); g.stroke(); g.strokeStyle = '#8fe07a'; g.lineWidth = 1.4; g.stroke();
-      // leaves along the vine
-      g.fillStyle = '#6fcf5a'; for (let i = 1; i < 4; i++) { const k = i / 4; const lx = lerp(hx0, h.hx, k), ly = lerp(hy0, h.hy, k); g.beginPath(); g.ellipse(lx, ly - 2, 3.5, 1.8, k * 3 + t, 0, 7); g.fill(); }
+      this.drawVine(g, hx0, hy0, h, t);
       g.fillStyle = '#d9a35a'; g.beginPath(); g.arc(h.hx, h.hy, 4, 0, 7); g.fill(); g.strokeStyle = PAL.ink; g.lineWidth = 1.5; g.stroke();
     }
     // scarf
-    g.strokeStyle = PAL.scarf; g.lineWidth = 4.5; g.lineCap = 'round'; g.beginPath(); g.moveTo(this.scarf[0].x, this.scarf[0].y); for (const p of this.scarf) g.lineTo(p.x, p.y); g.stroke();
-    g.strokeStyle = '#ffc77a'; g.lineWidth = 1.5; g.stroke();
+    const rig = has('head'); g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); g.moveTo(this.scarf[0].x, this.scarf[0].y); for (const p of this.scarf) g.lineTo(p.x, p.y);
+    if (rig) { g.strokeStyle = PAL.ink; g.lineWidth = 5; g.stroke(); g.strokeStyle = '#d8622a'; g.lineWidth = 3.2; g.stroke(); g.strokeStyle = '#ffb36a'; g.lineWidth = 1; g.stroke(); }
+    else { g.strokeStyle = PAL.scarf; g.lineWidth = 4.5; g.stroke(); g.strokeStyle = '#ffc77a'; g.lineWidth = 1.5; g.stroke(); }
+    if (has('head')) this.drawRig(g, W);
+    else {
     g.save(); g.translate(X, Y);
     let lean = clamp(this.vx / 900, -0.18, 0.18); if (h.s === 'swing') lean = Math.atan2(h.hx - X, -(h.hy - this.cy)) * 0.6;
     if (this.dead) { lean = 0; g.rotate(Math.min(1.4, this.deadT * 4) * -f); }
@@ -330,6 +330,8 @@ export class Player {
     else { g.beginPath(); g.ellipse(1.8, 1, 1.9, 2.6, 0, 0, 7); g.fill(); g.beginPath(); g.ellipse(7, 1, 1.9, 2.6, 0, 0, 7); g.fill(); g.fillStyle = '#fff'; g.fillRect(2.2, -0.6, 1, 1); g.fillRect(7.4, -0.6, 1, 1); }
     g.fillStyle = 'rgba(255,120,120,0.35)'; g.beginPath(); g.arc(9, 4.5, 1.6, 0, 7); g.fill();
     g.restore(); g.globalAlpha = 1;
+    }
+    const atk = this.atk;
     // charge glow + parry shield
     if (this.chargeT > 0.2) drawGlow(g, X + f * 10, this.cy - 4, 14 + (this.charged ? 10 + Math.sin(t * 30) * 3 : this.chargeT * 12), WEAPONS[this.weapon].color, this.charged ? 0.9 : 0.5);
     if (this.parryT > 0 || this.parryLock > 0.1) { g.strokeStyle = '#bfefff'; g.lineWidth = 3; g.globalAlpha = this.parryT > 0 ? 0.95 : 0.4; g.beginPath(); g.arc(X, this.cy, 24, f > 0 ? -1.2 : Math.PI - 1.2 + 0.0, f > 0 ? 1.2 : Math.PI + 1.2); g.stroke(); drawGlow(g, X + f * 18, this.cy, 22, '#9fe8ff', 0.5); g.globalAlpha = 1; }
@@ -337,6 +339,75 @@ export class Player {
     // attack smear
     if (atk && atk.phase === 'active' && atk.def && !atk.def.proj && atk.kind !== 'plunge') this.drawSmear(g, atk);
     if (atk && atk.kind === 'plunge' && atk.phase === 'active') { g.fillStyle = 'rgba(255,255,255,0.5)'; g.beginPath(); g.moveTo(this.x - 4, this.y); g.lineTo(this.x + this.w + 4, this.y); g.lineTo(X, this.y + this.h + 16); g.fill(); }
+  }
+  drawVine(g, x0, y0, h, t) { // textured, twisting vine rope with leaves
+    const wob = h.s === 'fly' || h.s === 'miss' ? 6 : 0, mx = (x0 + h.hx) / 2, my = (y0 + h.hy) / 2 + (wob ? Math.sin(t * 40) * wob : Math.min(10, Math.hypot(h.hx - x0, h.hy - y0) * 0.03));
+    const pt = (k) => { const u = 1 - k; return [u * u * x0 + 2 * u * k * mx + k * k * h.hx, u * u * y0 + 2 * u * k * my + k * k * h.hy]; };
+    g.lineCap = 'round'; g.strokeStyle = PAL.ink; g.lineWidth = 4.6; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(mx, my, h.hx, h.hy); g.stroke();
+    g.strokeStyle = '#3f7a32'; g.lineWidth = 3; g.stroke();
+    const L = Math.hypot(h.hx - x0, h.hy - y0), n = Math.max(4, Math.floor(L / 7)), dx = (h.hx - x0) / (L || 1), dy = (h.hy - y0) / (L || 1);
+    g.strokeStyle = '#9be070'; g.lineWidth = 1.1; g.beginPath(); // twisting highlight strand
+    for (let i = 0; i <= n; i++) { const k = i / n, [px, py] = pt(k), o = Math.sin(k * L * 0.35 + t * 6) * 1.1; i ? g.lineTo(px - dy * o, py + dx * o) : g.moveTo(px - dy * o, py + dx * o); } g.stroke();
+    if (has('leaf')) for (let i = 1; i < n; i += 3) { const k = i / n, [px, py] = pt(k), side = (i % 2 ? 1 : -1); g.save(); g.translate(px, py); g.rotate(Math.atan2(dy, dx) + side * 1.1 + Math.sin(t * 5 + i) * 0.2); spr(g, 'leaf', 0, 0, 6, 0.1, 0.9); g.restore(); }
+  }
+  drawRig(g, W) {
+    const rs = W.rs || 3, U = 110, Sz = Math.ceil(U * rs); const t = this.t, f = this.face, X = this.cx, Y = this.y + this.h, h = this.hook;
+    if (!this._off || this._off.width !== Sz) { const mk = () => { const c = document.createElement('canvas'); c.width = c.height = Sz; return c; }; this._off = mk(); this._tmp = mk(); }
+    const off = this._off, o = off.getContext('2d'); o.setTransform(1, 0, 0, 1, 0, 0); o.clearRect(0, 0, Sz, Sz); o.globalCompositeOperation = 'source-over';
+    o.setTransform(rs, 0, 0, rs, U / 2 * rs, U * 0.68 * rs);
+    let lean = clamp(this.vx / 900, -0.18, 0.18); if (h.s === 'swing') lean = Math.atan2(h.hx - X, -(h.hy - this.cy)) * 0.6;
+    if (this.hurtT > 0) lean = -f * 0.25;
+    if (this.dead) { lean = 0; o.rotate(Math.min(1.4, this.deadT * 4) * -f); }
+    o.rotate(lean); o.scale(this.sx * f, this.sy);
+    const run = this.onGround && Math.abs(this.vx) > 20, ph = this.runPh, air = !this.onGround, dash = this.dashT > 0;
+    const wall = air && this.wallDir && this.vy > 0 && Math.sign(input.mx) === this.wallDir;
+    const bob = run ? -Math.abs(Math.sin(ph)) * 2.2 : air ? 0 : Math.sin(t * 2.4) * 0.6;
+    // leg angles (front, back)
+    let la = 0, lb = 0;
+    if (run) { la = Math.sin(ph) * 0.8; lb = -la; } else if (dash) { la = 0.9; lb = -0.7; } else if (wall) { la = 0.5; lb = 0.2; } else if (air) { if (this.vy < 0) { la = 0.6; lb = -0.25; } else { la = 0.15; lb = -0.35 + Math.sin(t * 12) * 0.1; } }
+    const leg = (n, x, a, dark) => { o.save(); o.translate(x, -11); o.rotate(-a); if (dark) o.filter = 'brightness(0.7)'; spr(o, n, 0, -1, 12, 0.5, 0); o.filter = 'none'; o.restore(); };
+    leg('leg2', -2.5, lb, true); leg('leg', 2.5, la, false);
+    o.translate(0, bob);
+    // torso with cloak sway
+    const sway = clamp(-this.vx / 300, -1, 1) * 0.08 + Math.sin(t * 3) * 0.02;
+    o.save(); o.translate(0, -7.5); o.rotate(sway * 0.5); spr(o, 'torso', 0, 0, 13, 0.5, 1); o.restore();
+    // head (with hood, sprout and scarf knot)
+    o.save(); o.translate(0.5, -17.5); o.rotate(Math.sin(t * 2.2) * 0.03 - clamp(this.vx / 2500, -0.08, 0.08) + (dash ? 0.1 : 0)); spr(o, 'head', 0, 0, 22, 0.5, 0.86); o.restore();
+    // arm + weapon
+    const atk = this.atk; let A = -0.75 + (run ? Math.sin(ph) * 0.5 : Math.sin(t * 2.4) * 0.05);
+    if (atk) {
+      const d = atk.def || {}, alt = atk.step % 2 === 1;
+      if (atk.kind === 'plunge') A = 0.05;
+      else if (this.weapon === 'bow') A = atk.phase === 'wind' ? -1.4 : -1.57;
+      else if (atk.phase === 'wind') A = alt ? -2.5 : 2.4;
+      else if (atk.phase === 'active') { const k = Math.min(1, atk.t / Math.max(0.01, d.active || 0.1)); A = alt ? -2.5 + k * 1.9 : 2.0 - k * 3.7; }
+      else A = alt ? -0.5 : -1.5;
+    }
+    if (this.chargeT > 0.2) A = (this.weapon === 'bow' ? -1.5 : 2.6) + Math.sin(t * 40) * 0.05;
+    if (this.parryLock > 0) A = -2.1;
+    if (dash) A = 1.1; if (wall && !atk) A = -2.7;
+    if (h.s !== 'none') A = Math.atan2(-(h.hx - X) * f, h.hy - (this.y + 16));
+    o.save(); o.translate(2.5, -17.5); o.rotate(A); this.drawPaintedWeapon(o); spr(o, 'arm', 0, -1.5, 12, 0.5, 0); o.restore();
+    // ---- composite: rim light, hurt flash, ink outline ----
+    const lo = (W.game && W.game.lowPerf) || save.settings.quality === 'low'; const tmp = this._tmp, q = tmp.getContext('2d'); const px = Math.max(1, Math.round(rs * 0.7));
+    o.setTransform(1, 0, 0, 1, 0, 0);
+    if (!lo) { q.globalCompositeOperation = 'source-over'; q.clearRect(0, 0, Sz, Sz); q.drawImage(off, 0, 0); q.globalCompositeOperation = 'source-in'; q.fillStyle = W.biome.key === 'boss' ? '#ffb070' : '#ffe0a0'; q.fillRect(0, 0, Sz, Sz);
+      q.globalCompositeOperation = 'destination-out'; q.drawImage(off, -px * 2, px * 1.5); o.globalCompositeOperation = 'source-atop'; o.globalAlpha = 0.75; o.drawImage(tmp, 0, 0); o.globalAlpha = 1; }
+    if (this.flash > 0) { o.globalCompositeOperation = 'source-atop'; o.globalAlpha = Math.min(0.85, this.flash * 3 + 0.2); o.fillStyle = '#fff'; o.fillRect(0, 0, Sz, Sz); o.globalAlpha = 1; }
+    o.globalCompositeOperation = 'source-over';
+    q.globalCompositeOperation = 'source-over'; q.clearRect(0, 0, Sz, Sz); q.drawImage(off, 0, 0); q.globalCompositeOperation = 'source-in'; q.fillStyle = PAL.ink; q.fillRect(0, 0, Sz, Sz); q.globalCompositeOperation = 'source-over';
+    const x0 = X - U / 2, y0 = Y - U * 0.68, e = px / rs * 1.2;
+    if (this.iframes > 0 && !this.dead && this.flash <= 0 && Math.sin(t * 38) > 0) g.globalAlpha = 0.5;
+    if (!lo) drawGlow(g, X, this.cy - 6, 30, '#0a0814', 0.35); // dark backing halo so the hero always separates
+    for (const [dx, dy] of [[-e, 0], [e, 0], [0, -e], [0, e]]) g.drawImage(tmp, x0 + dx, y0 + dy, U, U);
+    g.drawImage(off, x0, y0, U, U);
+    g.globalAlpha = 1; void G;
+  }
+  drawPaintedWeapon(o) {
+    const w = this.weapon; o.save(); o.translate(0, 10.5);
+    if (w === 'bow') { o.rotate(Math.PI / 2); spr(o, 'w_bow', 0, 0, 22, 0.35, 0.5); if (this.chargeT > 0.2) { o.strokeStyle = '#eaffc0'; o.lineWidth = 1; o.beginPath(); o.moveTo(-2, -9); o.lineTo(-6, 0); o.lineTo(-2, 9); o.stroke(); } }
+    else { o.rotate(Math.PI / 2); const L = w === 'blade' ? 25 : w === 'hammer' ? 25 : 18, n = 'w_' + w; spr(o, n, 0, 0, L / sprAspect(n), w === 'whip' ? 0.05 : 0.08, 0.5); }
+    o.restore();
   }
   drawWeapon(g, atk) {
     g.save(); g.translate(0, 10);
@@ -349,7 +420,7 @@ export class Player {
   }
   drawSmear(g, atk) {
     const d = atk.def, r = this.attackRect(d), k = atk.t / d.active, col = WEAPONS[this.weapon].color;
-    g.save(); g.globalAlpha = 0.85 * (1 - k * 0.7);
+    g.save(); g.globalAlpha = 0.85 * (1 - k * 0.7); if (G.ready) { g.globalCompositeOperation = 'lighter'; g.shadowColor = col; g.shadowBlur = 0; }
     if (d.arc === 5 || (this.weapon === 'whip' && !d.both)) { // whip: long wavy lash
       g.strokeStyle = '#7fe0a0'; g.lineWidth = 4; g.beginPath(); const x0 = this.cx, y0 = this.cy - 6; g.moveTo(x0, y0);
       const L = d.w * Math.min(1, k * 2.5), dir = this.face; g.bezierCurveTo(x0 + dir * L * 0.3, y0 - 18, x0 + dir * L * 0.7, y0 + 14, x0 + dir * L, y0 + (d.oy || 0)); g.stroke();

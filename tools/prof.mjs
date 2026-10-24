@@ -1,6 +1,6 @@
 import { serve, launch, sleep } from './lib.mjs';
 const { server, url } = await serve(); const { browser, page, errors } = await launch({ dpr: +(process.argv[2] || 1) });
-await page.goto(url); await sleep(800);
+await page.goto(url); await sleep(800); if (process.argv[3]) await page.evaluate((q) => { __RS.save.settings.quality = q; }, process.argv[3]);
 await page.evaluate(() => __RS.start(process_mode = 'run')).catch(async () => page.evaluate(() => __RS.start('run')));
 await sleep(1500);
 const r = await page.evaluate(() => { const W = __RS.W, c = document.getElementById('c'), g = c.getContext('2d'); const T = {}; const tm = (k, f) => { g.getImageData(0,0,1,1); const t = performance.now(); f(); g.getImageData(0,0,1,1); T[k] = (T[k] || 0) + performance.now() - t; };

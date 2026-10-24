@@ -32,15 +32,15 @@ export class FX {
   draw(g) {
     for (const q of this.p) {
       const k = 1 - q.t / q.life; g.globalAlpha = Math.min(1, k * 1.5); g.fillStyle = q.color;
-      if (q.kind === 'spark') { g.save(); g.translate(q.x, q.y); g.rotate(Math.atan2(q.vy, q.vx)); g.fillRect(-q.size * 1.8, -q.size * 0.35, q.size * 3.6, q.size * 0.7); g.restore(); }
+      if (q.kind === 'spark') { g.save(); g.globalCompositeOperation = 'lighter'; g.translate(q.x, q.y); g.rotate(Math.atan2(q.vy, q.vx)); const L = q.size * (1.8 + Math.min(2, Math.hypot(q.vx, q.vy) / 150)); g.beginPath(); g.moveTo(-L, 0); g.lineTo(0, -q.size * 0.45); g.lineTo(L * 0.6, 0); g.lineTo(0, q.size * 0.45); g.fill(); g.fillStyle = '#fff8e0'; g.fillRect(-L * 0.5, -q.size * 0.12, L, q.size * 0.24); g.restore(); }
       else if (q.kind === 'star') { g.save(); g.translate(q.x, q.y); g.rotate(q.rot); const s = q.size * k; g.beginPath(); for (let i = 0; i < 8; i++) { const r = i % 2 ? s * 0.4 : s; g.lineTo(Math.cos(i * Math.PI / 4) * r, Math.sin(i * Math.PI / 4) * r); } g.fill(); g.restore(); }
       else if (q.kind === 'leaf') { g.save(); g.translate(q.x, q.y); g.rotate(q.rot); g.beginPath(); g.ellipse(0, 0, q.size, q.size * 0.45, 0, 0, 7); g.fill(); g.restore(); }
       else { g.beginPath(); g.arc(q.x, q.y, q.size * (q.kind === 'blob' ? 0.5 + k * 0.5 : k), 0, 7); g.fill(); }
     }
     g.globalAlpha = 1;
-    for (const q of this.p) if (q.glow) drawGlow(g, q.x, q.y, q.size * 4, q.color, 0.5 * (1 - q.t / q.life));
+    g.globalCompositeOperation = 'lighter'; for (const q of this.p) if (q.glow) drawGlow(g, q.x, q.y, q.size * 4, q.color, 0.5 * (1 - q.t / q.life));
     for (const r of this.rings) { const k = r.t / r.life; g.globalAlpha = 1 - k; g.strokeStyle = r.color; g.lineWidth = r.width * (1 - k) + 0.5; g.beginPath(); g.arc(r.x, r.y, r.r * (0.3 + k * 0.9), 0, 7); g.stroke(); }
-    g.globalAlpha = 1;
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     g.textAlign = 'center'; g.lineJoin = 'round';
     for (const t of this.texts) { const k = t.t / t.life; g.globalAlpha = 1 - k * k; g.font = `900 ${t.size}px system-ui,sans-serif`; const y = t.y - 26 * Math.sqrt(k); g.lineWidth = 4; g.strokeStyle = '#15131f'; g.strokeText(t.s, t.x, y); g.fillStyle = t.color; g.fillText(t.s, t.x, y); }
     g.globalAlpha = 1;

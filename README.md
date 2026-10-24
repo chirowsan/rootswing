@@ -25,4 +25,7 @@ npm test                          # headless puppeteer suite (needs puppeteer av
 cd mobile && npm install && ./build-android.sh   # needs JDK 17, Android SDK, KEYSTORE + KSPW
 ```
 
-All art is drawn in code, and all sound and music are made with WebAudio. MIT licensed.
+## Art (v1.1)
+v1.1 replaces the flat code-drawn look with painted backgrounds, tiles, props, characters, a cutout-rigged hero, a painted HUD and lighting/particle effects. See [docs/ART.md](docs/ART.md). Game-ready WebP atlases are in `assets/gfx/`; source paintings are in `art/src/` (rebuilt with `python3 tools/build-art.py`). The Graphics **Fast** setting (and automatic low-performance mode) turns off the lighting, outlines and particles, and the old code-drawn fallback still works if the images fail to load. All sound and music are made with WebAudio. MIT licensed.
+
+Before/after screenshots: `shots/before/` vs `shots/after/`.

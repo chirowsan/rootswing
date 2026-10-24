@@ -2,6 +2,8 @@
 import { TILE, clamp, sign, approach, rand } from './util.js';
 import { moveBody, groundBelow, lineClear } from './physics.js';
 import { PAL, drawGlow } from './art.js';
+import { has, spr, tinted } from './gfx.js';
+import { save as _save } from './save.js';
 import { sfx } from './audio.js';
 import { diff } from './save.js';
 
@@ -106,14 +108,41 @@ export class Enemy {
     this.physics(W, dt);
   }
   // ---------------- drawing ----------------
+  drawPainted(g, W) {
+    const X = this.cx, Y = this.y + this.h, t = this.anim, n = this.type, tele = this.tele, f = this.face;
+    const lo = (W.game && W.game.lowPerf) || _save.settings.quality === 'low';
+    const H = { hopper: 27, charger: 27, moth: 30, puffcap: 32, knight: 47, bomber: 31, dummy: 40, tturret: 30 }[n] || this.h;
+    const hot = tele > 0 || this.st === 'charge' || this.st === 'swoop' || this.st === 'swing';
+    if (!lo) drawGlow(g, X, this.cy, H * 0.8, '#07060e', 0.35);
+    if (hot) drawGlow(g, X, Y - H * 0.5, H * (0.9 + tele * 0.4), '#ff2a3a', 0.45 + tele * 0.45);
+    g.save(); g.translate(X + (tele > 0 ? Math.sin(t * 60) * 1.2 : 0), Y + (this.fly ? Math.sin(t * 4) * 2 : 1));
+    const sq = this.sq, st = 1 / Math.sqrt(sq), idle = this.st === 'idle' || !this.st; let rot = 0, bx = 1, by = 1;
+    if (idle && n !== 'dummy' && n !== 'tturret') by = 1 + Math.sin(t * 3.2) * 0.035;
+    if (n === 'moth') rot = Math.sin(t * 7) * 0.08 + Math.max(-0.35, Math.min(0.35, this.vx / 500)) * f;
+    else if (n === 'charger' && this.st === 'charge') rot = Math.sin(t * 40) * 0.05 - 0.05 * f;
+    else if (n === 'knight') rot = this.st === 'tele' ? -tele * 0.14 * f : this.st === 'swing' ? 0.14 * f : 0;
+    else if (n === 'hopper' && !this.onGround) rot = Math.max(-0.3, Math.min(0.3, this.vy / 900)) * -f;
+    else if (n === 'puffcap') { bx = by = 1 + tele * 0.25; }
+    else if (n === 'dummy' && this.flash > 0) rot = Math.sin(t * 30) * this.flash * 2;
+    g.rotate(rot); g.scale(st * bx, sq * by);
+    const flip = f < 0;
+    if (!lo) { const ink = tinted(n, '#0c0a14'); for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) spr(g, n, dx * 0.9, dy * 0.9, H, 0.5, 1, flip, ink); }
+    spr(g, n, 0, 0, H, 0.5, 1, flip);
+    if (hot) { g.globalAlpha = 0.25 + tele * 0.35; g.globalCompositeOperation = 'lighter'; spr(g, n, 0, 0, H, 0.5, 1, flip, tinted(n, '#ff3040')); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; }
+    if (this.flash > 0) { g.globalAlpha = Math.min(1, this.flash * 7); spr(g, n, 0, 0, H, 0.5, 1, flip, tinted(n, '#ffffff')); g.globalAlpha = 1; }
+    if (this.shield && n === 'knight' && this.shieldFlash) { g.globalAlpha = Math.min(1, this.shieldFlash * 5); drawGlow(g, 8 * f, -H * 0.45, 14, '#bfefff', 1); g.globalAlpha = 1; }
+    g.restore();
+  }
   draw(g, W) {
     const X = this.cx, Y = this.y + this.h, t = this.anim;
+    const tele = this.tele; const painted = has(this.type); if (painted) this.drawPainted(g, W);
+    if (!painted) {
     g.save(); g.translate(X, Y);
     
     const sq = this.sq, stretch = 1 / Math.sqrt(sq);
     g.scale(this.face * stretch, sq);
     g.lineJoin = 'round'; g.lineWidth = 2.2; g.strokeStyle = '#0c0a14';
-    const tele = this.tele, eyeC = tele > 0 ? '#ff4a5a' : PAL.eye;
+    const eyeC = tele > 0 ? '#ff4a5a' : PAL.eye;
     const eye = (x, y, r) => { g.fillStyle = eyeC; g.beginPath(); g.ellipse(x, y, r, r * 1.15, 0, 0, 7); g.fill(); g.fillStyle = '#1a1022'; g.beginPath(); g.arc(x + r * 0.3, y, r * 0.45, 0, 7); g.fill(); g.fillStyle = '#fff'; g.fillRect(x + r * 0.1, y - r * 0.6, r * 0.35, r * 0.35); };
     const ink = (path) => { g.fillStyle = PAL.enemy; path(); g.fill(); g.stroke(); };
     if (this.type === 'hopper') {
@@ -171,7 +200,8 @@ export class Enemy {
       g.rotate(wob); g.fillStyle = '#8a6a42'; g.fillRect(-2, -10, 4, 10); g.fillStyle = '#d9c08a'; g.beginPath(); g.ellipse(0, -22, 11, 14, 0, 0, 7); g.fill(); g.stroke();
       g.strokeStyle = '#a0402a'; g.lineWidth = 2; g.beginPath(); g.arc(0, -22, 6, 0, 7); g.stroke(); g.beginPath(); g.arc(0, -22, 1.5, 0, 7); g.stroke();
     }
-    g.restore(); if (this.flash > 0) drawGlow(g, X, this.cy, Math.max(this.w, this.h) * 0.9, '#ffffff', this.flash * 5);
+    g.restore(); }
+    if (this.flash > 0) drawGlow(g, X, this.cy, Math.max(this.w, this.h) * 0.9, '#ffffff', this.flash * (painted ? 3 : 5));
     if (tele > 0) this.drawBang(g, X, this.y - 16 - (this.type === 'knight' ? 10 : 0), tele);
     if (this.stun > 0 && this.type !== 'dummy') { for (let i = 0; i < 3; i++) { const a = t * 5 + i * 2.1; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(X + Math.cos(a) * 12, this.y - 6 + Math.sin(a) * 4, 2.4, 0, 7); g.fill(); } }
     if (this.hp < this.maxHp && this.maxHp < 1e8) { const w = Math.max(24, this.w + 6); g.fillStyle = 'rgba(10,8,20,0.7)'; g.fillRect(X - w / 2, this.y - 9, w, 4); g.fillStyle = '#ff7aa0'; g.fillRect(X - w / 2, this.y - 9, w * this.hp / this.maxHp, 4); }

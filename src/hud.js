@@ -1,12 +1,42 @@
 // Minimal HUD: health, flasks, glimmers, weapon, minimap (runs), boss bar, countdown.
+import { has, spr, tinted } from './gfx.js';
 import { drawIcon, drawGlow, PAL } from './art.js';
 import { input } from './input.js';
 import { save } from './save.js';
 import { WEAPONS, GADGETS } from './weapons.js';
 import { CW, CH } from './level.js';
+function badge(g, x, y, r, s) { g.fillStyle = 'rgba(12,10,20,0.72)'; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.strokeStyle = '#c99a4a'; g.lineWidth = 1.6 * s; g.stroke(); g.strokeStyle = 'rgba(255,230,170,0.25)'; g.lineWidth = 1 * s; g.beginPath(); g.arc(x, y, r - 2.5 * s, 3.6, 5.6); g.stroke(); }
+function drawPaintedTop(g, W, P, x, y, s, t) {
+  const n = Math.max(1, Math.round(P.maxHp / 20)), per = P.maxHp / n, hp = Math.max(0, P.hp), L = 22 * s, gap = 17 * s, x0 = x + 26 * s, cy = y + 16 * s;
+  W._hpShow = W._hpShow === undefined ? hp : W._hpShow + (hp - W._hpShow) * 0.08;
+  // backing plate + vine stem
+  g.fillStyle = 'rgba(10,8,18,0.5)'; g.beginPath(); g.roundRect(x - 4 * s, y - 2 * s, 34 * s + n * gap, 34 * s, 14 * s); g.fill();
+  g.strokeStyle = '#1a1208'; g.lineWidth = 4 * s; g.lineCap = 'round'; g.beginPath(); g.moveTo(x + 8 * s, cy + 6 * s); for (let i = 0; i <= n; i++) g.quadraticCurveTo(x0 + (i - 0.5) * gap, cy + (i % 2 ? 9 : 3) * s, x0 + i * gap, cy + 6 * s); g.stroke();
+  g.strokeStyle = '#4e7a2a'; g.lineWidth = 2.2 * s; g.stroke();
+  const low = hp / P.maxHp < 0.3, pulse = low ? 1 + Math.sin(t * 9) * 0.08 : 1;
+  for (let i = 0; i < n; i++) { const lx = x0 + i * gap, fr = Math.max(0, Math.min(1, (hp - i * per) / per)), ghost = Math.max(0, Math.min(1, (W._hpShow - i * per) / per));
+    g.save(); g.translate(lx, cy + 6 * s); g.rotate(-0.35 + (i % 2) * 0.2 + Math.sin(t * 1.8 + i) * 0.04); const sz = L * (fr > 0 ? pulse : 0.9);
+    spr(g, 'leafdry', 0, 0, sz, 0.5, 0.95);
+    if (ghost > fr) { g.globalAlpha = 0.5; g.save(); g.beginPath(); g.rect(-sz, -sz * (fr + (ghost - fr)), sz * 2, sz * (ghost)); g.clip(); spr(g, 'leaf', 0, 0, sz, 0.5, 0.95, false, tinted('leaf', '#ffffff')); g.restore(); g.globalAlpha = 1; }
+    if (fr > 0) { g.save(); g.beginPath(); g.rect(-sz, -sz * fr * 0.95 - 0.5, sz * 2, sz * fr + 1); g.clip(); spr(g, 'leaf', 0, 0, sz, 0.5, 0.95); if (low) { g.globalCompositeOperation = 'source-atop'; g.globalAlpha = 0.25 + Math.sin(t * 9) * 0.15; spr(g, 'leaf', 0, 0, sz, 0.5, 0.95, false, tinted('leaf', '#ff3a4a')); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; } g.restore(); }
+    g.restore(); }
+  // dew drop "heart" at the root of the vine
+  drawGlow(g, x + 9 * s, cy + 4 * s, 16 * s, low ? '#ff6a8a' : '#9ff6ff', 0.45); spr(g, 'dew', x + 9 * s, cy + 14 * s, 20 * s * pulse, 0.5, 1);
+  g.font = `800 ${9 * s}px system-ui,sans-serif`; g.textAlign = 'left'; g.lineWidth = 3 * s; g.strokeStyle = 'rgba(10,8,18,0.85)'; const txt = Math.ceil(hp) + '/' + P.maxHp; g.strokeText(txt, x0 + n * gap - 4 * s, cy + 18 * s); g.fillStyle = low ? '#ffb0bc' : '#e8ffd8'; g.fillText(txt, x0 + n * gap - 4 * s, cy + 18 * s);
+  // flasks, glimmers, weapon, gadgets
+  const yy = y + 46 * s;
+  for (let i = 0; i < P.maxFlasks; i++) { const full = i < P.flasks, fx = x + 10 * s + i * 18 * s; if (full) { drawGlow(g, fx, yy, 10 * s, '#ff8aa0', 0.35); spr(g, 'flask', fx, yy + 9 * s, 19 * s, 0.5, 1); } else { g.globalAlpha = 0.55; spr(g, 'flask', fx, yy + 9 * s, 19 * s, 0.5, 1, false, tinted('flask', '#2a2436')); g.globalAlpha = 1; } }
+  const gx = x + 16 * s + P.maxFlasks * 18 * s; drawGlow(g, gx, yy, 12 * s, PAL.glimmer, 0.5); spr(g, 'glim', gx, yy + 8 * s, 16 * s, 0.5, 1);
+  const gl = W.mode === 'hub' || W.mode === 'tutorial' ? save.progress.glimmers : W.runGlim; W._gl = W._gl === undefined ? gl : W._gl + Math.sign(gl - W._gl) * Math.max(1, Math.abs(gl - W._gl) * 0.15) * (Math.abs(gl - W._gl) < 1 ? 0 : 1);
+  g.font = `900 ${13 * s}px system-ui,sans-serif`; g.textAlign = 'left'; g.lineWidth = 3 * s; g.strokeStyle = 'rgba(10,8,18,0.85)'; g.strokeText(String(Math.round(W._gl)), gx + 10 * s, yy + 5 * s); g.fillStyle = PAL.glimmer; g.fillText(String(Math.round(W._gl)), gx + 10 * s, yy + 5 * s);
+  const wpn = WEAPONS[P.weapon]; const wx = gx + 54 * s; badge(g, wx, yy, 12 * s, s); g.save(); g.translate(wx, yy); g.rotate(-0.78); spr(g, 'w_' + P.weapon, 0, 0, P.weapon === 'bow' ? 18 * s : P.weapon === 'hammer' ? 13 * s : 7.5 * s, 0.5, 0.5); g.restore();
+  if (!(input.touchActive || input.forceTouch)) P.gadgets.forEach((gd, i) => { const cx = wx + (28 + i * 26) * s; badge(g, cx, yy, 11 * s, s); if (gd === 'bomb' && has('bomb')) spr(g, 'bomb', cx, yy + 7 * s, 15 * s, 0.5, 1); else drawIcon(g, GADGETS[gd].icon, cx, yy, 14 * s, '#fff'); const cd = P.gcd[i] / GADGETS[gd].cd; if (cd > 0) { g.fillStyle = 'rgba(10,8,18,0.6)'; g.beginPath(); g.moveTo(cx, yy); g.arc(cx, yy, 11 * s, -Math.PI / 2, -Math.PI / 2 + cd * Math.PI * 2); g.fill(); } });
+}
 export function drawHUD(g, W, w, h, s) {
   const P = W.player; const t = W.t; g.save();
   const x = 14 * s, y = 12 * s;
+  if (has('leaf')) drawPaintedTop(g, W, P, x, y, s, t);
+  else {
   // health bar
   const bw = 150 * s, bh = 14 * s; const frac = Math.max(0, P.hp / P.maxHp);
   g.fillStyle = 'rgba(14,12,24,0.7)'; g.beginPath(); g.roundRect(x + 14 * s, y + 3 * s, bw + 6 * s, bh + 6 * s, 8 * s); g.fill();
@@ -27,6 +57,7 @@ export function drawHUD(g, W, w, h, s) {
   const wpn = WEAPONS[P.weapon]; const wx = gx + 52 * s; g.fillStyle = 'rgba(14,12,24,0.6)'; g.beginPath(); g.arc(wx, yy, 11 * s, 0, 7); g.fill(); drawIcon(g, wpn.icon, wx, yy, 15 * s, wpn.color);
   if (!(input.touchActive || input.forceTouch)) { // desktop: gadget icons with cooldown
     P.gadgets.forEach((gd, i) => { const cx = wx + (26 + i * 24) * s; g.fillStyle = 'rgba(14,12,24,0.6)'; g.beginPath(); g.arc(cx, yy, 11 * s, 0, 7); g.fill(); drawIcon(g, GADGETS[gd].icon, cx, yy, 14 * s, '#fff'); const cd = P.gcd[i] / GADGETS[gd].cd; if (cd > 0) { g.fillStyle = 'rgba(0,0,0,0.6)'; g.beginPath(); g.moveTo(cx, yy); g.arc(cx, yy, 11 * s, -Math.PI / 2, -Math.PI / 2 + cd * Math.PI * 2); g.fill(); } });
+  }
   }
   // minimap (runs)
   if (W.mode === 'run' && W.cells.length) {

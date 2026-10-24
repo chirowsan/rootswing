@@ -7,3 +7,7 @@
 - 2026-10-23 18:24 PDT step6: 24/24 tests pass (incl. victory card); signed release/Rootswing.apk + .aab built via mobile/build-android.sh
 - 2026-10-23 18:26 PDT step7: README/LICENSE/.gitignore; public repo chirowsan/rootswing pushed; gh-pages deployed from dist/
 - 2026-10-23 18:31 PDT step8: touch controls on phones from start; Pages live verified (200, 0 console errors); release v1.0.0 with APK/AAB/source zip
+- 2026-10-23 19:05 PDT v1.1 step1: before shots (shots/before, 10 scenes, 0 page errors) + critique in docs/ART.md
+- 2026-10-23 19:05 PDT v1.1 step2-3: docs/ART.md style guide; 25 GenerateImage assets in art/src; tools/key.py + tools/build-art.py -> assets/gfx (WebP parallax, seamless textures, 2048px sprite atlas, ~2 MB)
+- 2026-10-23 19:17 PDT v1.1: painted HUD, touch buttons restyle, additive sparks/smears, painted title key art; shots/wip2 0 page errors; compare sheets shots/compare-1/2.png
+- 2026-10-23 19:20 PDT v1.1: low-mode anchor gating, lowshot ok (0 errors), prof v1.0 draw 32.2ms vs v1.1 24.3ms (swiftshader CPU, 915x412), 1.1.0/versionCode 2 signed APK 5,717,446 B AAB 5,531,717 B same cert; tests 24/24

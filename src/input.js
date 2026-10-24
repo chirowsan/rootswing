@@ -148,9 +148,11 @@ export function drawTouch(g, t, gadgetIcons, cooldowns = {}, flasks = 0) {
   const a = save.settings.ctrlOpacity;
   g.save(); g.lineWidth = 2.5 * L.s;
   const ring = (x, y, r, active, hl) => {
-    g.globalAlpha = a * (active ? 1.6 : 1);
-    g.fillStyle = active ? 'rgba(255,240,200,0.32)' : 'rgba(20,24,40,0.42)'; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
-    g.strokeStyle = 'rgba(255,255,255,0.75)'; g.stroke();
+    g.globalAlpha = Math.min(1, a * (active ? 1.6 : 1.1));
+    const gr = g.createRadialGradient(x, y - r * 0.35, r * 0.1, x, y, r); gr.addColorStop(0, active ? 'rgba(255,226,160,0.45)' : 'rgba(46,52,60,0.42)'); gr.addColorStop(1, active ? 'rgba(120,80,30,0.5)' : 'rgba(10,10,20,0.55)');
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(12,10,20,0.6)'; g.lineWidth = 4.5 * L.s; g.stroke(); g.strokeStyle = active ? 'rgba(255,230,160,0.95)' : 'rgba(217,178,106,0.85)'; g.lineWidth = 2 * L.s; g.stroke();
+    g.strokeStyle = 'rgba(160,230,140,0.35)'; g.lineWidth = 1.5 * L.s; g.beginPath(); g.arc(x, y, r - 3.5 * L.s, 3.7, 5.7); g.stroke(); g.lineWidth = 2.5 * L.s;
     if (hl) { const p = (t * 2.2) % 1; g.globalAlpha = 1 - p; g.strokeStyle = '#ffe27a'; g.lineWidth = 4 * L.s; g.beginPath(); g.arc(x, y, r * (1 + p * 0.6), 0, 7); g.stroke(); g.lineWidth = 2.5 * L.s; g.globalAlpha = 1; g.strokeStyle = '#ffe27a'; g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke(); }
   };
   // left side
@@ -161,7 +163,7 @@ export function drawTouch(g, t, gadgetIcons, cooldowns = {}, flasks = 0) {
     const st = input.stick; const bx = st.active ? st.bx : L.stickHome.x, by = st.active ? st.by : L.stickHome.y;
     ring(bx, by, L.stickR, false, input.highlight.move);
     const kx = st.active ? clamp(st.x - bx, -L.stickR, L.stickR) : 0, ky = st.active ? clamp(st.y - by, -L.stickR, L.stickR) : 0;
-    g.globalAlpha = a * 1.7; g.fillStyle = 'rgba(255,255,255,0.55)'; g.beginPath(); g.arc(bx + kx, by + ky, L.stickR * 0.42, 0, 7); g.fill();
+    g.globalAlpha = Math.min(1, a * 1.7); g.fillStyle = 'rgba(232,214,170,0.6)'; g.beginPath(); g.arc(bx + kx, by + ky, L.stickR * 0.42, 0, 7); g.fill(); g.strokeStyle = 'rgba(12,10,20,0.6)'; g.lineWidth = 2 * L.s; g.stroke();
   }
   // right side buttons
   for (const b of ['jump', 'attack', 'dash', 'hook', 'parry', 'skill1', 'skill2', 'flask', 'pause']) {
@@ -169,7 +171,7 @@ export function drawTouch(g, t, gadgetIcons, cooldowns = {}, flasks = 0) {
     const p = L[b]; ring(p.x, p.y, p.r, input.held[b], input.highlight[b]);
     g.globalAlpha = Math.min(1, a * 2.1);
     const icon = b === 'skill1' ? gadgetIcons[0] : b === 'skill2' ? gadgetIcons[1] : b;
-    drawIcon(g, icon, p.x, p.y, p.r * 0.95, '#fff');
+    drawIcon(g, icon, p.x, p.y, p.r * 0.95, { attack: '#ffd2b0', jump: '#d8ffc8', hook: '#ffe6a0', dash: '#c8fff4', parry: '#d8f0ff' }[b] || '#fff4dc');
     const cd = cooldowns[b]; if (cd > 0) { g.globalAlpha = 0.6; g.fillStyle = '#000'; g.beginPath(); g.moveTo(p.x, p.y); g.arc(p.x, p.y, p.r, -Math.PI / 2, -Math.PI / 2 + cd * Math.PI * 2); g.fill(); }
     if (b === 'flask') { g.globalAlpha = 1; g.fillStyle = '#fff'; g.font = `bold ${13 * L.s}px system-ui,sans-serif`; g.textAlign = 'center'; g.fillText(String(flasks), p.x + p.r * 0.85, p.y + p.r * 0.95); }
   }

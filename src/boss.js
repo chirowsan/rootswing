@@ -2,10 +2,18 @@
 import { TILE, clamp, sign, approach, rand, lerp } from './util.js';
 import { moveBody, groundBelow } from './physics.js';
 import { PAL, drawGlow } from './art.js';
+import { has, spr, tinted } from './gfx.js';
 import { sfx } from './audio.js';
 import { diff } from './save.js';
 import { ENEMY_INFO } from './enemies.js';
 
+const INK = [[-1.2, 0], [1.2, 0], [0, -1.2], [0, 1.2]];
+function paintSprite(g, n, x, y, H, flip, flash, hotK) { // ink outline + sprite + red telegraph tint + white hurt flash
+  const ink = tinted(n, '#0c0a14'); for (const [dx, dy] of INK) spr(g, n, x + dx, y + dy, H, 0.5, 1, flip, ink);
+  spr(g, n, x, y, H, 0.5, 1, flip);
+  if (hotK > 0) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, hotK); spr(g, n, x, y, H, 0.5, 1, flip, tinted(n, '#ff3040')); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; }
+  if (flash > 0) { g.globalAlpha = Math.min(1, flash * 7); spr(g, n, x, y, H, 0.5, 1, flip, tinted(n, '#ffffff')); g.globalAlpha = 1; }
+}
 class BigFoe {
   constructor(x, y, w, h, hp) { this.w = w; this.h = h; this.x = x - w / 2; this.y = y - h; this.vx = 0; this.vy = 0; this.maxHp = this.hp = hp; this.face = -1; this.st = 'sleep'; this.t = 0; this.cd = 1; this.stun = 0; this.flash = 0; this.dead = false; this.light = false; this.boss = true; this.anim = 0; this.tele = 0; this.sq = 1; this.onGround = false; }
   get cx() { return this.x + this.w / 2; } get cy() { return this.y + this.h / 2; }
@@ -34,7 +42,19 @@ export class Warden extends BigFoe {
     else if (this.st === 'summon') { this.vx = 0; this.tele = Math.min(1, this.t / 0.6); if (this.t > 0.8) { for (const s of [-1, 1]) W.spawnEnemy('hopper', this.cx + s * 120, this.y + this.h - 30); sfx('roar'); W.fx.shake(0.2); this.go('rest'); } }
     this.fall(W, dt);
   }
+  drawPainted(g) {
+    const X = this.cx, Y = this.y + this.h, t = this.anim, tele = this.tele || 0, f = this.face, hot = this.st === 'bash' || tele > 0;
+    drawGlow(g, X, this.cy, 60, '#07060e', 0.4); if (hot) drawGlow(g, X + f * 20, Y - 30, 46 + tele * 16, '#ff2a3a', 0.3 + tele * 0.35);
+    g.save(); g.translate(X + (tele > 0 ? Math.sin(t * 50) * 1.4 : 0), Y + 1); const lean = this.st === 'bash' ? 0.12 * f : this.st === 'bashTele' ? -tele * 0.1 * f : this.st === 'sleep' ? 0.05 : 0;
+    g.rotate(lean); g.scale(1 / Math.sqrt(this.sq), this.sq * (this.st === 'idle' ? 1 + Math.sin(t * 2.5) * 0.02 : 1));
+    paintSprite(g, 'warden', 0, 0, 66, f < 0, this.flash, hot ? 0.08 + tele * 0.17 : 0);
+    g.restore();
+    if (this.st !== 'sleep') drawGlow(g, X + f * 9, Y - 50, 9, tele > 0 ? '#ff4a5a' : '#ffb13b', 0.8);
+    if (this.flash > 0) drawGlow(g, X, this.cy, 50, '#ffffff', this.flash * 3);
+    if (this.stun > 0) for (let i = 0; i < 3; i++) { const a = t * 5 + i * 2.1; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(X + Math.cos(a) * 20, this.y - 26 + Math.sin(a) * 5, 3, 0, 7); g.fill(); }
+  }
   draw(g) {
+    if (has('warden')) return this.drawPainted(g);
     const X = this.cx, Y = this.y + this.h, t = this.anim, tele = this.tele;
     g.save(); g.translate(X, Y); g.scale(this.face / Math.sqrt(this.sq), this.sq); g.lineWidth = 3; g.strokeStyle = '#0c0a14'; g.lineJoin = 'round';
     for (const s of [-1, 1]) { g.fillStyle = '#3a2f45'; g.fillRect(s * 12 - 6, -12, 12, 12); }
@@ -94,7 +114,28 @@ export class Boss extends BigFoe {
     W.addMarker({ kind: 'circle', x: tx, y: floorY - 2, r: 26, life: T });
     W.spawnEnemyShot(sx, sy, vx, vy, { dmg: 12, g, r: 9, ember: true, name: 'Ember', tip: 'Embers land on the red circles. Step out of them!', life: T + 0.05, burst: 30 });
   }
+  drawPainted(g) {
+    const X = this.cx, Y = this.y + this.h, t = this.anim, tele = this.tele || 0, ph = this.phase, f = this.face;
+    const hot = ph === 3 ? '#ff5a2a' : ph === 2 ? '#ff8a2a' : '#ffb13b', H = 120;
+    const glow = clamp(0.5 + Math.sin(t * 6) * 0.15 + tele * 0.5 + (this.beamT > 0 ? 0.6 : 0), 0, 1.4);
+    drawGlow(g, X, Y - 50, 110, hot, 0.18 + glow * 0.18);
+    if (tele > 0) drawGlow(g, X, Y - 60, 90 + tele * 30, '#ff2a3a', 0.3 + tele * 0.4);
+    let armUp = this.st === 'slamTele' ? tele : 0; if (this.st === 'slam') armUp = -0.3;
+    g.save(); g.translate(X + (tele > 0 ? Math.sin(t * 45) * 1.5 : 0), Y + 1); g.scale(f / Math.sqrt(this.sq), this.sq * (1 + Math.sin(t * 2) * 0.012));
+    const arm = (s, back) => { g.save(); g.translate(s * 30, -H * 0.66); g.rotate(s * 0.25 - armUp * 2.4 * (s > 0 ? 1 : 0.6) + Math.sin(t * 2 + s) * 0.05); if (back) g.filter = 'brightness(0.6)'; paintSprite(g, 'fist', 0, 50, 52, false, this.flash, tele * 0.4); g.filter = 'none'; g.restore(); };
+    arm(-1, true);
+    paintSprite(g, 'boss', 0, 0, H, false, this.flash, tele * 0.35);
+    // grate fire + eyes (additive, phase-coloured)
+    g.globalCompositeOperation = 'lighter'; drawGlow(g, 0, -H * 0.36, 26 + glow * 10, hot, 0.55 * glow); drawGlow(g, 0, -H * 0.36, 12, '#fff0c0', 0.4 * glow);
+    for (const ex of [-9, 9]) drawGlow(g, ex, -H * 0.6, 8, tele > 0 ? '#ff3a4a' : '#ffd060', 0.9);
+    g.globalCompositeOperation = 'source-over';
+    arm(1, false);
+    g.restore();
+    if (this.flash > 0) drawGlow(g, X, this.cy, 80, '#ffffff', this.flash * 3);
+    if (this.stun > 0) for (let i = 0; i < 4; i++) { const a = t * 5 + i * 1.6; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(X + Math.cos(a) * 30, this.y - 20 + Math.sin(a) * 6, 4, 0, 7); g.fill(); }
+  }
   draw(g) {
+    if (has('boss')) return this.drawPainted(g);
     const X = this.cx, Y = this.y + this.h, t = this.anim, tele = this.tele, ph = this.phase;
     g.save(); g.translate(X, Y); g.scale(this.face / Math.sqrt(this.sq), this.sq); g.lineWidth = 3.2; g.strokeStyle = '#0c0a14'; g.lineJoin = 'round';
     const hot = ph === 3 ? '#ff6a3a' : ph === 2 ? '#ff9a3a' : '#ffb13b';

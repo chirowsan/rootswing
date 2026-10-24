@@ -8,6 +8,8 @@ import { drawHUD } from './hud.js';
 import { GADGETS } from './weapons.js';
 import * as UI from './ui.js';
 import { TILE } from './util.js';
+import { loadGfx, G } from './gfx.js';
+import { drawGlow } from './art.js';
 const STEP = 1 / 60;
 const canvas = document.getElementById('c'); const g = canvas.getContext('2d', { alpha: false });
 const game = {
@@ -97,7 +99,23 @@ function render(dt) {
   if (!UI.isOpen()) { const P = W.player; drawTouch(g, W.t, P.gadgets.map((k) => GADGETS[k].icon), { skill1: P.gcd[0] / GADGETS[P.gadgets[0]].cd, skill2: P.gadgets[1] ? P.gcd[1] / GADGETS[P.gadgets[1]].cd : 0, dash: P.dashCd > 0 ? P.dashCd / 0.38 : 0 }, P.flasks); game.tut && game.tut.drawScreen(g); }
 }
 let titleWorld = null;
+let titleMotes = null;
+function paintedTitle(dt) { // v1.1: painted key art with a slow drift, sun bloom and drifting pollen
+  const img = G.img.title_key, cw = canvas.width, ch = canvas.height, lo = game.lowPerf || save.settings.quality === 'low';
+  const tt = (game.titleT = (game.titleT || 0) + dt), z = 1.06 + (lo ? 0 : Math.sin(tt * 0.07) * 0.025), sc = Math.max(cw / img.width, ch / img.height) * z;
+  const w = img.width * sc, h = img.height * sc, x = (cw - w) / 2 + (lo ? 0 : Math.sin(tt * 0.05) * cw * 0.01) - cw * 0.03, y = (ch - h) / 2 + (lo ? 0 : Math.cos(tt * 0.06) * ch * 0.006);
+  g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(img, x, y, w, h);
+  const lg = g.createLinearGradient(0, 0, cw * 0.62, 0); lg.addColorStop(0, 'rgba(8,10,22,0.78)'); lg.addColorStop(0.55, 'rgba(8,10,22,0.35)'); lg.addColorStop(1, 'rgba(8,10,22,0)'); g.fillStyle = lg; g.fillRect(0, 0, cw, ch);
+  const vg = g.createRadialGradient(cw / 2, ch / 2, ch * 0.4, cw / 2, ch / 2, Math.max(cw, ch) * 0.75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(6,4,14,0.55)'); g.fillStyle = vg; g.fillRect(0, 0, cw, ch);
+  if (lo) return;
+  g.globalCompositeOperation = 'lighter'; drawGlow(g, x + w * 0.28, y + h * 0.6, ch * 0.35, '#ffc070', 0.22 + Math.sin(tt * 0.8) * 0.04);
+  if (!titleMotes) titleMotes = Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random(), s: 0.6 + Math.random() * 1.6, v: 0.01 + Math.random() * 0.03, p: Math.random() * 7, c: Math.random() < 0.3 ? '#7ff6e0' : '#ffe9a8' }));
+  for (const m of titleMotes) { m.y -= m.v * dt; m.x += Math.sin(tt * 0.6 + m.p) * 0.0006; if (m.y < -0.02) { m.y = 1.02; m.x = Math.random(); }
+    const a = 0.35 + Math.sin(tt * 2 + m.p) * 0.3, r = m.s * ch / 412; g.globalAlpha = Math.max(0, a); drawGlow(g, m.x * cw, m.y * ch, r * 5, m.c, 0.6); g.fillStyle = m.c; g.fillRect(m.x * cw - r / 2, m.y * ch - r / 2, r, r); }
+  g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+}
 function titleScene(dt) { // the title screen shows a live, idle hub behind the menu
+  if (G.ready && G.img.title_key) return paintedTitle(dt);
   if (!titleWorld) { titleWorld = new World(game, 'hub', {}); titleWorld.countdown = 0; titleWorld.fade = 0; }
   titleWorld.viewW = VIEW_H * game.cssW / game.cssH; titleWorld.t += dt; titleWorld.fx.update(dt); titleWorld.player.t += dt;
   titleWorld.cam.x = titleWorld.player.cx - titleWorld.viewW / 2 + Math.sin(titleWorld.t * 0.1) * 80; titleWorld.cam.y = titleWorld.player.cy - VIEW_H * 0.66;
@@ -118,10 +136,10 @@ addEventListener('pointerdown', firstGesture, { once: true }); addEventListener(
 // Android back button -> pause / close menu
 document.addEventListener('backbutton', () => { if (UI.isOpen()) UI.menuNav(0, false, true); else game.pause(); });
 // --------- boot ---------
-loadSave(); initInput(canvas); resize(); UI.showTitle(); requestAnimationFrame(frame);
+loadSave(); initInput(canvas); resize(); UI.showTitle(); requestAnimationFrame(frame); loadGfx('gfx/');
 // --------- test API (used by automated tests; harmless for players) ---------
 window.__RS = {
-  game, save, input, TILE, writeSave, loadSave, continueRun: () => document.querySelector('[data-act="continueRun"]').click(), layout: () => input.layout,
+  game, save, input, TILE, gfx: G, writeSave, loadSave, continueRun: () => document.querySelector('[data-act="continueRun"]').click(), layout: () => input.layout,
   get W() { return game.world; },
   start(mode, opts) { initAudio(); game.go(mode, opts); },
   press(b) { simButton(b, true); }, release(b) { simButton(b, false); }, axes(x, y) { simAxes(x, y); },
