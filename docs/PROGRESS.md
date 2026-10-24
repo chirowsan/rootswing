@@ -16,3 +16,4 @@
 - 2026-10-23 19:31 PDT: v1.2 camera zoom (viewH 250/290), hero rig v1.2 (K=1.22, hood+spring sprout, back arm, expressions, knee-lift run), cyan anchors, depth fog, painted victory/death screens; full shots running
 - 2026-10-23 19:38 PDT: v1.2 shots in shots/v12, sheets shots/compare-v12-{1,2,3}.png; tests 24/24; draw 25.6 ms vs v1.1 24.5 ms (same session, swiftshader); bumped to 1.2.0 / versionCode 3; Android build started
 - 2026-10-23 19:41 PDT: signed APK/AAB 1.2.0 (versionCode 3, cert 6e59e14a…d8de matches); committing + tagging v1.2.0
+- 2026-10-23 19:43 PDT: v1.2.0 shipped — pushed main + tag, Pages deployed (live gfx ready, 0 errors), release https://github.com/chirowsan/rootswing/releases/tag/v1.2.0
