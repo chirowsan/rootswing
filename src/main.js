@@ -13,35 +13,47 @@ import { trapPhase, TRAP_TIMING, TRAP_DMG } from './traps.js';
 import { loadGfx, G } from './gfx.js';
 import { drawGlow } from './art.js';
 import { Enemy } from './enemies.js';
+import { migrateSave, missions, dayKey, dailySeed, dailyMod, dailyScore, recordDaily, DAILY_MODS } from './missions.js';
+import { mEvent, drawMissionHUD } from './missionsWorld.js';
 import { Warden, TideGolem, Boss, DrownedBloom } from './boss.js';
 const STEP = 1 / 60;
 const canvas = document.getElementById('c'); const g = canvas.getContext('2d', { alpha: false });
 const game = {
   state: 'title', world: null, tut: null, bossShown: null, paused: false, dpr: 1, cssW: 0, cssH: 0, perf: { frames: 0, slow: 0, ms: [] }, runStart: 0, god: false,
   bossBar(e) { this.bossShown = e; },
-  saveRunState(W, cellIndex) { save.run = { seed: W.seed, stage: W.stage || 0, cellIndex, hp: W.player.hp, flasks: W.player.flasks, weapon: W.player.weapon, glim: W.runGlim, cleared: [...W.cleared], visited: [...W.visited], opened: [...W.opened], seeds: [...(W.seedsGot || [])], treasures: this.treasures || 0, boss: false, kills: W.player.stats.kills, t: this.runTime() }; this.runStart = performance.now(); writeSave(); },
+  saveRunState(W, cellIndex) { save.run = { seed: W.seed, stage: W.stage || 0, cellIndex, hp: W.player.hp, flasks: W.player.flasks, weapon: W.player.weapon, glim: W.runGlim, cleared: [...W.cleared], visited: [...W.visited], opened: [...W.opened], seeds: [...(W.seedsGot || [])], treasures: this.treasures || 0, boss: false, kills: W.player.stats.kills, t: this.runTime(), daily: this.daily || null, af: !!this.areaFlask }; this.runStart = performance.now(); writeSave(); },
   runTime() { return (save.run && save.run.t || 0) + (performance.now() - this.runStart) / 1000; },
-  openStation(n) { this.paused = true; clearAll(); if (n === 1) UI.showShop(); else if (n === 2) UI.showLoadout(); else UI.showJournal(); UI.ui.back = 'game'; },
+  openStation(n) { this.paused = true; clearAll(); if (n === 1) UI.showShop(); else if (n === 2) UI.showLoadout(); else if (n === 4) UI.showBoard(); else UI.showJournal(); UI.ui.back = 'game'; },
   useDoor(W) {
     if (W.mode === 'tutorial') { save.progress.tutorialDone = true; writeSave(); this.go('hub'); }
-    else if (W.mode === 'hub') { this.treasures = 0; save.progress.runs++; save.run = null; writeSave(); this.runStart = performance.now(); this.go('run', {}); }
-    else if (W.mode === 'run') { const P = W.player; save.run = { seed: W.seed, stage: W.stage || 0, hp: P.hp, flasks: P.flasks, weapon: P.weapon, glim: W.runGlim, boss: true, kills: P.stats.kills, rooms: W.visited.size, treasures: this.treasures || 0, t: this.runTime() }; this.runStart = performance.now(); save.progress.bossSeen = true; writeSave(); this.go('boss', { seed: W.seed, stage: W.stage || 0, player: { hp: P.hp, flasks: P.flasks, weapon: P.weapon }, glim: W.runGlim, kills: P.stats.kills }); }
+    else if (W.mode === 'hub') { this.daily = null; this.areaFlask = false; this.treasures = 0; save.progress.runs++; save.run = null; writeSave(); this.runStart = performance.now(); this.go('run', {}); }
+    else if (W.mode === 'run') { const P = W.player; save.run = { seed: W.seed, stage: W.stage || 0, hp: P.hp, flasks: P.flasks, weapon: P.weapon, glim: W.runGlim, boss: true, kills: P.stats.kills, rooms: W.visited.size, treasures: this.treasures || 0, t: this.runTime(), daily: this.daily || null, af: !!this.areaFlask }; this.runStart = performance.now(); save.progress.bossSeen = true; writeSave(); this.go('boss', { seed: W.seed, stage: W.stage || 0, player: { hp: P.hp, flasks: P.flasks, weapon: P.weapon }, glim: W.runGlim, kills: P.stats.kills }); }
   },
   onDeath(W, info) {
     if (this.world !== W) return;
     const found = W.runGlim, kept = W.mode === 'run' || W.mode === 'boss' ? Math.round(found * diff().keep) : 0;
     save.progress.glimmers += kept; save.progress.totalGlimmers += kept; save.progress.bestDepth = Math.max(save.progress.bestDepth, W.visited.size); save.run = null; writeSave();
-    this.paused = true; UI.showDeath(info, kept, found, { rooms: (save.lastRooms || 0) + W.visited.size, kills: W.player.stats.kills });
+    const dly = this.finishDaily(W, false);
+    this.paused = true; UI.showDeath(info, kept, found, { rooms: (save.lastRooms || 0) + W.visited.size, kills: W.player.stats.kills, daily: dly });
   },
   onVictory(W) {
     if (this.world !== W) return;
     if (W.mode === 'boss' && !W.stage) { // v1.3: the Furnace opens the way down into biome 2; checkpoint between biomes
-      const P = W.player; save.progress.bossBeaten++; const t = this.runTime(); save.run = null; this.runStart = performance.now();
+      mEvent(W, 'areaDone', { flaskFree: !this.areaFlask }); this.areaFlask = false; // v1.8: each biome is an 'area' for the no-potion mission
+      const P = W.player; save.progress.bossBeaten++; const t = this.runTime(); save.run = null; this.runStart = performance.now(); this.carryRooms = W.visited.size;
       this.go('run', { seed: W.seed, stage: 1, player: { hp: P.maxHp, flasks: P.maxFlasks, weapon: P.weapon }, glim: W.runGlim, kills: P.stats.kills }); save.run.t = t; writeSave(); this.world.fx.text(this.world.player.cx, this.world.player.y - 40, 'Biome 2: Drowned Glowroots', '#bffcff', 18); return;
     }
+    mEvent(W, 'areaDone', { flaskFree: !this.areaFlask }); const dly = this.finishDaily(W, true);
     const glim = W.runGlim; save.progress.glimmers += glim; save.progress.totalGlimmers += glim; save.progress.wins++; save.progress.bossBeaten++; save.run = null; writeSave();
     const t = Math.round(this.runTime()), fmt = (t) => Math.floor(t / 60) + 'm ' + String(t % 60).padStart(2, '0') + 's', sc = scoreRun(t, this.treasures || 0); this.lastScore = sc;
-    this.paused = true; UI.showVictory(glim, { final: (W.stage || 0) >= 1, kills: W.player.stats.kills, time: fmt(t), stars: sc.stars, best: sc.best, bestTime: fmt(sc.bestTime), newVine: sc.newVine, treasures: this.treasures || 0 });
+    this.paused = true; UI.showVictory(glim, { final: (W.stage || 0) >= 1, kills: W.player.stats.kills, time: fmt(t), stars: sc.stars, best: sc.best, bestTime: fmt(sc.bestTime), newVine: sc.newVine, treasures: this.treasures || 0, daily: dly });
+  },
+  // v1.8 daily challenge: one seeded run per real day + a cosmetic/damage-only modifier; local best kept per day
+  startDaily() { const key = dayKey(), mod = dailyMod(key); this.daily = { key, seed: dailySeed(key), mod }; this.areaFlask = false; this.carryRooms = 0; this.treasures = 0; save.progress.runs++; save.run = null; writeSave(); this.runStart = performance.now(); this.go('run', { seed: this.daily.seed }); },
+  finishDaily(W, win) {
+    const d = this.daily; if (!d) return null; this.daily = null;
+    const score = dailyScore({ glim: W.runGlim, kills: W.player.stats.kills, rooms: (this.carryRooms || 0) + W.visited.size, critters: [...W.opened].filter((o) => o.startsWith('cr')).length, win });
+    const best = recordDaily(d.key, score); mEvent(W, 'dailyDone'); return { score, best: missions().daily.best, newBest: best, mod: d.mod };
   },
   go(mode, opts = {}) {
     UI.close(); this.paused = false; this.bossShown = null; clearAll(); this.state = 'play';
@@ -59,9 +71,9 @@ const game = {
 };
 UI.initUI({
   play() { initAudio(); if (!save.progress.tutorialDone) game.go('tutorial'); else game.go('hub'); },
-  continueRun() { initAudio(); const r = save.run; if (!r) return; game.runStart = performance.now(); game.treasures = r.treasures || 0; if (r.boss) game.go('boss', { seed: r.seed, stage: r.stage || 0, player: { hp: r.hp, flasks: r.flasks, weapon: r.weapon }, glim: r.glim, kills: r.kills }); else game.go('run', { seed: r.seed, stage: r.stage || 0, cellIndex: r.cellIndex, player: { hp: r.hp, flasks: r.flasks, weapon: r.weapon }, glim: r.glim, cleared: r.cleared, visited: r.visited, opened: r.opened, seeds: r.seeds, kills: r.kills }); },
+  continueRun() { initAudio(); const r = save.run; if (!r) return; game.daily = r.daily ? { ...r.daily, mod: DAILY_MODS.find((m) => m.id === r.daily.mod.id) || r.daily.mod } : null; game.areaFlask = !!r.af; game.runStart = performance.now(); game.treasures = r.treasures || 0; if (r.boss) game.go('boss', { seed: r.seed, stage: r.stage || 0, player: { hp: r.hp, flasks: r.flasks, weapon: r.weapon }, glim: r.glim, kills: r.kills }); else game.go('run', { seed: r.seed, stage: r.stage || 0, cellIndex: r.cellIndex, player: { hp: r.hp, flasks: r.flasks, weapon: r.weapon }, glim: r.glim, cleared: r.cleared, visited: r.visited, opened: r.opened, seeds: r.seeds, kills: r.kills }); },
   resume() { UI.close(); game.paused = false; clearAll(); },
-  toHub() { game.go('hub'); }, toTitle() { game.state = 'title'; game.world = null; UI.showTitle(); playSong('hub'); },
+  toHub() { game.go('hub'); }, startDaily() { initAudio(); game.startDaily(); }, toTitle() { game.state = 'title'; game.world = null; UI.showTitle(); playSong('hub'); },
   leaveRun() { const W = game.world; game.onDeath(W, { name: 'giving up', tip: 'No worries! Your kept glimmers are safe in the Seedhouse.' }); },
   skipTutorial() { save.progress.tutorialDone = true; writeSave(); game.go('hub'); },
   replayTutorial() { game.go('tutorial'); },
@@ -107,7 +119,7 @@ function render(dt, alpha = 1) {
   const rs = ch / (W.viewH || VIEW_H); const lerpS = W.lerpBegin ? W.lerpBegin(alpha) : null; W.draw(g, cw, ch, rs); W.lerpEnd && W.lerpEnd(lerpS);
   if (game.tut) { if (W.wt) g.setTransform(W.wt[0], 0, 0, W.wt[0], W.wt[1], W.wt[2]); else g.setTransform(rs, 0, 0, rs, -W.camx * rs, -W.camy * rs); game.tut.drawWorld(g); }
   const s = game.dpr * Math.max(0.8, Math.min(1.25, game.cssH / 412));
-  g.setTransform(1, 0, 0, 1, 0, 0); drawHUD(g, W, cw, ch, s);
+  g.setTransform(1, 0, 0, 1, 0, 0); if (W.daily && W.daily.mod.tint) { g.fillStyle = W.daily.mod.tint; g.fillRect(0, 0, cw, ch); } drawHUD(g, W, cw, ch, s); drawMissionHUD(g, W, cw, ch, s);
   g.setTransform(game.dpr, 0, 0, game.dpr, 0, 0);
   if (!UI.isOpen()) { const P = W.player; drawTouch(g, W.t, P.gadgets.map((k) => GADGETS[k].icon), { skill1: P.gcd[0] / GADGETS[P.gadgets[0]].cd, skill2: P.gadgets[1] ? P.gcd[1] / GADGETS[P.gadgets[1]].cd : 0, dash: P.dashCd > 0 ? P.dashCd / 0.38 : 0 }, P.flasks); game.tut && game.tut.drawScreen(g); }
 }
@@ -149,12 +161,13 @@ addEventListener('pointerdown', firstGesture, { once: true }); addEventListener(
 // Android back button -> pause / close menu
 document.addEventListener('backbutton', () => { if (UI.isOpen()) UI.menuNav(0, false, true); else game.pause(); });
 // --------- boot ---------
-loadSave(); initInput(canvas); resize(); UI.showTitle(); requestAnimationFrame(frame); loadGfx('gfx/');
+const boot = () => { loadSave(); if (migrateSave(save.progress)) writeSave(); }; // v1.8: v1.7 saves gain a missions block, nothing lost
+boot(); initInput(canvas); resize(); UI.showTitle(); requestAnimationFrame(frame); loadGfx('gfx/');
 // --------- test API (used by automated tests; harmless for players) ---------
 addEventListener('rs-pausemap', () => game.drawPauseMap());
 window.__RS = {
   foes: { Enemy, Warden, TideGolem, Boss, DrownedBloom }, trapPhase, TRAP_TIMING, TRAP_DMG,
-  game, save, input, TILE, gfx: G, writeSave, loadSave, continueRun: () => document.querySelector('[data-act="continueRun"]').click(), layout: () => input.layout,
+  game, save, input, TILE, gfx: G, writeSave, loadSave: boot, missions, continueRun: () => document.querySelector('[data-act="continueRun"]').click(), layout: () => input.layout,
   get W() { return game.world; }, supports() { return game.world ? game.world.auditSupports() : null; },
   drawMap, mapInfo, renderNow() { if (game.world) render(0); },
   start(mode, opts) { initAudio(); game.go(mode, opts); },

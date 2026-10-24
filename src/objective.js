@@ -10,6 +10,11 @@ export const VINES = [ // persistent cosmetic rewards: hook-vine colours (unlock
   { id: 'gold', stars: 1, dark: '#a07a20', light: '#ffe27a' },
   { id: 'bloom', stars: 3, dark: '#a03a6a', light: '#ffa6d8' },
   { id: 'glow', stars: 6, dark: '#2a7a8a', light: '#8ff6ff' },
+  // v1.8: earned only from Mission Board rewards (never by stars)
+  { id: 'berry', stars: 999, mission: true, dark: '#6a2a8a', light: '#d9a6ff' },
+  { id: 'frost', stars: 999, mission: true, dark: '#3a5a9a', light: '#e2f2ff' },
+  { id: 'sunset', stars: 999, mission: true, dark: '#a8402a', light: '#ffc46a' },
+  { id: 'rainbow', stars: 999, mission: true, dark: '#5a3a9a', light: '#ffffff', rainbow: true },
 ];
 export const vineColors = () => VINES.find((v) => v.id === (save.progress.vine || 'green')) || VINES[0];
 export function initSeeds(W, got) { W.seeds = []; W.seedsGot = new Set(got || []); W.gateOpenT = 0; W.seedBanner = 0; }

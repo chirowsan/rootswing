@@ -1,4 +1,6 @@
 import { vineColors } from './objective.js';
+import { capeSheet, drawHat } from './missionsWorld.js';
+import { missions } from './missions.js';
 // Sprig, the hero: movement, grappling vine, combat, drawing.
 import { TILE, clamp, approach, sign, lerp } from './util.js';
 import { moveBody, groundBelow, touchingWall, hazardAt, HERO, isPlank } from './physics.js';
@@ -53,7 +55,7 @@ export class Player {
     if (this.hookBuf > 0 && this.canCancel()) { this.atk = null; this.queued = false; this.hookBuf = 0; this.fireHook(W, mx, my); } // v1.4: hook cancels attack recovery / air attacks
     if (pressed('dash') && this.dashCd <= 0 && (this.onGround || this.airDash || this.coyote > 0)) this.startDash(W, mx);
     if (pressed('parry') && this.parryLock <= 0 && this.dashT <= 0) { this.parryT = D.parry; this.parryLock = D.parry + 0.14; this.atk = null; this.vx *= 0.3; sfx('block'); W.emit('parryTry'); }
-    if (pressed('flask') && this.flasks > 0 && this.flaskT <= 0) { if (this.hp < this.maxHp) { this.flasks--; this.flaskT = 0.45; this.healLeft = this.maxHp * 0.5; sfx('flask'); W.fx.burst(this.cx, this.cy, 20, { color: ['#9ff0ff', '#e8ffff', '#7fe0a0'], g: -120, max: 120, life: 0.8, kind: 'star' }); W.emit('flask'); } else W.fx.text(this.cx, this.y - 6, 'Full!', '#bff', 12); }
+    if (pressed('flask') && this.flasks > 0 && this.flaskT <= 0) { if (this.hp < this.maxHp) { this.flasks--; W.emit('flask'); this.flaskT = 0.45; this.healLeft = this.maxHp * 0.5; sfx('flask'); W.fx.burst(this.cx, this.cy, 20, { color: ['#9ff0ff', '#e8ffff', '#7fe0a0'], g: -120, max: 120, life: 0.8, kind: 'star' }); W.emit('flask'); } else W.fx.text(this.cx, this.y - 6, 'Full!', '#bff', 12); }
     for (let i = 0; i < 2; i++) if (pressed(i ? 'skill2' : 'skill1') && this.gadgets[i] && this.gcd[i] <= 0) { this.gcd[i] = GADGETS[this.gadgets[i]].cd; W.useGadget(this.gadgets[i], this); }
     if (pressed('attack') && this.jumpBuf > 0 && !this.atk && (this.onGround || this.coyote > 0) && this.parryLock <= 0 && this.dashT <= 0) this.doJump(W); // jump+attack on the same frame -> jump first, then an air swing
     this.updateAttack(W, dt, mx, my);
@@ -96,6 +98,7 @@ export class Player {
     const wasGround = this.onGround, prevVy = this.vy, prevVx = this.vx;
     const r = moveBody(W.map, this, dt, { drop: this.drop > 0, corner: this.vy < -120 });
     this.onGround = r.ground || (this.vy >= 0 && !!groundBelow(W.map, this) && this.drop <= 0 && this.hook.s !== 'zip');
+    if (this.onGround && !wasGround) W.emit('land');
     if (this.onGround) { this.coyote = diff().coyote; this.airDash = true; this.wallJumping = false; this.airHang = 0; if (!wasGround && this.atk && this.atk.kind === 'air' && this.atk.phase !== 'active') { this.atk = null; } } // landing cancels an air swing cleanly
     if (r.ground && !wasGround && prevVy > 160) { this.sy = 0.72; this.sx = 1.25; sfx('land'); W.fx.dust(this.cx, this.y + this.h, prevVy > 420 ? 8 : 5, { speed: 50 + Math.min(80, prevVy * 0.12), size: prevVy > 420 ? 5 : 3.8, life: 0.5 }); W.fx.burst(this.cx, this.y + this.h, 4, { color: '#d9d2c0', min: 30, max: 90, angle: -Math.PI / 2, spread: 1.4, g: 200, life: 0.35 }); }
     // ledge assist: pop up onto a ledge we barely missed
@@ -198,7 +201,7 @@ export class Player {
   }
   freeMove(W, dt, mx) { if (!this.onGround && Math.abs(this.vx) > C.RUN && sign(mx || this.vx) === sign(this.vx)) this.vx = approach(this.vx, sign(this.vx) * C.RUN, 160 * dt); else this.vx = approach(this.vx, mx * C.RUN, (this.onGround ? C.ACC_G : C.ACC_A) * dt); this.vy = Math.min(this.vy + C.GRAV * dt, C.MAXFALL); }
   attachHook(W, tg) {
-    sfx('hookAttach'); vibrate(8); W.fx.burst(tg.x, tg.y, 8, { color: tg.kind === 'zip' ? PAL.zip : PAL.swing, min: 40, max: 140, g: 0, life: 0.3, glow: 1 });
+    sfx('hookAttach'); vibrate(8); W.emit('hookAttach', tg.kind); W.fx.burst(tg.x, tg.y, 8, { color: tg.kind === 'zip' ? PAL.zip : PAL.swing, min: 40, max: 140, g: 0, life: 0.3, glow: 1 });
     if (tg.kind === 'swing') { const l = Math.hypot(this.cx - tg.x, this.y + 10 - tg.y); this.hook = { s: 'swing', tgt: tg, len: Math.max(48, l), len0: Math.max(48, l), hx: tg.x, hy: tg.y, t: 0 }; if (this.onGround) { this.hook.pop = 0.08; this.vy = Math.min(this.vy, -40); this.onGround = false; this.vx += sign(tg.x - this.cx) * 40; } W.emit('swing'); }
     else if (tg.kind === 'zip') { this.hook = { s: 'zip', tgt: tg, hx: tg.x, hy: tg.y, t: 0 }; W.emit('zip'); }
     else if (tg.kind === 'enemy') {
@@ -281,7 +284,7 @@ export class Player {
     if (this.parryT > 0 && info.parryable !== false) { this.parryT = 0; this.parryLock = 0.12; this.stats.parries++; W.onParry(this, info); return 'parry'; }
     if (W.god) return 'dodge';
     if (this.dashT > 0 || this.iframes > 0) { if (this.dashT > 0 && !this.dodgeShown) { this.dodgeShown = true; W.fx.text(this.cx, this.y - 4, 'dodge!', '#bff7ff', 11); setTimeout(() => (this.dodgeShown = false), 400); } return 'dodge'; }
-    const real = Math.max(1, Math.round(dmg * diff().dmgTaken));
+    const real = Math.max(1, Math.round(dmg * diff().dmgTaken * (W.dmgTaken || 1)));
     this.hp -= real; this.iframes = 1.0; this.hurtT = 0.22; this.flash = 0.25; this.atk = null; this.hook = { s: 'none' };
     const d = sign(this.cx - srcX) || -this.face; this.vx = d * 230; this.vy = -240; this.lastHit = info;
     W.fx.shake(0.45); W.hitstop(0.08); W.fx.flash = 0.35; W.fx.flashColor = '#ff5a7a'; sfx('hurt'); vibrate(35);
@@ -449,7 +452,8 @@ export class Player {
     if (blink) g.globalAlpha = 0.5;
     const fi = FIST[p.n];
     if (p.wa === null || !fi) this.frameWeapon(g, p, F[4] - 30, F[5] + 6, this.weapon === 'bow' ? 1.75 : 1.95, 0.95, 0.72); // sheathed across the back
-    g.drawImage(H.img, F[0], F[1], F[2], F[3], 0, 0, F[2], F[3]);
+    const wr = missions().wardrobe; g.drawImage(capeSheet(H, wr.cape) || H.img, F[0], F[1], F[2], F[3], 0, 0, F[2], F[3]);
+    if (wr.hat && wr.hat !== 'none' && !this.dead) drawHat(g, wr.hat, F[4] - 12, F[5] - 47, 4.4, 1); // v1.8: earned hat rides the hood on every frame
     if (p.wa !== null && fi) this.frameWeapon(g, p, fi[0], fi[1], p.wa, 1);
     if (this.flash > 0) { g.globalAlpha = Math.min(0.85, this.flash * 3 + 0.2); g.drawImage(heroFlash(p.n), 0, 0); }
     g.restore(); g.globalAlpha = 1;
@@ -468,7 +472,7 @@ export class Player {
     const mx = (x0 + h.hx) / 2 - (h.hy - y0) / L0 * twang, my = (y0 + h.hy) / 2 + sag + (h.hx - x0) / L0 * twang;
     const pt = (k) => { const u = 1 - k; return [u * u * x0 + 2 * u * k * mx + k * k * h.hx, u * u * y0 + 2 * u * k * my + k * k * h.hy]; };
     g.lineCap = 'round'; g.strokeStyle = PAL.ink; g.lineWidth = 4.6; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(mx, my, h.hx, h.hy); g.stroke();
-    const VC = vineColors(); g.strokeStyle = VC.dark; g.lineWidth = 3; g.stroke();
+    const VC = vineColors(); if (VC.rainbow) { const gr = g.createLinearGradient(x0, y0, h.hx, h.hy); for (let i = 0; i <= 6; i++) gr.addColorStop(i / 6, `hsl(${(i * 55 + t * 120) % 360},85%,58%)`); g.strokeStyle = gr; } else g.strokeStyle = VC.dark; g.lineWidth = 3; g.stroke();
     const L = Math.hypot(h.hx - x0, h.hy - y0), n = Math.max(4, Math.floor(L / 7)), dx = (h.hx - x0) / (L || 1), dy = (h.hy - y0) / (L || 1);
     g.strokeStyle = VC.light; g.lineWidth = 1.1; g.beginPath(); // twisting highlight strand
     for (let i = 0; i <= n; i++) { const k = i / n, [px, py] = pt(k), o = Math.sin(k * L * 0.35 + t * 6) * 1.1; i ? g.lineTo(px - dy * o, py + dx * o) : g.moveTo(px - dy * o, py + dx * o); } g.stroke();

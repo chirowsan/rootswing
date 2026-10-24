@@ -49,6 +49,25 @@ export function drawIcon(g, name, x, y, size, color = '#fff') {
     case 'up': P([-10, 5, 0, -6, 10, 5], true, true); break;
     case 'door': g.beginPath(); g.moveTo(-8, 12); g.lineTo(-8, -4); g.arc(0, -4, 8, Math.PI, 0); g.lineTo(8, 12); g.stroke(); break;
     case 'gear': g.beginPath(); for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2, r = i % 2 ? 7 : 11; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); g.stroke(); g.beginPath(); g.arc(0, 0, 3, 0, 7); g.stroke(); break;
+    // v1.8 mission icons
+    case 'shield': P([0, -12, 10, -8, 9, 3, 0, 12, -9, 3, -10, -8], true, true); g.globalCompositeOperation = 'destination-out'; g.lineWidth = 3; P([-4, 0, -1, 4, 5, -4]); g.globalCompositeOperation = 'source-over'; break;
+    case 'key': g.beginPath(); g.arc(-5, -5, 6, 0, 7); g.stroke(); P([-1, -1, 10, 10]); P([6, 6, 3, 9]); P([9, 9, 6, 12]); break;
+    case 'chain': for (const [cx, cy] of [[-7, 5], [0, 0], [7, -5]]) { g.beginPath(); g.ellipse(cx, cy, 5.5, 3.5, -0.6, 0, 7); g.stroke(); } break;
+    case 'clock': g.beginPath(); g.arc(0, 1, 10, 0, 7); g.stroke(); P([0, 1, 0, -5]); P([0, 1, 5, 4]); P([-4, -12, 4, -12]); break;
+    case 'noflask': g.globalAlpha *= 0.55; P([-3, -12, 3, -12, 3, -5, 9, 3, 7, 11, -7, 11, -9, 3, -3, -5], true); g.globalAlpha /= 0.55; g.lineWidth = 3.5; P([-11, 11, 11, -11]); break;
+    case 'sun': g.beginPath(); g.arc(0, 0, 6, 0, 7); g.fill(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; P([Math.cos(a) * 9, Math.sin(a) * 9, Math.cos(a) * 12, Math.sin(a) * 12]); } break;
+    case 'moon': g.beginPath(); g.arc(0, 0, 10, 0.9, 5.4); g.arc(5, -3, 8, 4.6, 1.6, true); g.closePath(); g.fill(); break;
+    case 'star': { g.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 5 : 12; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); g.fill(); break; }
+    case 'cape': g.beginPath(); g.moveTo(-6, -11); g.lineTo(6, -11); g.quadraticCurveTo(9, 2, 11, 12); g.lineTo(-11, 12); g.quadraticCurveTo(-9, 2, -6, -11); g.fill(); break;
+    case 'hat': g.beginPath(); g.ellipse(0, 6, 12, 4, 0, 0, 7); g.fill(); g.beginPath(); g.moveTo(-7, 5); g.quadraticCurveTo(-6, -12, 0, -12); g.quadraticCurveTo(6, -12, 7, 5); g.fill(); break;
+    case 'lock': g.beginPath(); g.arc(0, -4, 6, Math.PI, 0); g.stroke(); g.fillRect(-9, -3, 18, 14); break;
+    case 'gift': g.fillRect(-10, -3, 20, 14); g.fillRect(-11, -8, 22, 5); g.globalCompositeOperation = 'destination-out'; g.fillRect(-1.5, -8, 3, 19); g.globalCompositeOperation = 'source-over'; g.beginPath(); g.ellipse(-4, -10, 4, 2.5, 0.4, 0, 7); g.ellipse(4, -10, 4, 2.5, -0.4, 0, 7); g.stroke(); break;
+    case 'trophy': P([-8, -11, 8, -11, 7, -2, 2, 3, 2, 7, 6, 11, -6, 11, -2, 7, -2, 3, -7, -2], true, true); g.lineWidth = 2.5; g.beginPath(); g.arc(-9, -6, 4, 1.4, 4.8); g.stroke(); g.beginPath(); g.arc(9, -6, 4, -1.6, 1.7); g.stroke(); break;
+    case 'eye': g.beginPath(); g.moveTo(-12, 0); g.quadraticCurveTo(0, -11, 12, 0); g.quadraticCurveTo(0, 11, -12, 0); g.stroke(); g.beginPath(); g.arc(0, 0, 4, 0, 7); g.fill(); break;
+    case 'board': g.fillRect(-11, -9, 22, 14); P([-7, 5, -7, 12]); P([7, 5, 7, 12]); g.globalCompositeOperation = 'destination-out'; g.fillRect(-7, -6, 6, 6); g.fillRect(2, -5, 6, 4); g.globalCompositeOperation = 'source-over'; break;
+    case 'pet': g.beginPath(); g.arc(0, 4, 6, 0, 7); g.fill(); for (const [px, py] of [[-8, -3], [-3, -9], [3, -9], [8, -3]]) { g.beginPath(); g.arc(px, py, 3, 0, 7); g.fill(); } break;
+    case 'badge': g.beginPath(); g.arc(0, -2, 8, 0, 7); g.fill(); P([-5, 4, -7, 12, -2, 9]); P([5, 4, 7, 12, 2, 9]); break;
+    case 'play': P([-6, -10, 9, 0, -6, 10], true, true); break;
     default: g.beginPath(); g.arc(0, 0, 8, 0, 7); g.stroke();
   }
   g.restore();

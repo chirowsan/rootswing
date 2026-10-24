@@ -5,8 +5,12 @@ import { drawIcon, PAL } from './art.js';
 import { WEAPONS, GADGETS, UPGRADES } from './weapons.js';
 import { ENEMY_INFO } from './enemies.js';
 import { input, computeLayout } from './input.js';
+import { has, spr, G } from './gfx.js';
+import { missions, TYPES, CAPES, HATS, BADGES, CRITTERS, missionIcon, unlockedVines, wear, owns, dayKey, dailyMod } from './missions.js';
+import { VINES } from './objective.js';
+import { rewardIcon, rewardColor, capeSheet, drawHat } from './missionsWorld.js';
 const $ = (s) => document.querySelector(s);
-let root, onAct = {}, focusIdx = 0;
+let root, onAct = {}, focusIdx = 0, lastWear = null;
 export function initUI(handlers) {
   root = $('#ui'); onAct = handlers;
   root.addEventListener('click', (e) => { const b = e.target.closest('[data-act]'); if (!b || b.disabled) return; initAudio(); sfx(b.dataset.act === 'back' || b.dataset.act === 'resume' ? 'uiBack' : 'ui'); act(b.dataset.act, b.dataset.v, b); });
@@ -16,7 +20,8 @@ export const ui = { open: null };
 export function isOpen() { return !!ui.open; }
 export function close() { root.innerHTML = ''; root.className = ''; ui.open = null; }
 function show(name, html, cls = '') { ui.open = name; root.className = 'show ' + cls; root.innerHTML = html; focusIdx = 0; paintIcons(); markFocus(); }
-function paintIcons() { root.querySelectorAll('canvas[data-icon]').forEach((c) => { const s = +c.dataset.size || 28, d = Math.min(2, devicePixelRatio || 1); c.width = c.height = s * d; c.style.width = c.style.height = s + 'px'; const g = c.getContext('2d'); g.scale(d, d); drawIcon(g, c.dataset.icon, s / 2, s / 2, s * 0.8, c.dataset.color || '#fff'); }); }
+function paintIcons() { root.querySelectorAll('canvas[data-icon]').forEach((c) => { const s = +c.dataset.size || 28, d = Math.min(2, devicePixelRatio || 1); c.width = c.height = s * d; c.style.width = c.style.height = s + 'px'; const g = c.getContext('2d'); g.scale(d, d); const n = c.dataset.icon; if (n.startsWith('spr:') && has(n.slice(4))) spr(g, n.slice(4), s / 2, s * 0.94, s * 0.86, 0.5, 1); else if (n.startsWith('hero:')) drawHeroPreview(g, s, n.slice(5)); else if (n.startsWith('hatx:')) drawHat(g, n.slice(5), s / 2, s * 0.68, s / 19, 1); else drawIcon(g, n.startsWith('spr:') ? 'pet' : n, s / 2, s / 2, s * 0.8, c.dataset.color || '#fff'); }); }
+function drawHeroPreview(g, s, spec) { const H = G.hero; if (!H) return; const [cape, hat] = spec.split(','), F = H.f.idle0, k = s * 0.9 / F[3]; g.save(); g.translate(s / 2 - F[2] * k / 2, s * 0.05); g.scale(k, k); g.drawImage(capeSheet(H, cape) || H.img, F[0], F[1], F[2], F[3], 0, 0, F[2], F[3]); drawHat(g, hat, F[4] - 12, F[5] - 47, 4.4, 1); g.restore(); }
 const ic = (name, color = '#fff', size = 28) => `<canvas data-icon="${name}" data-color="${color}" data-size="${size}"></canvas>`;
 function act(a, v, el) {
   if (a === 'set') { const [k, val] = v.split(':'); save.settings[k] = isNaN(+val) ? val : +val; writeSave(); applyVolumes(); onAct.relayout && onAct.relayout(); showSettings(ui.back); return; }
@@ -26,6 +31,10 @@ function act(a, v, el) {
   if (a === 'weapon') { save.progress.weapon = v; writeSave(); onAct.statsChanged && onAct.statsChanged(); showLoadout(); return; }
   if (a === 'swapGadgets') { save.progress.gadgets.reverse(); writeSave(); onAct.statsChanged && onAct.statsChanged(); showLoadout(); return; }
   if (a === 'reset') { if (el.dataset.armed) { resetSave(); onAct.toTitle(); } else { el.dataset.armed = 1; el.textContent = 'Tap again to erase everything'; } return; }
+  if (a === 'board') { showBoard(); return; }
+  if (a === 'wardrobe') { lastWear = null; showWardrobe(); return; }
+  if (a === 'hudToggle') { const m = missions(); m.hud = !m.hud; writeSave(); showBoard(); return; }
+  if (a === 'wear') { lastWear = v; const [k, id] = v.split(':'); wear(k, id); sfx('pickup'); showWardrobe(); onAct.statsChanged && onAct.statsChanged(); return; }
   if (onAct[a]) onAct[a](v);
 }
 // ---- keyboard / gamepad navigation of menus ----
@@ -107,6 +116,7 @@ export function showJournal() {
   <div class="col"><button class="big" data-act="replayTutorial">${ic('jump', '#fff', 22)} Practice again</button><button class="big primary" data-act="back">Done</button></div></div>`);
 }
 // v1.2 painted results screens: full-bleed key art, count-up glimmers, unlock progress
+function dailyHtml(d) { return d ? `<div class="daily-res">${ic('sun', '#ffd36b', 26)}${ic(d.mod.icon, d.mod.color, 20)}<b>${d.score}</b>${ic('trophy', '#ffe27a', 22)}<b>${d.best}</b>${d.newBest ? '<b class="first">BEST!</b>' : ''}</div>` : ''; }
 function unlockList() {
   const p = save.progress, out = [];
   for (const u of UPGRADES) { if (p.unlocks[u.id] || (u.req && !p.unlocks[u.req])) continue; out.push({ u, ready: p.glimmers >= u.cost }); }
@@ -129,7 +139,7 @@ export function showDeath(info, kept, found, stats) {
   <div class="res-glim">${ic('glimmer', '#ffe27a', 30)}<b data-count="${kept}">0</b><span>glimmers kept${found !== kept ? ` <small>(of ${found} found)</small>` : ''}</span></div>
   <div class="cause"><div class="who">Knocked out by <b>${info.name}</b></div><div class="tip">${ic('glimmer', '#ffe27a', 18)} ${info.tip}</div></div>
   <div class="stats"><div><b data-count="${stats.rooms}">0</b>rooms explored</div><div><b data-count="${stats.kills}">0</b>baddies popped</div></div>
-  ${unlockHtml()}
+  ${dailyHtml(stats.daily)}${unlockHtml()}
   <div class="col"><button class="big primary" data-act="toHub">${ic('door', '#15131f', 22)} Back to the Seedhouse</button></div></div>`, 'results');
   countUp();
 }
@@ -142,8 +152,43 @@ export function showVictory(glim, stats) {
   <div class="res-glim">${ic('glimmer', '#ffe27a', 30)}<b data-count="${glim}">0</b></div>
   <div class="stats"><div><b>${stats.time}</b>⏱${stats.best ? ' <b class="first">BEST!</b>' : ''}</div><div><b>${stats.bestTime || stats.time}</b>🏆</div><div><b data-count="${stats.kills}">0</b>${ic('attack', '#fff', 16)}</div><div><b>${stats.treasures || 0}</b>${ic('glimmer', '#ffe27a', 16)}</div></div>
   ${stats.newVine ? `<div class="new-vine"><span style="background:linear-gradient(90deg,${stats.newVine.dark},${stats.newVine.light},${stats.newVine.dark})"></span>${ic('hook', stats.newVine.light, 22)} NEW!</div>` : ''}
-  ${unlockHtml()}
+  ${dailyHtml(stats.daily)}${unlockHtml()}
   <div class="col"><button class="big primary" data-act="toHub">${ic('door', '#15131f', 22)} Home to the Seedhouse</button></div></div>`, 'results');
   countUp();
 }
 export function showRotate(on) { $('#rotate').style.display = on ? 'flex' : 'none'; }
+
+// ---- v1.8 Mission Board + Wardrobe: icon-first, numbers only, big touch targets ----
+function noteHtml(mi) {
+  const T = TYPES[mi.type], k = Math.min(1, mi.prog / mi.target);
+  const extra = mi.type === 'quick' ? `<span class="mx">${ic('clock', '#7a5a2a', 18)}${Math.floor(mi.limit / 60)}:${String(mi.limit % 60).padStart(2, '0')}</span>` : mi.type === 'chain' ? `<span class="mx">×${mi.target}</span>` : '';
+  return `<div class="note" data-type="${mi.type}"><i class="pin"></i><div class="ni">${ic(missionIcon(mi), T.color === '#ffe27a' ? '#c9961a' : '#3a5a2a', 54)}</div>${extra}
+  <div class="bar"><i style="width:${k * 100}%;background:${T.color}"></i></div><b>${Math.min(mi.prog, mi.target)}/${mi.target}</b>
+  <div class="gift">${ic('gift', '#d8622a', 20)}${ic(rewardIcon(mi.reward), rewardColor(mi.reward), 26)}</div></div>`;
+}
+export function showBoard() {
+  const m = missions(), key = dayKey(), mod = dailyMod(key), today = m.daily.date === key;
+  show('board', `<div class="card board-ui"><div class="board-roof"></div><div class="board-face">
+  <div class="notes">${m.active.slice(0, 3).map(noteHtml).join('')}
+  <div class="note daily"><i class="pin"></i><div class="ni">${ic('sun', '#e8a21a', 44)}${ic(mod.icon, mod.color, 26)}</div>
+  <div class="best">${ic('trophy', '#c9961a', 20)}<b>${today ? m.daily.best : 0}</b></div>
+  <button class="playd" data-act="startDaily" aria-label="daily">${ic('play', '#15131f', 26)}</button></div></div></div>
+  <div class="board-btns"><button data-act="wardrobe" aria-label="wardrobe">${ic('hero:' + m.wardrobe.cape + ',' + m.wardrobe.hat, '#fff', 40)}</button>
+  <button data-act="hudToggle" aria-label="tracker" class="${m.hud ? 'on' : ''}">${ic('eye', m.hud ? '#5ff2e6' : '#777', 30)}</button>
+  <div class="medals">${ic('badge', '#ffe27a', 22)}<b>${m.badges.length}</b>${ic('star', '#ffe27a', 22)}<b>${m.done}</b></div>
+  <button class="big primary" data-act="back">${ic('right', '#15131f', 22)}</button></div></div>`, 'boardwrap');
+}
+export function showWardrobe() {
+  const m = missions(), w = m.wardrobe, vines = unlockedVines().map((v) => v.id);
+  const item = (kind, id, icon, color, on, got) => `<button class="wi ${on ? 'on' : ''}" data-act="wear" data-v="${kind}:${id}" ${got ? '' : 'disabled'} aria-label="${kind} ${id}">${got ? icon : ic('lock', '#665e80', 26)}</button>`;
+  const capes = CAPES.map((c) => item('cape', c.id, c.id === 'none' ? ic('cape', '#555', 30) : `<i class="sw" style="background:linear-gradient(160deg,${c.b},${c.a})"></i>`, '', w.cape === c.id, c.id === 'none' || owns(m, 'cape:' + c.id))).join('');
+  const hats = HATS.map((h) => item('hat', h.id, (h.id === 'none' ? ic('hat', '#555', 30) : ic('hatx:' + h.id, '#fff', 40)), '', w.hat === h.id, h.id === 'none' || owns(m, 'hat:' + h.id))).join('');
+  const vns = VINES.map((v) => item('vine', v.id, `<i class="sw vine" style="background:${v.rainbow ? 'linear-gradient(90deg,#ff5a5a,#ffd34a,#5ae07a,#5ab4ff,#b45aff)' : `linear-gradient(90deg,${v.dark},${v.light},${v.dark})`}"></i>`, '', (save.progress.vine || 'green') === v.id, vines.includes(v.id))).join('');
+  const pets = ['none', ...CRITTERS].map((c) => item('pet', c, c === 'none' ? ic('pet', '#555', 30) : ic('spr:cr_' + c, '#fff', 40), '', w.pet === c, c === 'none' || owns(m, 'pet:' + c))).join('');
+  const badges = BADGES.map((b) => `<span class="bd ${m.badges.includes(b.id) ? 'on' : ''}">${ic(b.icon, m.badges.includes(b.id) ? b.color : '#4a4462', 26)}${b.n ? `<small>${b.n}</small>` : ''}</span>`).join('');
+  show('wardrobe', `<div class="card wide wardrobe"><div class="wr-main"><div class="hero-prev">${ic('hero:' + w.cape + ',' + w.hat, '#fff', 150)}</div>
+  <div class="scroll wr-rows"><div class="wr">${ic('cape', '#ffe27a', 24)}${capes}</div><div class="wr">${ic('hat', '#ffe27a', 24)}${hats}</div><div class="wr">${ic('hook', '#9be070', 24)}${vns}</div><div class="wr">${ic('pet', '#ff9ab0', 24)}${pets}</div>
+  <div class="wr badges">${badges}</div></div></div>
+  <div class="col"><button class="big primary" data-act="board">${ic('board', '#15131f', 22)}</button></div></div>`, 'boardwrap');
+  { const b = buttons(), j = b.findIndex((x) => x.dataset.v === lastWear), k = j >= 0 ? j : b.findIndex((x) => x.classList.contains('on')); if (k >= 0) { focusIdx = k; markFocus(); } }
+}

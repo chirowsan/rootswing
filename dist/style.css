@@ -86,3 +86,30 @@ button.danger{background:#5a1f34;padding:8px 14px;border-radius:10px;font-weight
 .root-restored{display:flex;gap:8px;justify-content:center}.root-restored i{width:14px;height:14px;border-radius:50%;box-shadow:0 0 12px currentColor;animation:bloomDot 1.2s ease-in-out infinite alternate}@keyframes bloomDot{to{transform:scale(1.5)}}
 .new-vine{display:flex;align-items:center;gap:8px;font-weight:900;color:#ffe27a}.new-vine span{display:inline-block;width:70px;height:8px;border-radius:4px;border:2px solid #15131f}
 @media (max-height:430px){.res .star svg{width:38px;height:38px}}
+/* v1.8 Mission Board (painted wood noticeboard) + Wardrobe */
+#ui.boardwrap{background:rgba(8,6,16,.55)}
+.board-ui{background:linear-gradient(180deg,#7a4f2c,#5e3a1f 60%,#4a2c17);border:4px solid #2a1a0e;box-shadow:0 10px 0 #15131f,inset 0 0 0 3px rgba(255,210,150,.15);padding:14px 16px 12px;position:relative;width:min(800px,96vw);overflow:visible}
+.board-roof{position:absolute;left:-14px;right:-14px;top:-18px;height:22px;border-radius:10px 10px 4px 4px;background:repeating-linear-gradient(90deg,#3e6b2a 0 26px,#4f8233 26px 52px);border:3px solid #15131f;box-shadow:0 4px 0 rgba(0,0,0,.3)}
+.board-face{background:linear-gradient(180deg,#c99a62,#b48352);border:3px solid #3a2412;border-radius:8px;padding:12px 10px;box-shadow:inset 0 0 18px rgba(60,30,10,.45);background-image:repeating-linear-gradient(0deg,rgba(90,50,20,.12) 0 2px,transparent 2px 22px),linear-gradient(180deg,#c99a62,#b48352)}
+.notes{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.note{position:relative;background:#f6ecd2;border:2px solid #6a4a2a;border-radius:4px;padding:16px 6px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;color:#4a3420;box-shadow:3px 5px 0 rgba(40,20,8,.35);transform:rotate(-1.5deg)}
+.note:nth-child(2){transform:rotate(1.2deg)}.note:nth-child(3){transform:rotate(-.6deg)}.note.daily{transform:rotate(1.8deg);background:#fff4c8}
+.note .pin{position:absolute;top:-6px;left:50%;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ff9a6a,#c8421a);border:2px solid #15131f}
+.note .ni{display:flex;align-items:center;justify-content:center;gap:2px;min-height:56px}
+.note .mx{display:flex;align-items:center;gap:2px;font-weight:900;font-size:14px}
+.note .bar{width:86%;height:10px;border-radius:6px;background:#d9cba8;border:2px solid #6a4a2a;overflow:hidden}.note .bar i{display:block;height:100%;border-radius:4px}
+.note b{font-weight:900;font-size:15px}
+.note .gift{display:flex;align-items:center;gap:2px;background:rgba(216,98,42,.12);border-radius:10px;padding:1px 6px}
+.note .best{display:flex;align-items:center;gap:4px}
+.note .playd{background:#ffd36b;border:3px solid #15131f;border-radius:50%;width:48px;height:48px;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 0 #15131f;animation:pulseP 1.4s ease-in-out infinite}
+@keyframes pulseP{50%{transform:scale(1.08)}}
+.board-btns{display:flex;align-items:center;gap:10px;margin-top:10px}.board-btns>button{min-width:58px;min-height:52px;display:flex;align-items:center;justify-content:center}
+.board-btns>button.on{box-shadow:inset 0 0 0 2px #5ff2e6}.board-btns .big{margin-left:auto;min-width:110px}
+.medals{display:flex;align-items:center;gap:4px;background:rgba(0,0,0,.25);border-radius:12px;padding:6px 10px}.medals b{color:#ffe27a;font-weight:900;margin-right:6px}
+.wardrobe .wr-main{display:flex;gap:14px;min-height:0;flex:1}.hero-prev{flex:0 0 auto;background:radial-gradient(circle,#3a5a3a,#1c2a1c);border-radius:18px;padding:8px;display:flex;align-items:center}
+.wr-rows{flex:1;min-height:0}.wr{display:flex;align-items:center;gap:6px;margin:4px 0;flex-wrap:wrap}
+.wi{width:52px;height:52px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:12px;background:rgba(255,255,255,.06)}.wi.on{background:rgba(95,242,230,.2);box-shadow:inset 0 0 0 3px #5ff2e6}.wi:disabled{opacity:.55}
+.sw{display:block;width:30px;height:34px;border-radius:6px 6px 14px 14px;border:2px solid #15131f}.sw.vine{height:10px;width:36px;border-radius:5px}
+.badges .bd{display:flex;flex-direction:column;align-items:center;width:40px;opacity:.6}.badges .bd.on{opacity:1;filter:drop-shadow(0 0 6px rgba(255,226,122,.6))}.badges small{font-size:10px;font-weight:900;color:#ffe27a}
+.daily-res{display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0;background:rgba(255,211,107,.12);border-radius:12px;padding:6px}.daily-res b{font-weight:900;color:#ffe27a;font-size:18px}
+@media (max-height:420px){.note .ni{min-height:44px}.note{padding:12px 4px 6px;gap:3px}.hero-prev canvas{width:110px!important;height:110px!important}.wi{width:44px;height:44px}}

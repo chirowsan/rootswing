@@ -140,6 +140,9 @@ add(split(key('v7_boulders'), ['bo0', 'bo1', 'bo2']), 0.34)
 add({'glog': single(key('v7_log'))}, 0.4)
 add(split(key('v7_decor'), ['dc_fern', 'dc_grass', 'dc_flower', 'dc_rock', 'dc_pebble', 'dc_root', 'dc_mush', 'dc_bush']), 0.42)
 add({'lip2': strip('v7_lip')}, 0.42)
+# ---- v1.8 missions: painted critters + the Mission Board noticeboard
+add(split(key('v8_critters'), ['cr_bunny', 'cr_squirrel', 'cr_beetle', 'cr_hog']), 0.22)
+add({'board': single(key('v8_board'))}, 0.32)
 # shelf-pack
 items = sorted(sprites.items(), key=lambda kv: -kv[1].height); AW = 2048; x = y = sh = 0; pos = {}
 for k, im in items:

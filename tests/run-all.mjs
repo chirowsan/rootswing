@@ -102,9 +102,9 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
     { // v1.5: chunk layouts changed, so put Sprig on a flat, trap-free floor stretch of 12 tiles first
       const M = W.map, T = __RS.TILE, trapAt = (x, y) => W.traps && W.traps.list.some((o) => Math.abs(o.x - x) <= 1 && Math.abs(o.y - y) <= 2);
       let spot = null; for (let y = 3; y < M.h - 1 && !spot; y++) for (let x = 2; x < M.w - 14 && !spot; x++) { let good = true; for (let i = 0; i < 12 && good; i++) { const c = M.get(x + i, y + 1); good = c === '#' && !M.solid(x + i, y) && !M.solid(x + i, y - 1) && !M.solid(x + i, y - 2) && M.get(x + i, y) === '.' && !trapAt(x + i, y); } if (good) spot = { x, y }; }
-      if (spot) { P.x = (spot.x + 2) * T; P.y = (spot.y + 1) * T - P.h; P.vx = P.vy = 0; __RS.step(30); }
+      if (spot) { P.x = (spot.x + 2) * T; P.y = (spot.y + 1) * T - P.h; P.vx = P.vy = 0; __RS.step(30); } W._home = { x: P.x, y: P.y };
     }
-    for (const type of ['lurefish', 'jelly', 'shellback']) { for (const e of W.enemies) if (e.type !== 'tidegolem') e.dead = true; let hits = 0; const hp0 = 1e9; W.spawnEnemy(type, P.cx + 110, P.y - 10); const e = W.enemies[W.enemies.length - 1]; const st = new Set(); const php = P.hp; let dmg = 0;
+    for (const type of ['lurefish', 'jelly', 'shellback']) { for (const e of W.enemies) if (e.type !== 'tidegolem') e.dead = true; P.x = W._home.x; P.y = W._home.y; P.vx = P.vy = 0; __RS.step(20); /* v1.8: reset to the flat spot each time (the old test drifted onto a ledge ~1 in 8 runs) */ let hits = 0; const hp0 = 1e9; W.spawnEnemy(type, P.cx + 110, P.y - 10); const e = W.enemies[W.enemies.length - 1]; const st = new Set(); const php = P.hp; let dmg = 0;
       __RS.god(false); P.hp = P.maxHp = 9999; for (let f = 0; f < 600; f++) { st.add(e.st); __RS.step(1); } dmg = 9999 - P.hp; __RS.god(true);
       let f = 0; for (; f < 3000 && !e.dead; f++) { const dx = e.cx - P.cx; P.x += Math.sign(dx) * Math.min(3, Math.max(0, Math.abs(dx) - 26)); P.y = e.y + e.h - P.h; P.vy = 0; if (f % 8 === 0) __RS.press('attack'); if (f % 8 === 3) __RS.release('attack'); __RS.step(1); }
       out[type] = { st: [...st].join('/'), telegraphed: st.has('tele'), hurtPlayer: dmg > 0, killed: e.dead, frames: f }; }
@@ -236,5 +236,58 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
   const th = await E(page, () => { const o = {}; for (const m of ['run', 'hub', 'boss']) { __RS.start(m, { seed: 5, stage: 0 }); o[m] = { biome: __RS.W.biome.key, tex: ['tex_earth', 'tex_rootcave', 'tex_dusk'].filter((k) => __RS.gfx.img[k]).length }; } return o; });
   ok('v1.6 forest skins load (earth / root-cave / dusk textures) for runs, hub and boss', th.run.tex === 3, JSON.stringify(th));
   ok('no page errors (v1.6)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
+// ---------- v1.8: missions, wardrobe, critters, daily ----------
+{ const MS = await import('../src/missions.js'); const { generateRun } = await import('../src/level.js'); const { explore, tileCovered } = await import('../src/reach.js');
+  const anc = (sp) => sp.filter((s) => s.c === 'o' || s.c === 'z').map((s) => ({ x: s.x * 24 + 12, y: s.y * 24 + 12, kind: s.c === 'o' ? 'swing' : 'zip' }));
+  // daily determinism
+  const k = '2026-10-24', s1 = MS.dailySeed(k), s2 = MS.dailySeed(k), days = []; for (let d = 1; d <= 30; d++) days.push(MS.dailySeed('2026-11-' + String(d).padStart(2, '0')));
+  const mods = new Set(days.map((_, i) => MS.dailyMod('2026-11-' + String(i + 1).padStart(2, '0')).id));
+  const physSafe = MS.DAILY_MODS.every((m) => Object.keys(m).every((q) => ['id', 'icon', 'color', 'taken', 'dealt', 'tint'].includes(q)));
+  const A = generateRun(s1, 'overpass'), B = generateRun(s2, 'overpass'), same = JSON.stringify(A.map) === JSON.stringify(B.map);
+  ok('v1.8 daily: same date -> same seed + same level + same modifier; 30 days -> 30 distinct seeds, several modifiers; modifiers only touch damage/tint', s1 === s2 && same && MS.dailyMod(k).id === MS.dailyMod(k).id && new Set(days).size === 30 && mods.size >= 3 && physSafe, `seed=${s1} mod=${MS.dailyMod(k).id} mods=${[...mods]}`);
+  // critter reachability: every critter spot is inside the explored (reachable) area from the player spawn
+  let spots = 0, miss = []; for (const b of ['overpass', 'caverns']) for (const sd of [4242, 77, 1203]) { const L = generateRun(sd, b), P = L.spawns.find((s) => s.c === 'P');
+    const res = explore(L.map, anc(L.spawns), { x: P.x * 24 + 12, y: (P.y + 1) * 24 }, { maxHooks: 20000 });
+    const cs = MS.pickCritterSpots(L, sd); const cs2 = MS.pickCritterSpots(L, sd); if (JSON.stringify(cs) !== JSON.stringify(cs2)) miss.push(b + sd + ':nondet');
+    for (const c of cs) { spots++; if (!tileCovered(res, L.map, c.x, c.y, 1)) miss.push(`${b}:${sd}@${c.x},${c.y}`); } }
+  ok('v1.8 critters: every lost critter spot is reachable from spawn (explore proof), deterministic per seed', spots >= 6 && miss.length === 0, `spots=${spots} miss=${miss.slice(0, 4)}`); }
+{ const { browser, page, errors } = await fresh();
+  // save migration: a v1.7 save (no missions) keeps progress and gains a mission block
+  const mg = await E(page, () => { const s = JSON.parse(localStorage.getItem('rootswing.save.v1') || '{}'); s.progress = s.progress || __RS.save.progress; delete s.progress.missions; delete s.progress.saveVer; s.progress.glimmers = 777; s.progress.vine = 'moss'; localStorage.setItem('rootswing.save.v1', JSON.stringify(s)); __RS.loadSave();
+    const p = __RS.save.progress, st = JSON.parse(localStorage.getItem('rootswing.save.v1')).progress; return { g: p.glimmers, vine: p.vine, act: p.missions && p.missions.active.length, ver: p.saveVer, stored: !!st.missions, types: new Set(p.missions.active.map((a) => a.type)).size }; });
+  ok('v1.8 save migration: v1.7 save -> glimmers/vine kept, 3 distinct active missions, saved as v18', mg.g === 777 && mg.vine === 'moss' && mg.act === 3 && mg.types === 3 && mg.ver === 18 && mg.stored, JSON.stringify(mg));
+  // progress events + completion + reward unlock (driven by real World events)
+  const ev = await E(page, () => { const m = __RS.missions(); m.owned = m.owned.filter((r) => r !== 'cape:sky' && r !== 'pet:hog'); m.wardrobe.cape = 'none';
+    m.active = [{ id: 901, type: 'hunt', enemy: 'hopper', target: 2, prog: 0, tier: 0, reward: 'cape:sky' }, { id: 902, type: 'chain', target: 3, prog: 0, tier: 0, reward: 'pet:hog' }, { id: 903, type: 'gold', target: 1000, prog: 0, tier: 0, reward: 'glim:25' }];
+    __RS.game.toasts = []; __RS.start('run', { seed: 4242 }); __RS.manual(true); __RS.step(120); const W = __RS.W, P = W.player;
+    W.emit('kill', { type: 'charger' }); const p0 = m.active[0].prog; W.emit('kill', { type: 'hopper' }); const p1 = m.active[0].prog, t1 = __RS.game.toasts.length;
+    W.emit('kill', { type: 'hopper' }); const done1 = !m.active.some((a) => a.id === 901);
+    P.onGround = false; W.emit('hookAttach'); W.emit('hookAttach'); const c2 = m.active.find((a) => a.id === 902).prog; W.emit('hookAttach'); const done2 = !m.active.some((a) => a.id === 902);
+    W.emit('glim'); W.emit('glim'); const g = m.active.find((a) => a.id === 903).prog;
+    const dn = __RS.game.toasts.filter((t) => t.done).length; __RS.step(10); __RS.renderNow();
+    return { p0, p1, t1, done1, c2, done2, g, n: m.active.length, ids: m.active.map((a) => a.id).join(), cape: m.wardrobe.cape, pet: m.wardrobe.pet, sky: m.owned.includes('cape:sky'), hog: m.owned.includes('pet:hog'), badges: m.badges.join(), dn,
+      saved: JSON.parse(localStorage.getItem('rootswing.save.v1')).progress.missions.owned.includes('cape:sky') }; });
+  ok('v1.8 missions: progress only on matching events (wrong enemy ignored), toast per step', ev.p0 === 0 && ev.p1 === 1 && ev.t1 >= 1 && ev.c2 === 2 && ev.g === 2, JSON.stringify(ev));
+  ok('v1.8 missions: completion -> reward unlocked + auto-worn + badge + slot refilled + saved', ev.done1 && ev.done2 && ev.n === 3 && ev.sky && ev.hog && ev.cape === 'sky' && ev.pet === 'hog' && /b_hunt/.test(ev.badges) && /b_chain/.test(ev.badges) && ev.dn >= 1 && ev.saved, JSON.stringify(ev));
+  // real critter rescue by touching it + no-hit room rule
+  const cr = await E(page, () => { const m = __RS.missions(); m.active = [{ id: 911, type: 'rescue', target: 1, prog: 0, tier: 0, reward: 'glim:25' }, { id: 912, type: 'clean', target: 5, prog: 0, tier: 0, reward: 'glim:25' }, { id: 913, type: 'secret', target: 5, prog: 0, tier: 0, reward: 'glim:25' }];
+    __RS.start('run', { seed: 77 }); __RS.manual(true); __RS.step(120); const W = __RS.W, P = W.player, n0 = W.critters.length, c = W.critters[0]; if (!c) return { n0 };
+    P.x = c.px - P.w / 2; P.y = c.py - P.h - 2; P.vx = P.vy = 0; __RS.step(30); const s1 = c.st; __RS.step(240); const done = !m.active.some((a) => a.id === 911);
+    W.emit('roomClear', 999); const cl1 = m.active.find((a) => a.id === 912).prog; W.mt.hit.add(998); W.emit('roomClear', 998); const cl2 = m.active.find((a) => a.id === 912).prog;
+    return { n0, s1, left: W.critters.length, done, cl1, cl2, opened: W.opened.has(c.id) }; });
+  ok('v1.8 critter rescue: touch -> happy -> follows -> goes home -> rescue mission done; no-hit room counts only rooms without a hit', cr.n0 >= 1 && cr.s1 === 'happy' && cr.left === cr.n0 - 1 && cr.done && cr.cl1 === 1 && cr.cl2 === 1 && cr.opened, JSON.stringify(cr));
+  // board + wardrobe UI (opened by walking up to the hub board)
+  const ui = await E(page, () => { __RS.start('hub'); __RS.manual(true); __RS.step(60); const W = __RS.W, b = W.props.find((o) => o.kind === 'station' && o.n === 4); if (!b) return { nob: 1 };
+    __RS.game.openStation(4); const notes = document.querySelectorAll('.note').length, play = !!document.querySelector('[data-act=startDaily]');
+    document.querySelector('[data-act=wardrobe]').click(); const tiles = document.querySelectorAll('[data-act=wear]').length; const sky = document.querySelector('[data-act=wear][data-v="cape:sky"]'); sky && sky.click();
+    const lockedClick = document.querySelector('[data-act=wear][data-v="cape:night"]'); lockedClick && lockedClick.click();
+    return { notes, play, tiles, cape: __RS.missions().wardrobe.cape, hasBoardProp: !!b }; });
+  ok('v1.8 board: hub board station opens 3 mission notes + daily play; wardrobe lists items, wearing works, locked items cannot be worn', ui.hasBoardProp && ui.notes >= 3 && ui.play && ui.tiles >= 10 && ui.cape === 'sky', JSON.stringify(ui));
+  // daily run: seeded by date, modifier applied, best kept locally
+  const dy = await E(page, () => { __RS.game.startDaily(); __RS.manual(true); __RS.step(60); const W = __RS.W, d = __RS.game.daily; const r = { key: d.key, seed: W.seed, mod: d.mod.id, taken: W.dmgTaken, dealt: W.dmgDealt };
+    W.player.stats.kills = 3; __RS.game.finishDaily(W, false); r.best = __RS.missions().daily.best; r.date = __RS.missions().daily.date; return r; });
+  const MS = await import('../src/missions.js'), md = MS.dailyMod(dy.key);
+  ok('v1.8 daily run: seed = dailySeed(today), modifier damage applied, local best recorded', dy.seed === MS.dailySeed(dy.key) && dy.mod === md.id && dy.taken === (md.taken || 1) && dy.dealt === (md.dealt || 1) && dy.best > 0 && dy.date === dy.key, JSON.stringify(dy));
+  ok('no page errors (v1.8)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
 server.close(); const fail = results.filter((r) => !r.pass);
 console.log(`\n${results.length - fail.length}/${results.length} passed`); process.exit(fail.length ? 1 : 0);
