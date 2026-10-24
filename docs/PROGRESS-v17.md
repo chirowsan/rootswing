@@ -33,3 +33,8 @@ Before/after (best 4): shots/v17/compare-00-start.png, compare-16-saws.png, comp
 ## Notes
 - Closer camera considered and NOT applied: viewH is tied to reach/readability of the generated layouts; changing it risks gameplay.
 - Tests: 69/69 (incl. "nothing floats" data + drawn, 0 undrawn supports).
+
+## Ship log (Oct 24 2026, PDT)
+- 10:21 bumped to 1.7.0 / versionCode 9; signed APK 7,192,537 B + AAB 7,003,986 B; apksigner cert SHA-256 6e59e14a…35d8de matches; AAB jar verified
+- main 563666e, tag v1.7.0; release https://github.com/chirowsan/rootswing/releases/tag/v1.7.0 (APK, AAB, source zip 8.4 MB)
+- gh-pages 681accf; live game.js hash == dist; verify-live: HTTP 200, reaches tutorial, 0 console errors
