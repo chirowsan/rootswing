@@ -229,7 +229,7 @@ export class World {
   }
   killEnemy(e, p) {
     if (e instanceof Boss) { e.hp = 0; e.go('dying'); sfx('roar'); this.fx.shake(0.8); this.slow = 1.0; return; }
-    e.dead = true; this.fx.pop(e.cx, e.cy, e.boss ? 2 : 1); if (e.boss) this.zoomKick(0.8); sfx('pop'); vibrate(15);
+    e.dead = true; this.fx.shatter(e._dr, e.boss ? 4 : 3, e.boss ? 1.2 : 1); this.fx.pop(e.cx, e.cy, e.boss ? 2 : 1); if (e.boss) this.zoomKick(0.8); sfx('pop'); vibrate(15);
     const lucky = save.progress.unlocks.lucky ? 1.25 : 1; this.dropGlims(e.cx, e.cy, Math.round(e.glim * lucky));
     if (!e.boss && rand.chance(0.08)) this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy, vx: rand.range(-50, 50), vy: -220, t: 0 });
     this.player.stats.kills++; this.emit('kill', e);

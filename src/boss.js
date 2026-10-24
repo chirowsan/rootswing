@@ -2,15 +2,16 @@
 import { TILE, clamp, sign, approach, rand, lerp } from './util.js';
 import { moveBody, groundBelow } from './physics.js';
 import { PAL, drawGlow } from './art.js';
-import { has, spr, tinted } from './gfx.js';
+import { has, spr, tinted, hasE, shaded } from './gfx.js';
+import { track, drawRig, wardenPose, bossPose } from './eanim.js';
 import { sfx } from './audio.js';
 import { diff } from './save.js';
 import { ENEMY_INFO } from './enemies.js';
 
 const INK = [[-1.2, 0], [1.2, 0], [0, -1.2], [0, 1.2]];
-function paintSprite(g, n, x, y, H, flip, flash, hotK) { // ink outline + sprite + red telegraph tint + white hurt flash
+function paintSprite(g, n, x, y, H, flip, flash, hotK, src = null) { // ink outline + sprite + red telegraph tint + white hurt flash
   const ink = tinted(n, '#0c0a14'), rim = tinted(n, '#ff5a28'); for (const [dx, dy] of INK) spr(g, n, x + dx * 2.2, y + dy * 2.2, H, 0.5, 1, flip, ink); for (const [dx, dy] of INK) spr(g, n, x + dx * 1.1, y + dy * 1.1, H, 0.5, 1, flip, rim);
-  spr(g, n, x, y, H, 0.5, 1, flip);
+  spr(g, n, x, y, H, 0.5, 1, flip, src);
   if (hotK > 0) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, hotK); spr(g, n, x, y, H, 0.5, 1, flip, tinted(n, '#ff3040')); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; }
   if (flash > 0) { g.globalAlpha = Math.min(1, flash * 7); spr(g, n, x, y, H, 0.5, 1, flip, tinted(n, '#ffffff')); g.globalAlpha = 1; }
 }
@@ -45,6 +46,13 @@ export class Warden extends BigFoe {
   drawPainted(g) {
     const X = this.cx, Y = this.y + this.h, t = this.anim, tele = this.tele || 0, f = this.face, hot = this.st === 'bash' || tele > 0;
     drawGlow(g, X, this.cy, 60, '#07060e', 0.4); if (hot) drawGlow(g, X + f * 20, Y - 30, 46 + tele * 16, '#ff2a3a', 0.3 + tele * 0.35);
+    const typ = this.sprite || 'warden';
+    if (hasE(typ + '_base')) { // v1.4 animated frames
+      track(this); drawRig(g, this, typ, wardenPose(this), this.sprH || 66, hot ? 0.08 + tele * 0.17 : 0);
+      if (this.flash > 0) drawGlow(g, X, this.cy, 50, '#ffffff', this.flash * 3);
+      if (this.stun > 0) for (let i = 0; i < 3; i++) { const a = t * 5 + i * 2.1; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(X + Math.cos(a) * 20, this.y - 26 + Math.sin(a) * 5, 3, 0, 7); g.fill(); }
+      return;
+    }
     g.save(); g.translate(X + (tele > 0 ? Math.sin(t * 50) * 1.4 : 0), Y + 1); const lean = this.st === 'bash' ? 0.12 * f : this.st === 'bashTele' ? -tele * 0.1 * f : this.st === 'sleep' ? 0.05 : 0;
     g.rotate(lean); g.scale(1 / Math.sqrt(this.sq), this.sq * (this.st === 'idle' ? 1 + Math.sin(t * 2.5) * 0.02 : 1));
     paintSprite(g, this.sprite || 'warden', 0, 0, this.sprH || 66, f < 0, this.flash, hot ? 0.08 + tele * 0.17 : 0);
@@ -79,7 +87,7 @@ export class Boss extends BigFoe {
     // pending delayed hazards (embers, pillars)
     for (const p of this.pending) { p.t -= dt; if (p.t <= 0 && !p.done) { p.done = true; p.fire(); } } this.pending = this.pending.filter((p) => !p.done);
     if (this.st === 'sleep') { this.fall(W, dt); return; }
-    if (this.st === 'dying') { this.vx = 0; if (Math.random() < dt * 10) W.fx.pop(this.x + rand.range(0, this.w), this.y + rand.range(0, this.h), 0.8); if (this.t > 2.2) { this.dead = true; W.onBossDefeated(this); } this.fall(W, dt); return; }
+    if (this.st === 'dying') { this.vx = 0; if (Math.random() < dt * 10) W.fx.pop(this.x + rand.range(0, this.w), this.y + rand.range(0, this.h), 0.8); if (this.t > 2.2) { this.dead = true; W.fx.shatter(this._dr, 5, 1.4); W.onBossDefeated(this); } this.fall(W, dt); return; }
     if (this.stun > 0) { this.stun -= dt; this.vx *= 0.9; this.fall(W, dt); return; }
     const want = this.hp > this.maxHp * 0.66 ? 1 : this.hp > this.maxHp * 0.33 ? 2 : 3;
     if (want > this.phase && this.st !== 'roar') { this.phase = want; this.go('roar'); this.beamT = 0; sfx('roar'); W.fx.shake(0.6); W.fx.ring(this.cx, this.cy, 160, '#ffb13b', 0.6, 8); W.onBossPhase(this.phase); const d = sign(P.cx - this.cx) || 1; P.vx = d * 260; P.vy = -200; }
@@ -126,8 +134,17 @@ export class Boss extends BigFoe {
     g.fillStyle = 'rgba(5,3,10,0.3)'; g.beginPath(); g.ellipse(X, Y + 2, 60, 5, 0, 0, 7); g.fill();
     if (tele > 0) drawGlow(g, X, Y - 60, 90 + tele * 30, '#ff2a3a', 0.3 + tele * 0.4);
     let armUp = this.st === 'slamTele' ? tele : 0; if (this.st === 'slam') armUp = -0.3;
+    if (hasE('boss_base')) { // v1.4 animated frames; the painted a-sheet poses are armless so the rig keeps the fist arms on those
+      track(this); const P = bossPose(this), armed = /^(walk|slam|base)/.test(P.fr), sl = P.fr === 'slam';
+      const arm = (s, back) => { g.save(); g.scale(f, 1); g.translate(s * 37, -H * 0.66); g.rotate(s * 0.25 - armUp * 2.4 * (s > 0 ? 1 : 0.6) + Math.sin(t * 2 + s) * 0.05); paintSprite(g, 'fist', 0, 62, 64, false, this.flash, tele * 0.4, back ? shaded('fist', 0.6) : null); g.restore(); };
+      drawRig(g, this, 'boss', P, H, tele * 0.35, { flip: sl ? f > 0 : f < 0, under: armed ? (gg) => arm(-1, true) : null,
+        over: (gg) => { g.globalCompositeOperation = 'lighter'; g.save(); g.scale(f, 1); drawGlow(g, 0, -H * 0.36, 30 + glow * 12, hot, 0.4 * glow); g.restore(); g.globalCompositeOperation = 'source-over'; if (armed) arm(1, false); } });
+      if (this.flash > 0) drawGlow(g, X, this.cy, 80, '#ffffff', this.flash * 3);
+      if (this.stun > 0) for (let i = 0; i < 4; i++) { const a = t * 5 + i * 1.6; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(X + Math.cos(a) * 30, this.y - 20 + Math.sin(a) * 6, 4, 0, 7); g.fill(); }
+      return;
+    }
     g.save(); g.translate(X + (tele > 0 ? Math.sin(t * 45) * 1.5 : 0), Y + 1); g.scale(f / Math.sqrt(this.sq), this.sq * (1 + Math.sin(t * 2) * 0.012));
-    const arm = (s, back) => { g.save(); g.translate(s * 37, -H * 0.66); g.rotate(s * 0.25 - armUp * 2.4 * (s > 0 ? 1 : 0.6) + Math.sin(t * 2 + s) * 0.05); if (back) g.filter = 'brightness(0.6)'; paintSprite(g, 'fist', 0, 62, 64, false, this.flash, tele * 0.4); g.filter = 'none'; g.restore(); };
+    const arm = (s, back) => { g.save(); g.translate(s * 37, -H * 0.66); g.rotate(s * 0.25 - armUp * 2.4 * (s > 0 ? 1 : 0.6) + Math.sin(t * 2 + s) * 0.05); paintSprite(g, 'fist', 0, 62, 64, false, this.flash, tele * 0.4, back ? shaded('fist', 0.6) : null); g.restore(); };
     arm(-1, true);
     paintSprite(g, 'boss', 0, 0, H, false, this.flash, tele * 0.35);
     // grate fire + eyes (additive, phase-coloured)
@@ -183,6 +200,11 @@ export class DrownedBloom extends Boss { // final boss: Furnace fight rules, new
     const glow = clamp(0.5 + Math.sin(t * 5) * 0.15 + tele * 0.5 + (this.beamT > 0 ? 0.6 : 0), 0, 1.4), hot = this.phase === 3 ? '#7ffcff' : '#4fe0f0';
     drawGlow(g, X, Y - 80, 200, hot, 0.1 + glow * 0.08); g.fillStyle = 'rgba(5,3,10,0.3)'; g.beginPath(); g.ellipse(X, Y + 2, 66, 6, 0, 0, 7); g.fill();
     if (tele > 0) drawGlow(g, X, Y - 70, 90 + tele * 30, '#ff2a3a', 0.3 + tele * 0.4);
+    if (hasE('boss2_base')) { // v1.4 animated frames
+      track(this); drawRig(g, this, 'boss2', bossPose(this), H, tele * 0.35, { over: (gg) => { g.globalCompositeOperation = 'lighter'; g.save(); g.scale(f, 1); drawGlow(g, H * 0.02, -H * 0.5, 26 + glow * 12, hot, 0.4 * glow); g.restore(); g.globalCompositeOperation = 'source-over'; } });
+      if (this.stun > 0) for (let i = 0; i < 4; i++) { const a = t * 5 + i * 1.6; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(X + Math.cos(a) * 30, this.y - 20 + Math.sin(a) * 6, 4, 0, 7); g.fill(); }
+      return;
+    }
     const lean = this.st === 'slamTele' ? -tele * 0.06 : this.st === 'slam' ? 0.05 : this.st === 'charge' ? 0.1 * f : 0;
     g.save(); g.translate(X + (tele > 0 ? Math.sin(t * 45) * 1.5 : 0), Y + 1); g.rotate(lean); g.scale(1 / Math.sqrt(this.sq), this.sq * (1 + Math.sin(t * 1.8) * 0.015));
     paintSprite(g, 'boss2', 0, 0, H, f < 0, this.flash, tele * 0.35);

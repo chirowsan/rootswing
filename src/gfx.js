@@ -1,5 +1,5 @@
 // Painted art loader (v1.1). Everything degrades to the procedural v1.0 drawing when assets are missing.
-export const G = { ready: false, ver: 0, img: {}, spr: {}, atlas: null, meta: null, tint: new Map(), hero: null };
+export const G = { ready: false, ver: 0, img: {}, spr: {}, atlas: null, meta: null, tint: new Map(), hero: null, en: null };
 const loadImg = (src) => new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
 export async function loadGfx(base = 'gfx/') {
   try {
@@ -8,6 +8,7 @@ export async function loadGfx(base = 'gfx/') {
     const imgs = await Promise.all([loadImg(base + 'atlas.webp'), ...names.map((n) => loadImg(base + n + '.webp'))]);
     if (!imgs[0]) return false;
     try { const [hm, hi] = await Promise.all([fetch(base + 'hero.json').then((r) => r.json()), loadImg(base + 'hero.webp')]); if (hi && hm) G.hero = { img: hi, f: hm.f, cache: new Map() }; } catch (e) { G.hero = null; }
+    try { const [em, ei] = await Promise.all([fetch(base + 'enemies.json').then((r) => r.json()), loadImg(base + 'enemies.webp')]); if (ei && em) G.en = { img: ei, f: em.f, cache: new Map() }; } catch (e) { G.en = null; }
     G.atlas = imgs[0]; names.forEach((n, i) => { if (imgs[i + 1]) G.img[n] = imgs[i + 1]; }); G.spr = meta.spr; G.ready = true; G.ver++;
     return true;
   } catch (e) { return false; }
@@ -45,4 +46,19 @@ export function pattern(g, n, scale) {
 export function heroFlash(n) {
   const H = G.hero; let c = H.cache.get(n); if (c) return c; const f = H.f[n]; c = document.createElement('canvas'); c.width = f[2]; c.height = f[3];
   const x = c.getContext('2d'); x.drawImage(H.img, f[0], f[1], f[2], f[3], 0, 0, f[2], f[3]); x.globalCompositeOperation = 'source-in'; x.fillStyle = '#fff'; x.fillRect(0, 0, f[2], f[3]); H.cache.set(n, c); return c;
+}
+// v1.4 enemy animation frames (enemies.webp): f[name] = [x, y, w, h, pivotX, hRel, pad]; ink border + rim are baked in
+export const hasE = (n) => !!(G.en && G.en.f[n]);
+// draw frame n of an enemy whose neutral pose is H world units tall, pivot (feet centre) at (x, y). Returns draw info for shattering.
+export function drawE(g, n, x, y, H, flip = false, src = null) {
+  const f = G.en.f[n]; const k = H * f[5] / (f[3] - 2 * f[6]); const w = f[2] * k, h = f[3] * k, ox = f[4] * k, oy = h - f[6] * k;
+  const img = src || G.en.img, sx = src ? 0 : f[0], sy = src ? 0 : f[1];
+  if (flip) { g.save(); g.translate(x, y); g.scale(-1, 1); g.drawImage(img, sx, sy, f[2], f[3], -ox, -oy, w, h); g.restore(); }
+  else g.drawImage(img, sx, sy, f[2], f[3], x - ox, y - oy, w, h);
+  return k;
+}
+// flat-colour silhouette of an enemy frame (cached) for hurt flashes / hot tints
+export function eTint(n, color) {
+  const E = G.en, key = n + color; let c = E.cache.get(key); if (c) return c; const f = E.f[n]; c = document.createElement('canvas'); c.width = f[2]; c.height = f[3];
+  const x = c.getContext('2d'); x.drawImage(E.img, f[0], f[1], f[2], f[3], 0, 0, f[2], f[3]); x.globalCompositeOperation = 'source-in'; x.fillStyle = color; x.fillRect(0, 0, f[2], f[3]); E.cache.set(key, c); return c;
 }

@@ -10,6 +10,8 @@ import * as UI from './ui.js';
 import { TILE } from './util.js';
 import { loadGfx, G } from './gfx.js';
 import { drawGlow } from './art.js';
+import { Enemy } from './enemies.js';
+import { Warden, TideGolem, Boss, DrownedBloom } from './boss.js';
 const STEP = 1 / 60;
 const canvas = document.getElementById('c'); const g = canvas.getContext('2d', { alpha: false });
 const game = {
@@ -148,6 +150,7 @@ loadSave(); initInput(canvas); resize(); UI.showTitle(); requestAnimationFrame(f
 // --------- test API (used by automated tests; harmless for players) ---------
 addEventListener('rs-pausemap', () => game.drawPauseMap());
 window.__RS = {
+  foes: { Enemy, Warden, TideGolem, Boss, DrownedBloom },
   game, save, input, TILE, gfx: G, writeSave, loadSave, continueRun: () => document.querySelector('[data-act="continueRun"]').click(), layout: () => input.layout,
   get W() { return game.world; },
   drawMap, mapInfo, renderNow() { if (game.world) render(0); },

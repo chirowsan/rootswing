@@ -1,5 +1,6 @@
 // ROOTSWING headless test suite (puppeteer + swiftshader). Usage: node tests/run-all.mjs
 import { serve, launch, sleep } from '../tools/lib.mjs';
+import { enemyStates } from '../tools/enemy-rig.mjs';
 const results = []; const ok = (name, pass, info = '') => { results.push({ name, pass, info }); console.log(`${pass ? 'PASS' : 'FAIL'} ${name} ${info}`); };
 const { server, url } = await serve();
 async function fresh(opts = {}) { const L = await launch(opts); await L.page.goto(url); await sleep(700); return L; }
@@ -137,5 +138,20 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
   const fps = await E(page, () => __RS.state().fps);
   ok('perf: simulation step < 2 ms', p.updMs < 2, `update ${p.updMs.toFixed(3)} ms/step; headless swiftshader fps ${fps.toFixed(1)} (CPU-rasterised, informational)`);
   ok('no page errors (perf)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
+// v1.4 enemy animation: every foe has painted frames, every state animates, frames change while moving, death shatters
+{ const { browser, page, errors } = await fresh();
+  await page.waitForFunction(() => __RS.gfx.ready && __RS.gfx.en, { timeout: 20000 });
+  const names = ['hopper', 'charger', 'moth', 'puffcap', 'knight', 'bomber', 'lurefish', 'jelly', 'shellback', 'dummy', 'tturret', 'warden', 'tidegolem', 'boss', 'boss2'];
+  const miss = await E(page, (n) => n.filter((k) => !__RS.gfx.en.f[k + '_base'] && !__RS.gfx.en.f[k + '_walk0']), names);
+  ok('enemy anim: painted frames for all 15 foes', miss.length === 0, miss.join(','));
+  const r = await enemyStates(page); const bad = [], still = [], few = []; let states = 0;
+  for (const [n, v] of Object.entries(r)) { const fr = new Set(Object.values(v.frames).flat()); if (fr.size < 3) few.push(n + ':' + fr.size);
+    for (const [st, h] of Object.entries(v.hashes)) { states++; if (new Set(h).size < 2) bad.push(n + '/' + st);
+      if (/^move/.test(st) && new Set(v.frames[st]).size < 2 && !['hopper'].includes(n)) still.push(n); }
+    if (v.errors.length) bad.push(n + ' ' + v.errors[0]); }
+  ok('enemy anim: >1 distinct frame in every state', bad.length === 0, `${states} states; ${bad.join(', ')}`);
+  ok('enemy anim: painted frame swaps while moving', still.length === 0, still.join(','));
+  ok('enemy anim: >=3 painted poses per foe', few.length === 0, few.join(','));
+  ok('no page errors (enemy anim)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
 server.close(); const fail = results.filter((r) => !r.pass);
 console.log(`\n${results.length - fail.length}/${results.length} passed`); process.exit(fail.length ? 1 : 0);

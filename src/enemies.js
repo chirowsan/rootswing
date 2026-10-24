@@ -2,7 +2,8 @@
 import { TILE, clamp, sign, approach, rand } from './util.js';
 import { moveBody, groundBelow, lineClear } from './physics.js';
 import { PAL, drawGlow } from './art.js';
-import { has, spr, tinted } from './gfx.js';
+import { has, spr, tinted, hasE } from './gfx.js';
+import { track, drawRig, regPose, wardenPose, bossPose } from './eanim.js';
 import { save as _save } from './save.js';
 import { sfx } from './audio.js';
 import { diff } from './save.js';
@@ -144,6 +145,11 @@ export class Enemy {
     const hot = tele > 0 || this.st === 'charge' || this.st === 'swoop' || this.st === 'swing';
     if (!lo) drawGlow(g, X, this.cy, H * 0.8, '#07060e', 0.35);
     if (hot) drawGlow(g, X, Y - H * 0.5, H * (0.9 + tele * 0.4), '#ff2a3a', 0.45 + tele * 0.45);
+    if (hasE(n + '_base')) { // v1.4: animated painted frames (one drawImage, border baked in)
+      track(this); drawRig(g, this, n, regPose(this), H, hot ? 0.25 + tele * 0.35 : 0);
+      if (this.shield && n === 'knight' && this.shieldFlash) { g.globalAlpha = Math.min(1, this.shieldFlash * 5); drawGlow(g, X + 8 * f, Y - H * 0.45, 14, '#bfefff', 1); g.globalAlpha = 1; }
+      return;
+    }
     g.save(); g.translate(X + (tele > 0 ? Math.sin(t * 60) * 1.2 : 0), Y + (this.fly ? Math.sin(t * 4) * 2 : 1));
     const sq = this.sq, st = 1 / Math.sqrt(sq), idle = this.st === 'idle' || !this.st; let rot = 0, bx = 1, by = 1;
     if (idle && n !== 'dummy' && n !== 'tturret') by = 1 + Math.sin(t * 3.2) * 0.035;

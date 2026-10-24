@@ -13,6 +13,14 @@ export class FX {
       this.p.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - (o.up || 0), life: rand.range(o.life ? o.life * 0.6 : 0.3, o.life || 0.6), t: 0, size: rand.range(o.size ? o.size * 0.6 : 2, o.size || 4), color: Array.isArray(o.color) ? rand.pick(o.color) : o.color || '#fff', g: o.g ?? 500, drag: o.drag ?? 2, glow: o.glow || 0, kind: o.kind || 'dot', rot: rand.range(0, 6), vr: rand.range(-8, 8) });
     }
   }
+  // v1.4 death: break the enemy's last drawn frame into spinning shards (d = {img, f:[x,y,w,h], k, x, y (top-left world), flip})
+  shatter(d, n = 3, power = 1) {
+    if (!d || this.p.length > 600) return; const [fx, fy, fw, fh] = d.f, cw = fw / n, ch = fh / n, cx = d.x + fw * d.k / 2, cy = d.y + fh * d.k / 2;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const lx = d.flip ? n - 1 - i : i, wx = d.x + (lx + 0.5) * cw * d.k, wy = d.y + (j + 0.5) * ch * d.k, a = Math.atan2(wy - cy, wx - cx), sp = (90 + Math.random() * 150) * power;
+      this.p.push({ kind: 'shard', img: d.img, sx: fx + i * cw, sy: fy + j * ch, sw: cw, sh: ch, w: cw * d.k, h: ch * d.k, flip: d.flip, x: wx, y: wy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 160 * power, g: 700, drag: 1.2, life: 0.55 + Math.random() * 0.3, t: 0, rot: 0, vr: (Math.random() - 0.5) * 16, size: 1, color: '#000', glow: 0 });
+    }
+  }
   ring(x, y, r, color = '#fff', life = 0.35, width = 4) { this.rings.push({ x, y, r, color, life, t: 0, width }); }
   text(x, y, s, color = '#fff', size = 14) { this.texts.push({ x, y, s, color, size, t: 0, life: 0.8 }); }
   // v1.3 juice: styled damage number - pops in with overshoot, drifts sideways, heavy hits get a warm gradient + spark
@@ -44,6 +52,7 @@ export class FX {
   draw(g) {
     for (const q of this.p) {
       const k = 1 - q.t / q.life; g.globalAlpha = Math.min(1, k * 1.5); g.fillStyle = q.color;
+      if (q.kind === 'shard') { g.globalAlpha = Math.min(1, k * 2.2); g.save(); g.translate(q.x, q.y); g.rotate(q.rot); if (q.flip) g.scale(-1, 1); g.drawImage(q.img, q.sx, q.sy, q.sw, q.sh, -q.w / 2, -q.h / 2, q.w, q.h); g.restore(); continue; }
       if (q.kind === 'puff') { const e = q.t / q.life; g.globalAlpha = 0.42 * (1 - e) * (1 - e); const r = q.size * (0.6 + e * 1.6); g.beginPath(); g.arc(q.x, q.y, r, 0, 7); g.arc(q.x + r * 0.7, q.y + r * 0.2, r * 0.7, 0, 7); g.fill(); continue; }
       if (q.kind === 'arc') { const e = q.t / q.life, ee = 1 - (1 - e) * (1 - e), R = q.r0 + (q.r1 - q.r0) * ee, a = q.rot + q.vr * e * 0.35; g.save(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = (1 - e) * 0.95; g.strokeStyle = q.color; g.lineCap = 'round'; g.lineWidth = q.size * (1 - e) + 0.6; g.beginPath(); g.arc(q.x, q.y, R, a, a + 0.75 * Math.sign(q.vr), q.vr < 0); g.stroke(); g.globalAlpha *= 0.35; g.lineWidth *= 3; g.stroke(); g.restore(); continue; }
       if (q.kind === 'spark') { g.save(); g.globalCompositeOperation = 'lighter'; g.translate(q.x, q.y); g.rotate(Math.atan2(q.vy, q.vx)); const L = q.size * (1.8 + Math.min(2, Math.hypot(q.vx, q.vy) / 150)); g.beginPath(); g.moveTo(-L, 0); g.lineTo(0, -q.size * 0.45); g.lineTo(L * 0.6, 0); g.lineTo(0, q.size * 0.45); g.fill(); g.fillStyle = '#fff8e0'; g.fillRect(-L * 0.5, -q.size * 0.12, L, q.size * 0.24); g.restore(); }
