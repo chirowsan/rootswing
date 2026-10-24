@@ -7,7 +7,7 @@ const BTN = ['jump', 'attack', 'dash', 'hook', 'parry', 'skill1', 'skill2', 'fla
 export const input = {
   mx: 0, my: 0, // move axes -1..1
   held: {}, queued: {}, rel: {},
-  touchActive: false, lastDevice: 'keys',
+  touchActive: typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches, lastDevice: 'keys', // phones show touch controls from the start
   visible: { parry: true, skill1: true, skill2: false, flask: true, hook: true, dash: true, attack: true },
   highlight: {}, // name -> true (tutorial pulse)
   stick: { active: false, id: null, bx: 0, by: 0, x: 0, y: 0 },

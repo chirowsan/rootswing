@@ -1,0 +1,15 @@
+import { launch, sleep } from './lib.mjs';
+const url = process.argv[2] || 'https://chirowsan.github.io/rootswing/';
+const { browser, page } = await launch({ mobile: true });
+const errs = [];
+page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+page.on('pageerror', e => errs.push('PAGEERROR ' + e.message));
+page.on('requestfailed', r => errs.push('REQFAIL ' + r.url()));
+const res = await page.goto(url, { waitUntil: 'networkidle0' }); await sleep(1500);
+const st = await page.evaluate(() => window.__RS && __RS.state().st);
+await page.screenshot({ path: 'shots/live-title.png' });
+await page.evaluate(() => { const b = document.querySelector('[data-act="play"]'); b && b.click(); }); await sleep(2500);
+const st2 = await page.evaluate(() => window.__RS && __RS.state());
+await page.screenshot({ path: 'shots/live-play.png' });
+console.log(JSON.stringify({ http: res.status(), st, after: st2 && (st2.mode || st2.st), errors: errs }));
+await browser.close();
