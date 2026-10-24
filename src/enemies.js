@@ -47,7 +47,7 @@ export class Enemy {
     this.info = ENEMY_INFO[type];
   }
   get cx() { return this.x + this.w / 2; } get cy() { return this.y + this.h / 2; }
-  yank(p) { const d = sign(p.cx - this.cx); this.vx = d * 330; this.vy = -160; this.stun = Math.max(this.stun, 0.9); this.st = 'idle'; this.tele = 0; }
+  yank(p) { const d = sign(p.cx - this.cx); this.vx = d * Math.min(1000, Math.max(200, 10 * (Math.abs(p.cx - this.cx) - 26))); this.vy = -160; this.stun = Math.max(this.stun, 0.9); this.st = 'idle'; this.tele = 0; }
   update(W, dt) {
     const P = W.player, A = diff().aggro; this.t += dt; this.anim += dt; this.flash = Math.max(0, this.flash - dt); this.sq = approach(this.sq, 1, dt * 4);
     const dx = P.cx - this.cx, dy = P.cy - this.cy, adx = Math.abs(dx);

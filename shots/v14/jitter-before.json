@@ -1,0 +1,56 @@
+{
+ "60Hz": {
+  "heroSpeedCV": 0.482,
+  "heroSpeed": 148,
+  "screenStepSdPx": 1.27,
+  "camSpeedCV": 2.056,
+  "zeroMoveFrames": 10,
+  "frames": 54,
+  "costP50": 0.2
+ },
+ "60Hz_noise2ms": {
+  "heroSpeedCV": 0.516,
+  "heroSpeed": 143,
+  "screenStepSdPx": 1.29,
+  "camSpeedCV": 2.068,
+  "zeroMoveFrames": 11,
+  "frames": 54,
+  "costP50": 0.1
+ },
+ "90Hz": {
+  "heroSpeedCV": 0.928,
+  "heroSpeed": 147,
+  "screenStepSdPx": 1.42,
+  "camSpeedCV": 2.512,
+  "zeroMoveFrames": 37,
+  "frames": 81,
+  "costP50": 0.1
+ },
+ "90Hz_noise2ms": {
+  "heroSpeedCV": 0.936,
+  "heroSpeed": 144,
+  "screenStepSdPx": 1.42,
+  "camSpeedCV": 2.664,
+  "zeroMoveFrames": 37,
+  "frames": 81,
+  "costP50": 0.1
+ },
+ "120Hz": {
+  "heroSpeedCV": 1.22,
+  "heroSpeed": 146,
+  "screenStepSdPx": 1.36,
+  "camSpeedCV": 2.963,
+  "zeroMoveFrames": 64,
+  "frames": 108,
+  "costP50": 0.1
+ },
+ "120Hz_noise2ms": {
+  "heroSpeedCV": 1.235,
+  "heroSpeed": 141,
+  "screenStepSdPx": 1.37,
+  "camSpeedCV": 3.155,
+  "zeroMoveFrames": 64,
+  "frames": 108,
+  "costP50": 0.1
+ }
+}

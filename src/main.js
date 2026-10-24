@@ -85,7 +85,7 @@ function tick(now) {
     if (pressed('pause')) { game.pause(); endStep(); }
     else {
       acc += real * save.settings.speed; let n = 0;
-      while (acc >= STEP && n < 4) { W.update(STEP); game.tut && game.tut.update(STEP); if (game.god) { W.player.hp = W.player.maxHp; } endStep(); acc -= STEP; n++; }
+      while (acc >= STEP && n < 4) { const r = W.update(STEP); game.tut && game.tut.update(STEP); if (game.god) { W.player.hp = W.player.maxHp; } if (r !== 'hs') endStep(); acc -= STEP; n++; }
       if (n === 4) acc = 0;
     }
   } else endStep();
@@ -155,7 +155,7 @@ window.__RS = {
   press(b) { simButton(b, true); }, release(b) { simButton(b, false); }, axes(x, y) { simAxes(x, y); },
   god(on = true) { game.god = on; if (game.world) game.world.god = on; },
   manual(on = true) { game.manual = on; },
-  step(n = 1) { for (let i = 0; i < n; i++) { pollInput(); const W = game.world; if (!W || game.state !== 'play' || game.paused || UI.isOpen()) { endStep(); continue; } W.update(STEP); game.tut && game.tut.update(STEP); if (game.god) W.player.hp = W.player.maxHp; endStep(); } return this.state(); },
+  step(n = 1) { for (let i = 0; i < n; i++) { pollInput(); const W = game.world; if (!W || game.state !== 'play' || game.paused || UI.isOpen()) { endStep(); continue; } const r = W.update(STEP); game.tut && game.tut.update(STEP); if (game.god) W.player.hp = W.player.maxHp; if (r !== 'hs') endStep(); } return this.state(); },
   // v1.4 frame-pacing trace: drive the real loop with a fake clock at hz with +-noise ms jitter; returns per-frame drawn hero x / camera x
   trace(hz = 60, frames = 240, noise = 0, seed = 1) {
     let r = seed; const rnd = () => ((r = (r * 16807) % 2147483647) / 2147483647);

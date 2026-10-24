@@ -115,7 +115,7 @@ export class World {
     if (this.countdown > 0) { const before = Math.ceil(this.countdown / 0.5); this.countdown -= dt; const after = Math.ceil(this.countdown / 0.5); if (after !== before && this.countdown > 0 && after <= 3) sfx('beep'); if (this.countdown <= 0) { sfx('go'); this.goT = 0.6; if (this.boss && this.boss.st === 'sleep') { this.boss.go('intro'); this.startFight(this.boss); sfx('roar'); this.fx.shake(0.4); } } this.fx.update(dt); this.updateCamera(dt); return; }
     if (this.goT > 0) this.goT -= dt;
     if (this.zoomK > 0) this.zoomK = Math.max(0, this.zoomK - dt * 4.5);
-    if (this.hs > 0) { this.hs -= dt; this.fx.update(dt * 0.3); return; }
+    if (this.hs > 0) { this.hs -= dt; this.fx.update(dt * 0.3); return 'hs'; } // v1.4: callers keep button edges through hit-stop
     if (this.slow > 0) { this.slow -= dt; dt *= 0.4; }
     const P = this.player; P.update(this, dt); this.updateRoom(false);
     const ax = P.cx, ay = P.cy;
