@@ -57,6 +57,7 @@ export function showPause(ctx) {
   ${ctx === 'tutorial' ? `<button class="big" data-act="skipTutorial">${ic('right', '#fff', 22)} Skip practice</button>` : ''}
   <button class="big" data-act="toTitle">Title screen</button></div>
   <p class="hint">Glimmers you carry are banked when you return to the Seedhouse.</p></div>`);
+  if (ctx === 'run') requestAnimationFrame(() => window.dispatchEvent(new Event('rs-pausemap')));
 }
 function seg(k, opts) { return `<div class="seg">${opts.map(([v, l]) => `<button data-act="set" data-v="${k}:${v}" class="${String(save.settings[k]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`; }
 function row(label, ctl, help = '') { return `<div class="row"><div class="lab">${label}${help ? `<small>${help}</small>` : ''}</div>${ctl}</div>`; }

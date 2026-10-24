@@ -83,6 +83,51 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
   await page.touchscreen.touchStart(L.b.jump.x, L.b.jump.y); await sleep(180); const y1 = await E(page, () => __RS.W.player.y); await page.touchscreen.touchEnd();
   ok('touch: tapping jump button jumps', y1 < y0 - 10, `y ${y0.toFixed(0)} -> ${y1.toFixed(0)}`);
   ok('no page errors (touch)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
+// 7b. v1.3 long maps: room count, checkpoint spacing and reachability over many seeds (pure generator, both biomes)
+{ const { analyze } = await import('../tools/reach.mjs'); const { generateRun } = await import('../src/level.js');
+  for (const biome of ['overpass', 'caverns']) { let lo = 1e9, hi = 0, maxGap = 0, bad = 0, n = 0, total = 0;
+    for (let sd = 1; sd <= 120; sd++) { const seed = sd * 104729 + (biome === 'caverns' ? 7919 : 0); const r = analyze(seed, biome); n++; total += r.cells; lo = Math.min(lo, r.cells); hi = Math.max(hi, r.cells); if (r.fails.length) bad++;
+      const path = r.R.cells.filter((c) => !c.branch); let last = 0; path.forEach((c, i) => { if (c.kind === 'checkpoint' || c.kind === 'exit') { maxGap = Math.max(maxGap, i - last); last = i; } }); }
+    ok(`long map (${biome}): 40-60 rooms per biome over ${n} seeds`, lo >= 40 && hi <= 60, `min ${lo} max ${hi} avg ${(total / n).toFixed(1)}`);
+    ok(`long map (${biome}): checkpoint every <= 12 rooms`, maxGap <= 12, `largest main-path gap ${maxGap}`);
+    ok(`reachability (${biome}): every door/chest/weapon/boss door reachable, ${n} seeds`, bad === 0, `${bad} seeds with problems`); }
+  const a = generateRun(4242, 'caverns'), b = generateRun(4242, 'caverns'); ok('generator deterministic per seed', JSON.stringify(a.map.t.slice(0, 4000)) === JSON.stringify(b.map.t.slice(0, 4000))); }
+// 7c. v1.3 biome 2: new enemies spawn, telegraph, hurt and die; mini-boss; new weapons; Ember Heart; minimap / pause map; streaming
+{ const { browser, page, errors } = await fresh();
+  const en = await E(page, () => { __RS.start('run', { seed: 77, stage: 1 }); __RS.god(true); __RS.manual(true); __RS.skipCountdown(); __RS.step(150); const W = __RS.W, P = W.player, out = {};
+    for (const type of ['lurefish', 'jelly', 'shellback']) { for (const e of W.enemies) if (e.type !== 'tidegolem') e.dead = true; let hits = 0; const hp0 = 1e9; W.spawnEnemy(type, P.cx + 110, P.y - 10); const e = W.enemies[W.enemies.length - 1]; const st = new Set(); const php = P.hp; let dmg = 0;
+      __RS.god(false); P.hp = P.maxHp = 9999; for (let f = 0; f < 600; f++) { st.add(e.st); __RS.step(1); } dmg = 9999 - P.hp; __RS.god(true);
+      let f = 0; for (; f < 3000 && !e.dead; f++) { const dx = e.cx - P.cx; P.x += Math.sign(dx) * Math.min(3, Math.max(0, Math.abs(dx) - 26)); P.y = e.y + e.h - P.h; P.vy = 0; if (f % 8 === 0) __RS.press('attack'); if (f % 8 === 3) __RS.release('attack'); __RS.step(1); }
+      out[type] = { st: [...st].join('/'), telegraphed: st.has('tele'), hurtPlayer: dmg > 0, killed: e.dead, frames: f }; }
+    return { biome: W.biome.key, out }; });
+  for (const [t, r] of Object.entries(en.out)) ok(`biome-2 enemy ${t}: telegraphs, hurts, killable`, en.biome === 'caverns' && r.telegraphed && r.hurtPlayer && r.killed, JSON.stringify(r));
+  const mb = await E(page, () => { const W = __RS.W, P = W.player; const g = W.enemies.find((e) => e.type === 'tidegolem' && !e.dead); if (!g) return { found: false }; const c = W.cells[g.cell]; const p = W.findFloorIn(c); P.x = p.x; P.y = p.y - P.h; __RS.step(30);
+    let f = 0; for (; f < 12000 && g.hp > 0; f++) { const dx = g.cx - P.cx; __RS.axes(Math.abs(dx) > 30 ? Math.sign(dx) : 0, 0); if (f % 9 === 0) __RS.press('attack'); if (f % 9 === 3) __RS.release('attack'); __RS.step(1); } __RS.axes(0, 0); __RS.step(60);
+    return { found: true, dead: g.hp <= 0, frames: f, cleared: W.cleared.has(g.cell) }; });
+  ok('biome-2 mini-boss Tide Golem: found in run + defeated', mb.found && mb.dead, JSON.stringify(mb));
+  const mm = await E(page, () => { const W = __RS.W; const cv = document.createElement('canvas'); cv.width = 300; cv.height = 200; const g = cv.getContext('2d'); __RS.drawMap(g, W, 0, 0, 24, 16, true);
+    const info = __RS.mapInfo(W); const cur = W.curCell; const px = g.getImageData(cur.x * 24 + 12, cur.y * 16 + 3, 1, 1).data;
+    return { seen: info.filter((i) => i.state === 'seen').length, visited: W.visited.size, boss: info.filter((i) => i.state === 'boss').length, hidden: info.filter((i) => i.state === 'hidden').length, curPx: [...px] }; });
+  ok('minimap: explored rooms, current room highlighted, boss door always shown, unexplored hidden', mm.seen === mm.visited && mm.boss === 1 && mm.hidden > 0 && mm.curPx[0] > 200 && mm.curPx[1] > 180, JSON.stringify(mm));
+  await E(page, () => { __RS.manual(false); __RS.game.pause(); }); await sleep(400);
+  const pm = await E(page, () => { const cv = document.getElementById('pmap'); if (!cv) return { canvas: false }; const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; let lit = 0; for (let i = 3; i < d.length; i += 16) if (d[i] > 0) lit++; const r = cv.getBoundingClientRect(); return { canvas: true, lit, w: r.width, h: r.height, bottom: r.bottom, vh: innerHeight, btn: !!document.querySelector('[data-act=resume]') }; });
+  await page.screenshot({ path: 'shots/test-pausemap.png' });
+  ok('pause map: drawn, fits the screen, Resume available', pm.canvas && pm.lit > 200 && pm.bottom <= pm.vh && pm.btn, JSON.stringify(pm));
+  await E(page, () => { document.querySelector('[data-act=resume]').click(); __RS.manual(true); __RS.skipCountdown(); __RS.step(5); });
+  const st = await E(page, () => { const W = __RS.W, P = W.player; let maxC = 0; for (const c of W.cells.filter((c) => !c.branch)) { const p = W.findFloorIn(c); P.x = p.x; P.y = p.y - P.h; __RS.step(3); __RS.renderNow && __RS.renderNow(); maxC = Math.max(maxC, W.chunkCache.size); } return { maxC, made: W.chunkMade || 0, evicted: W.chunkEvicted || 0 }; });
+  ok('streaming: render chunks are evicted (cache stays bounded on long maps)', st.maxC <= 40 && st.evicted > 0, JSON.stringify(st));
+  const wp = await E(page, () => { const W = __RS.W, P = W.player, r = {}; for (const w of ['spear', 'sickle']) { P.weapon = w; P.atk = null; for (const e of W.enemies) e.dead = true; __RS.step(20); W.spawnEnemy('hopper', P.cx + 60 * P.face, P.y + P.h - 2); const d = W.enemies[W.enemies.length - 1]; d.maxHp = d.hp = 5000; const h0 = d.hp; for (let f = 0; f < 120; f++) { d.x = P.cx + 50 * P.face - d.w / 2; d.vx = 0; if (f % 10 === 0) __RS.press('attack'); if (f % 10 === 3) __RS.release('attack'); __RS.step(1); } r[w] = h0 - d.hp; } return r; });
+  ok('new weapons Tidespear + Glowsickle deal damage', wp.spear > 0 && wp.sickle > 0, JSON.stringify(wp));
+  const rv = await E(page, () => { const W = __RS.W, P = W.player; __RS.god(false); __RS.save.progress.unlocks.revive = true; P.iframes = 0; P.hp = 5; W.damagePlayer(50, P.cx + 10, { name: 'test' }); const a = { hp: P.hp, dead: P.dead }; P.iframes = 0; P.hp = 5; W.damagePlayer(50, P.cx + 10, { name: 'test' }); const b = { dead: P.dead }; delete __RS.save.progress.unlocks.revive; return { a, b }; });
+  ok('hub skill Ember Heart: revives once per biome', !rv.a.dead && rv.a.hp > 0 && rv.b.dead, JSON.stringify(rv));
+  ok('no page errors (biome 2)', errors.length === 0, errors.slice(0, 3).join(' | ')); await browser.close(); }
+// 7d. checkpoint resume inside biome 2
+{ const { browser, page, errors } = await fresh();
+  await E(page, () => { __RS.start('run', { seed: 555, stage: 1 }); __RS.god(true); __RS.manual(true); __RS.skipCountdown(); __RS.step(60); const W = __RS.W; const cs = W.cells.filter((c) => c.kind === 'checkpoint'); const c = cs[cs.length - 1]; const p = W.findFloorIn(c); W.player.x = p.x; W.player.y = p.y - W.player.h; __RS.step(10); localStorage.setItem('__cp2', c.index); });
+  await page.reload(); await sleep(800);
+  const r = await E(page, () => { const want = +localStorage.getItem('__cp2'); __RS.continueRun(); const W = __RS.W; return { want, cell: W.curCell && W.curCell.index, stage: W.stage, biome: W.biome.key, mode: W.mode, saved: __RS.save.run && __RS.save.run.stage }; });
+  ok('checkpoint resume in biome 2 (stage, biome, room)', r.mode === 'run' && r.stage === 1 && r.biome === 'caverns' && r.cell === r.want && r.saved === 1, JSON.stringify(r));
+  ok('no page errors (biome-2 resume)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
 // 8. perf: CPU cost per frame (simulation + draw); swiftshader rasterises on CPU so wall-clock fps is not phone-representative
 { const { browser, page, errors } = await fresh();
   const p = await E(page, () => { __RS.start('run', { seed: 31337 }); __RS.manual(true); __RS.step(200); const W = __RS.W; const cv = document.querySelector('canvas'); const g = cv.getContext('2d'); let up = 0, dr = 0; const N = 300;

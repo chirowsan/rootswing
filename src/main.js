@@ -4,7 +4,7 @@ import { initAudio, sfx, playSong, applyVolumes } from './audio.js';
 import { input, initInput, pollInput, endStep, pressed, held, computeLayout, drawTouch, clearAll, simButton, simAxes } from './input.js';
 import { World, VIEW_H, playerStats } from './world.js';
 import { Tutorial } from './tutorial.js';
-import { drawHUD, drawMap } from './hud.js';
+import { drawHUD, drawMap, mapInfo } from './hud.js';
 import { GADGETS } from './weapons.js';
 import * as UI from './ui.js';
 import { TILE } from './util.js';
@@ -49,7 +49,7 @@ const game = {
     this.relayout();
   },
   relayout() { input.layout = computeLayout(game.cssW, game.cssH); input.layout && (input.visible.skill2 = !game.world || game.world.player.gadgets.length > 1); },
-  pause() { if (this.state !== 'play' || this.paused || !this.world) return; this.paused = true; clearAll(); sfx('uiBack'); UI.showPause(this.world.mode); this.drawPauseMap(); },
+  pause() { if (this.state !== 'play' || this.paused || !this.world) return; this.paused = true; clearAll(); sfx('uiBack'); UI.showPause(this.world.mode); },
   drawPauseMap() { const W = this.world, cv = document.getElementById('pmap'); if (!cv || !W || W.mode !== 'run') return; const g = cv.getContext('2d'); g.clearRect(0, 0, cv.width, cv.height); const cs = Math.floor(Math.min(cv.width / W.gw, cv.height / W.gh * 1.7)), chh = Math.floor(cs / 1.7); drawMap(g, W, (cv.width - cs * W.gw) / 2, (cv.height - chh * W.gh) / 2, cs, chh, true); if (this.paused && UI.ui.open === 'pause') requestAnimationFrame(() => this.drawPauseMap()); },
 };
 UI.initUI({
@@ -143,9 +143,11 @@ document.addEventListener('backbutton', () => { if (UI.isOpen()) UI.menuNav(0, f
 // --------- boot ---------
 loadSave(); initInput(canvas); resize(); UI.showTitle(); requestAnimationFrame(frame); loadGfx('gfx/');
 // --------- test API (used by automated tests; harmless for players) ---------
+addEventListener('rs-pausemap', () => game.drawPauseMap());
 window.__RS = {
   game, save, input, TILE, gfx: G, writeSave, loadSave, continueRun: () => document.querySelector('[data-act="continueRun"]').click(), layout: () => input.layout,
   get W() { return game.world; },
+  drawMap, mapInfo, renderNow() { if (game.world) render(0); },
   start(mode, opts) { initAudio(); game.go(mode, opts); },
   press(b) { simButton(b, true); }, release(b) { simButton(b, false); }, axes(x, y) { simAxes(x, y); },
   god(on = true) { game.god = on; if (game.world) game.world.god = on; },

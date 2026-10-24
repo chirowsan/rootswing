@@ -1,2 +1,3 @@
 - 20:37 PDT: reach fixed via auto hook blooms at vertical doors; 0 problems over 200 maps
 - 20:42 PDT: biome-2 enemies (lurefish/jelly/shellback), Tide Golem, Drowned Bloom final boss, stages, checkpoint shrines, pause map wired
+- 20:43 PDT: tests 25/25 (biome-2 flow, final boss, checkpoint resume); reach 600 maps 0 problems avg 47.1 rooms

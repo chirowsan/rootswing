@@ -35,6 +35,19 @@ if (want('run')) { const { browser, page } = await open();
 if (want('boss')) { const { browser, page } = await open(); await page.evaluate(() => { __RS.save.progress.tutorialDone = true; __RS.start('boss', { seed: 5 }); __RS.god(true); }); await settle(page, 240);
   await page.evaluate(() => { const W = __RS.W, B = W.boss; if (B) { B.hp = B.maxHp * 0.5; } __RS.step(150); }); await page.evaluate(() => { const W = __RS.W, B = W.boss; if (B && B.st === 'idle') B.attack(W, 'slam', W.player, W.room.y + W.room.h - 48); __RS.step(30); }); await shot(page, '07-boss');
   await page.evaluate(() => { const B = __RS.W.boss; B.hp = 0; B.st = 'dying'; B.t = 0; __RS.step(140); __RS.manual(false); }); await sleep(800); await shot(page, '08-bloom'); await sleep(2600); await shot(page, '09-victory'); await browser.close(); }
+if (want('cave')) { const { browser, page } = await open();
+  await page.evaluate(() => { __RS.save.progress.tutorialDone = true; __RS.start('run', { seed: 12345, stage: 1 }); __RS.god(true); }); await settle(page, 30);
+  const cells = await page.evaluate(() => __RS.W.cells.map((c) => ({ i: c.index, kind: c.kind, x: c.x, y: c.y, branch: !!c.branch, n: __RS.W.enemies.filter((e) => e.cell === c.index).length })));
+  const tele = (i) => page.evaluate((i) => { const W = __RS.W, P = W.player, c = W.cells[i], T = __RS.TILE; const ox = c.x * 34, oy = c.y * 20; P.x = (ox + 3) * T + 3; P.y = (oy + 18) * T - P.h - 1; P.vx = P.vy = 0; W.updateRoom(false); W.snapCamera(); }, i);
+  const normal = cells.filter((c) => c.kind === 'normal' && !c.branch && c.n >= 2);
+  await tele(normal[0].i); await page.evaluate(() => __RS.step(20)); await shot(page, '11-cave-room');
+  await tele(normal[1] ? normal[1].i : normal[0].i); await page.evaluate(() => __RS.step(10)); await drive(page, FIGHT.toString(), 600); await shot(page, '12-cave-combat');
+  const mb = cells.find((c) => c.kind === 'miniboss'); await tele(mb.i); await page.evaluate(() => __RS.step(5)); await drive(page, ((W, P, f) => { const b = W.enemies.find((e) => e.type === 'tidegolem' && !e.dead); if (!b || f > 400) return null; if (f > 150 && Math.abs(b.cx - P.cx) < 140) return null; return { mx: Math.sign(b.cx - P.cx) }; }).toString(), 400); await shot(page, '13-cave-miniboss');
+  await page.evaluate(() => { __RS.manual(false); __RS.game.pause(); }); await sleep(600); await shot(page, '16-pausemap');
+  await browser.close(); }
+if (want('cave')) { const { browser, page } = await open(); await page.evaluate(() => { __RS.save.progress.tutorialDone = true; __RS.start('boss', { seed: 5, stage: 1 }); __RS.god(true); }); await settle(page, 240);
+  await page.evaluate(() => { const W = __RS.W, B = W.boss; if (B) { B.hp = B.maxHp * 0.5; } __RS.step(150); }); await page.evaluate(() => { const W = __RS.W, B = W.boss; if (B && B.st === 'idle') B.attack(W, 'tide', W.player, W.room.y + W.room.h - 48); __RS.step(30); }); await shot(page, '14-final-boss');
+  await page.evaluate(() => { const B = __RS.W.boss; B.hp = 0; B.st = 'dying'; B.t = 0; __RS.step(140); __RS.manual(false); }); await sleep(800); await shot(page, '14b-final-dying'); await sleep(2600); await shot(page, '15-final-victory'); await browser.close(); }
 // phone touch layout
 if (want('touch')) { const { browser, page } = await open({ mobile: true, dpr: 2.6 }); await page.evaluate(() => { __RS.save.progress.tutorialDone = true; __RS.start('run', { seed: 12345 }); }); await settle(page, 60);
   await page.touchscreen.tap(300, 300); await page.evaluate(() => __RS.step(30)); await shot(page, '10-touch-915x412'); await browser.close(); }

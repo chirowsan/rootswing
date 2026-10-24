@@ -26,6 +26,21 @@ export const WEAPONS = {
       { dmg: 16, wind: 0.1, active: 0.12, rec: 0.24, w: 96, h: 26, oy: -2, lunge: 60, kb: 260, hs: 0.07, shake: 0.2, sfx: 'swingHeavy', arc: 5 }],
     heavy: { dmg: 30, wind: 0.05, active: 0.22, rec: 0.3, w: 170, h: 90, oy: -10, lunge: 0, kb: 340, hs: 0.1, shake: 0.35, sfx: 'swingHeavy', arc: 6, both: true, breaks: true },
     air: { dmg: 10, wind: 0.05, active: 0.1, rec: 0.12, w: 80, h: 30, oy: 0, lunge: 0, kb: 150, hs: 0.04, shake: 0.1, sfx: 'swing', arc: 5 } },
+  // v1.3 (Drowned Glowroots) weapons
+  spear: { name: 'Tidespear', icon: 'spear', color: '#7ff6ff', desc: 'Long piercing thrusts, heavy lunges through foes', moveMul: 0.5, biome: 'caverns',
+    combo: [
+      { dmg: 12, wind: 0.08, active: 0.08, rec: 0.16, w: 92, h: 16, oy: -2, lunge: 90, kb: 170, hs: 0.05, shake: 0.12, sfx: 'swing', thrust: true },
+      { dmg: 20, wind: 0.12, active: 0.1, rec: 0.26, w: 104, h: 18, oy: -2, lunge: 140, kb: 300, hs: 0.08, shake: 0.22, sfx: 'swingHeavy', thrust: true }],
+    heavy: { dmg: 38, wind: 0.06, active: 0.18, rec: 0.32, w: 120, h: 22, oy: -2, lunge: 420, kb: 420, hs: 0.12, shake: 0.45, sfx: 'swingHeavy', thrust: true, breaks: true },
+    air: { dmg: 12, wind: 0.05, active: 0.1, rec: 0.12, w: 84, h: 18, oy: 0, lunge: 0, kb: 170, hs: 0.04, shake: 0.1, sfx: 'swing', thrust: true } },
+  sickle: { name: 'Glowsickle', icon: 'sickle', color: '#9affd8', desc: 'Very fast 4-hit flurry, heavy hits both sides', moveMul: 0.75, biome: 'caverns',
+    combo: [
+      { dmg: 7, wind: 0.03, active: 0.07, rec: 0.08, w: 36, h: 30, oy: -2, lunge: 50, kb: 80, hs: 0.03, shake: 0.06, sfx: 'swing', arc: 1 },
+      { dmg: 7, wind: 0.03, active: 0.07, rec: 0.08, w: 36, h: 30, oy: 0, lunge: 50, kb: 80, hs: 0.03, shake: 0.06, sfx: 'swing', arc: -1 },
+      { dmg: 8, wind: 0.03, active: 0.07, rec: 0.08, w: 38, h: 32, oy: -2, lunge: 60, kb: 90, hs: 0.03, shake: 0.08, sfx: 'swing', arc: 1 },
+      { dmg: 15, wind: 0.06, active: 0.09, rec: 0.2, w: 44, h: 36, oy: -4, lunge: 110, kb: 260, hs: 0.07, shake: 0.2, sfx: 'swingHeavy', arc: 2 }],
+    heavy: { dmg: 30, wind: 0.04, active: 0.16, rec: 0.28, w: 110, h: 50, oy: -4, lunge: 0, kb: 300, hs: 0.1, shake: 0.35, sfx: 'swingHeavy', arc: 6, both: true },
+    air: { dmg: 8, wind: 0.03, active: 0.08, rec: 0.08, w: 40, h: 38, oy: 0, lunge: 0, kb: 100, hs: 0.03, shake: 0.06, sfx: 'swing', arc: 1 } },
 };
 export const GADGETS = {
   popseed: { name: 'Popseed', icon: 'popseed', cd: 6, desc: 'Throw a seed bomb' },
@@ -42,4 +57,7 @@ export const UPGRADES = [
   { id: 'lucky', name: 'Lucky Seeds', icon: 'glimmer', cost: 100, desc: '+25% glimmers from enemies.' },
   { id: 'vigor2', name: 'Heartwood II', icon: 'heart', cost: 140, desc: '+20 more max health.', req: 'vigor1' },
   { id: 'flask2', name: 'Dew Flask +2', icon: 'flask', cost: 150, desc: 'Carry yet another flask.', req: 'flask1' },
+  { id: 'spear', name: 'Tidespear', icon: 'spear', cost: 130, desc: 'Start runs with the long-reach spear.' },
+  { id: 'sickle', name: 'Glowsickle', icon: 'sickle', cost: 130, desc: 'Start runs with the fast sickle.' },
+  { id: 'revive', name: 'Ember Heart', icon: 'heart', cost: 160, desc: 'Skill: once per biome, rise again at 40% health instead of dying.', req: 'vigor1' },
 ];

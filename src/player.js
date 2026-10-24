@@ -265,6 +265,7 @@ export class Player {
     W.fx.shake(0.45); W.hitstop(0.08); W.fx.flash = 0.35; W.fx.flashColor = '#ff5a7a'; sfx('hurt'); vibrate(35);
     W.fx.burst(this.cx, this.cy, 10, { color: ['#fff', '#ffd0d8'], max: 200, life: 0.4, kind: 'star', size: 5 });
     W.fx.text(this.cx, this.y - 6, '-' + real, '#ff8aa0', 14);
+    if (this.hp <= 0 && W.tryRevive && W.tryRevive(this)) return 'hit';
     if (this.hp <= 0) { this.hp = 0; this.dead = true; this.deadT = 0; W.onPlayerDeath(info); }
     return 'hit';
   }
@@ -463,6 +464,7 @@ export class Player {
       const d = atk.def || {}, alt = atk.step % 2 === 1;
       if (atk.kind === 'plunge') A = 0.05;
       else if (this.weapon === 'bow') A = atk.phase === 'wind' ? -1.4 : -1.57;
+      else if (d.thrust) A = atk.phase === 'wind' ? -1.2 : atk.phase === 'active' ? -1.57 : -1.35;
       else if (atk.phase === 'wind') A = alt ? -2.5 : 2.4;
       else if (atk.phase === 'active') { const k = Math.min(1, atk.t / Math.max(0.01, d.active || 0.1)); A = alt ? -2.5 + k * 1.9 : 2.0 - k * 3.7; }
       else A = alt ? -0.5 : -1.5;
@@ -514,7 +516,7 @@ export class Player {
   drawPaintedWeapon(o) {
     const w = this.weapon; o.save(); o.translate(0, 10.5);
     if (w === 'bow') { o.rotate(Math.PI / 2); spr(o, 'w_bow', 0, 0, 22, 0.35, 0.5); if (this.chargeT > 0.2) { o.strokeStyle = '#eaffc0'; o.lineWidth = 1; o.beginPath(); o.moveTo(-2, -9); o.lineTo(-6, 0); o.lineTo(-2, 9); o.stroke(); } }
-    else { o.rotate(Math.PI / 2); const L = w === 'blade' ? 25 : w === 'hammer' ? 25 : 18, n = 'w_' + w; spr(o, n, 0, 0, L / sprAspect(n), w === 'whip' ? 0.05 : 0.08, 0.5); }
+    else { o.rotate(Math.PI / 2); const L = w === 'blade' ? 25 : w === 'hammer' ? 25 : w === 'spear' ? 36 : 18, n = 'w_' + w; spr(o, n, 0, 0, L / sprAspect(n), w === 'whip' ? 0.05 : 0.08, 0.5); }
     o.restore();
   }
   drawWeapon(g, atk) {
@@ -529,7 +531,12 @@ export class Player {
   drawSmear(g, atk) {
     const d = atk.def, r = this.attackRect(d), k = atk.t / d.active, col = WEAPONS[this.weapon].color;
     g.save(); g.globalAlpha = 0.85 * (1 - k * 0.7); if (G.ready) { g.globalCompositeOperation = 'lighter'; g.shadowColor = col; g.shadowBlur = 0; }
-    if (d.arc === 5 || (this.weapon === 'whip' && !d.both)) { // whip: long wavy lash
+    if (d.thrust) { // spear: straight piercing streak
+      const f = this.face, x0 = this.cx + f * 10, y0 = this.cy + (d.oy || 0) - 4, L = d.w * Math.min(1, 0.35 + k * 2);
+      const gr = g.createLinearGradient(x0, y0, x0 + f * L, y0); gr.addColorStop(0, 'rgba(127,246,255,0)'); gr.addColorStop(1, col);
+      g.fillStyle = gr; g.beginPath(); g.moveTo(x0, y0 - d.h * 0.25); g.lineTo(x0 + f * L, y0); g.lineTo(x0, y0 + d.h * 0.25); g.closePath(); g.fill();
+      g.fillStyle = '#eaffff'; g.beginPath(); g.arc(x0 + f * L, y0, 3, 0, 7); g.fill();
+    } else if (d.arc === 5 || (this.weapon === 'whip' && !d.both)) { // whip: long wavy lash
       g.strokeStyle = '#7fe0a0'; g.lineWidth = 4; g.beginPath(); const x0 = this.cx, y0 = this.cy - 6; g.moveTo(x0, y0);
       const L = d.w * Math.min(1, k * 2.5), dir = this.face; g.bezierCurveTo(x0 + dir * L * 0.3, y0 - 18, x0 + dir * L * 0.7, y0 + 14, x0 + dir * L, y0 + (d.oy || 0)); g.stroke();
       g.fillStyle = '#eaffc0'; g.beginPath(); g.arc(x0 + dir * L, y0 + (d.oy || 0), 4, 0, 7); g.fill();

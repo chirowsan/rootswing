@@ -92,6 +92,7 @@ hp['sprout'] = sp; hp['hood'] = hood
 add(hp, 0.42)
 add({'hero_full': single(key('hero_concept'))}, 0.3)
 add(split(key('weapons'), ['w_blade', 'w_hammer', 'w_bow', 'w_whip']), 0.4)
+add(split(key('weapons2'), ['w_spear', 'w_sickle']), 0.4)
 add(split(key('enemies_a', True), ['hopper', 'charger', 'moth', 'puffcap']), 0.5)
 add(split(key('enemies_b', True), ['knight', 'bomber', 'dummy', 'tturret']), 0.5)
 add({'warden': single(key('warden', True, ['--lo', '60', '--hi', '140']))}, 0.42)

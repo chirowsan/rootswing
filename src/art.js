@@ -28,6 +28,8 @@ export function drawIcon(g, name, x, y, size, color = '#fff') {
   switch (name) {
     case 'jump': P([-9, 4, 0, -6, 9, 4]); P([-9, 11, 0, 1, 9, 11]); break;
     case 'attack': case 'blade': g.rotate(-0.7); P([0, -13, 3, -9, 3, 6, -3, 6, -3, -9], true, true); P([-7, 6, 7, 6]); P([0, 6, 0, 12]); break;
+    case 'spear': g.rotate(-0.7); P([0, 13, 0, -6]); P([0, -14, 4, -6, 0, -4, -4, -6], true, true); P([-3, 4, 3, 4]); break;
+    case 'sickle': g.beginPath(); g.arc(2, -2, 10, -2.6, 0.6); g.stroke(); P([-4, 6, -9, 12]); break;
     case 'hammer': g.rotate(-0.5); P([0, -4, 0, 13]); g.fillRect(-9, -12, 18, 9); break;
     case 'bow': g.beginPath(); g.arc(-4, 0, 12, -1.2, 1.2); g.stroke(); g.lineWidth = 1.5; P([0, -11, 0, 11]); g.lineWidth = 2.5; P([-8, 0, 12, 0]); P([8, -4, 12, 0, 8, 4]); break;
     case 'whip': g.beginPath(); g.moveTo(-10, 10); g.bezierCurveTo(-2, -6, 8, 14, 11, -10); g.stroke(); g.beginPath(); g.arc(11, -10, 2.5, 0, 7); g.fill(); break;

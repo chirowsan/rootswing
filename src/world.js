@@ -24,6 +24,7 @@ export function playerStats() {
   const u = save.progress.unlocks;
   return { maxHp: 100 + (u.vigor1 ? 20 : 0) + (u.vigor2 ? 20 : 0), maxFlasks: 2 + (u.flask1 ? 1 : 0) + (u.flask2 ? 1 : 0), weapon: save.progress.weapon || 'blade', gadgets: (save.progress.gadgets || ['popseed']).slice(0, 2), hookRange: u.vine ? 265 : 220 };
 }
+const CHUNK_KEEP = 40; // ~2.5 screens of painted 384px chunks; long maps stream instead of growing memory
 export class World {
   constructor(game, mode, opts = {}) {
     this.game = game; this.mode = mode; this.fx = new FX(); this.t = 0; this.events = []; this.listeners = [];
@@ -75,7 +76,7 @@ export class World {
         else this.props.push({ kind: 'trigger', n: +s.c, x: wx, y: wy }); break;
     }
   }
-  pickWeapon() { const all = Object.keys(WEAPONS).filter((w) => w !== (save.progress.weapon || 'blade')); return all[(this.spawnRng() * all.length) | 0]; }
+  pickWeapon() { const cur = this.player ? this.player.weapon : (save.progress.weapon || 'blade'); let all = Object.keys(WEAPONS).filter((w) => w !== cur && (this.stage >= 1 || !WEAPONS[w].biome || save.progress.unlocks[w])); const nw = all.filter((w) => WEAPONS[w].biome === 'caverns'); if (this.stage >= 1 && nw.length && this.spawnRng() < 0.6) all = nw; return all[(this.spawnRng() * all.length) | 0]; }
   findFloorIn(c) { // a safe floor spot near the left/top entrance of a cell
     const ox = c.x * CW, oy = c.y * CH;
     const order = c.need.has('L') ? [...Array(CW).keys()] : c.need.has('U') ? [16, 17, 15, 18, 14, 19, 13, 20, 12, 21, 10, 22, 8, 24, 6, 26, 4, 28] : [...Array(CW).keys()].reverse();
@@ -228,9 +229,13 @@ export class World {
     this.fx.burst(p.cx, p.cy, 18, { color: ['#ff5a7a', '#fff', '#ffd0d8'], max: 240, kind: 'star', life: 0.5 });
     if (dmg) this.fx.text(p.cx, p.y - 6, '-' + dmg, '#ff8aa0', 14); else this.fx.text(p.cx, p.y - 6, 'Ouch!', '#ff8aa0', 14);
     p.hp -= dmg; p.hook = { s: 'none' }; p.atk = null; p.dashT = 0;
+    if (p.hp <= 0 && this.tryRevive(p)) return;
     if (p.hp <= 0) { p.hp = 0; p.dead = true; p.deadT = 0; this.onPlayerDeath(info); return; }
     p.respawnT = 0.5; p.vx = p.vy = 0; this.emit('hazard', kind);
   }
+  // v1.3 hub skill "Ember Heart": once per biome (world), rise again at 40% health
+  tryRevive(p) { if (!save.progress.unlocks.revive || this.revived || (this.mode !== 'run' && this.mode !== 'boss')) return false;
+    this.revived = true; p.hp = Math.round(p.maxHp * 0.4); p.iframes = 2.2; p.dead = false; sfx('unlock'); this.fx.ring(p.cx, p.cy, 90, '#ffb36a', 0.6, 6); this.fx.burst(p.cx, p.cy, 24, { color: ['#ffe27a', '#ff9a5a'], max: 320, life: 0.7, kind: 'star', size: 6 }); this.fx.text(p.cx, p.y - 14, 'Ember Heart!', '#ffb36a', 16); this.slow = 0.5; this.emit('revive'); return true; }
   onPlayerDeath(info) { sfx('death'); this.slow = 0.8; this.fx.shake(0.6); this.emit('death'); setTimeout(() => this.game.onDeath(this, info || this.player.lastHit), 1100); }
   startFight(e) {
     if (e instanceof Warden) {
@@ -367,7 +372,7 @@ export class World {
     const CS = CHUNK_T * TILE; const c0 = Math.floor(vx0 / CS), c1 = Math.floor(vx1 / CS), r0 = Math.floor(vy0 / CS), r1 = Math.floor(vy1 / CS);
     for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
       if (cx < 0 || cy < 0 || cx * CHUNK_T >= this.map.w || cy * CHUNK_T >= this.map.h) continue;
-      const k = cx + ',' + cy; let c = this.chunkCache.get(k); if (!c) { c = G.ready ? renderPaintedChunk(this.map, cx, cy, rs, B) : renderTileChunk(this.map, cx, cy, rs, B); this.chunkCache.set(k, c); }
+      const k = cx + ',' + cy; let c = this.chunkCache.get(k); if (!c) { c = G.ready ? renderPaintedChunk(this.map, cx, cy, rs, B) : renderTileChunk(this.map, cx, cy, rs, B); this.chunkCache.set(k, c); this.chunkMade = (this.chunkMade || 0) + 1; while (this.chunkCache.size > CHUNK_KEEP) { const old = this.chunkCache.keys().next().value; this.chunkCache.delete(old); this.chunkEvicted = (this.chunkEvicted || 0) + 1; } } else { this.chunkCache.delete(k); this.chunkCache.set(k, c); } // LRU: stream render chunks in/out with the camera
       g.drawImage(c, cx * CS, cy * CS, c.width / rs, c.height / rs);
     }
     this.drawHazards(g, vx0, vx1, vy0, vy1);
