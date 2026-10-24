@@ -9,3 +9,4 @@
 - tests: +3 v1.6 tests (data audit over 43 maps, drawn audit over runs/hub/boss/tutorial in the browser, forest textures load)
 - 09:03 after shots taken (shots/v16/after-*.png), full suite running
 - 09:12 PDT bumped to 1.6.0/versionCode 8; signed APK (7,299,574 B) + AAB (7,109,694 B) built, apksigner cert SHA-256 6e59e14a…35d8de matches, AAB jar verified
+- 09:14 PDT shipped v1.6.0: main+tag 14a8c67, release https://github.com/chirowsan/rootswing/releases/tag/v1.6.0 (APK 7,299,574 B, AAB 7,109,694 B, source zip 4,771,803 B without shots/dist/art/src/art/out), gh-pages 2acc278 built; live HTTP 200, game.js md5 and new forest textures match dist, verify-live 0 console errors
