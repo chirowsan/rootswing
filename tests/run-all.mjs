@@ -42,18 +42,30 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
   const b = await E(page, () => { const W = __RS.W, P = W.player, B = W.boss; const ph = new Set(); let f = 0;
     for (; f < 6000 && B.hp > 0; f++) { ph.add(B.phase); const dx = B.x + B.w / 2 - P.cx; __RS.axes(Math.abs(dx) > 30 ? Math.sign(dx) : 0, 0); if (f % 9 === 0) __RS.press('attack'); if (f % 9 === 3) __RS.release('attack'); if (P.onWall && f % 20 === 0) __RS.press('jump'); if (f % 20 === 5) __RS.release('jump'); __RS.step(1); }
     __RS.axes(0, 0); __RS.step(400); return { hp: B.hp, phases: [...ph], frames: f, ui: __RS.state().ui, wins: __RS.save.progress.wins ?? __RS.save.progress.bossKills }; });
+  await sleep(3200); const tr = await E(page, () => ({ mode: __RS.W.mode, stage: __RS.W.stage, biome: __RS.W.biome.key, saved: __RS.save.run && __RS.save.run.stage, cells: __RS.W.cells.length }));
+  ok('Furnace -> biome 2 (Drowned Glowroots) + between-biome checkpoint', tr.mode === 'run' && tr.stage === 1 && tr.biome === 'caverns' && tr.saved === 1 && tr.cells >= 40, JSON.stringify(tr));
+  const r2 = await E(page, () => { __RS.god(true); __RS.manual(true); __RS.step(120); const W = __RS.W, P = W.player;
+    const path = W.cells.filter((c) => !c.branch); let entered = 0, cps = 0; W.on((n) => { if (n === 'checkpoint') cps++; });
+    for (const c of path) { const p = W.findFloorIn(c); P.x = p.x; P.y = p.y - P.h; P.vx = P.vy = 0; __RS.step(20); if (W.curCell === c) entered++; }
+    const d = W.props.find((o) => o.kind === 'door'); P.x = d.x + d.w / 2 - P.w / 2; P.y = d.y + d.h - P.h - 2; __RS.step(30); __RS.press('attack'); __RS.step(1); __RS.release('attack'); __RS.step(5);
+    return { cells: path.length, entered, cps, mode: __RS.W.mode, stage: __RS.W.stage, boss: __RS.W.boss && __RS.W.boss.type }; });
+  ok('biome 2: every main-path cell enterable, checkpoints fire, door -> final boss', r2.entered === r2.cells && r2.cps >= 2 && r2.mode === 'boss' && r2.stage === 1 && r2.boss === 'drowned', JSON.stringify(r2));
+  const b2 = await E(page, () => { const W = __RS.W, P = W.player, B = W.boss; const ph = new Set(), seen = new Set(); let f = 0;
+    for (; f < 9000 && B.hp > 0; f++) { ph.add(B.phase); seen.add(B.st); const dx = B.x + B.w / 2 - P.cx; __RS.axes(Math.abs(dx) > 30 ? Math.sign(dx) : 0, 0); if (f % 9 === 0) __RS.press('attack'); if (f % 9 === 3) __RS.release('attack'); __RS.step(1); }
+    __RS.axes(0, 0); __RS.step(400); return { hp: B.hp, phases: [...ph], frames: f, tide: W.markers.length >= 0 }; });
+  ok('final boss (Drowned Bloom): all phases + defeated', b2.hp <= 0 && b2.phases.length >= 3, JSON.stringify(b2));
   await sleep(3200); const vui = await E(page, () => ({ ui: __RS.state().ui, prog: __RS.save.progress }));
-  await page.screenshot({ path: 'shots/test-victory.png' }); ok('victory card + permanent progress saved', vui.ui === 'victory', JSON.stringify({ ui: vui.ui, glim: vui.prog.glimmers, wins: vui.prog.wins }));
+  await page.screenshot({ path: 'shots/test-victory.png' }); ok('victory card + permanent progress saved', vui.ui === 'victory' && vui.prog.wins >= 1, JSON.stringify({ ui: vui.ui, glim: vui.prog.glimmers, wins: vui.prog.wins }));
   ok('boss: all phases + defeated', b.hp <= 0 && b.phases.length >= 3, JSON.stringify(b));
   ok('no page errors (run/boss)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
 // 6. save / load / continue
 { const { browser, page, errors } = await fresh();
-  await E(page, () => { __RS.save.progress.glimmers = 321; __RS.save.settings.speed = 0.7; __RS.writeSave(); __RS.start('run', { seed: 99 }); __RS.manual(true); __RS.step(120); const W = __RS.W; const c = W.cells.find((c) => !c.branch && c.index > 0); const p = W.findFloorIn(c); W.player.x = p.x; W.player.y = p.y - W.player.h; __RS.step(10); });
+  await E(page, () => { __RS.save.progress.glimmers = 321; __RS.save.settings.speed = 0.7; __RS.writeSave(); __RS.start('run', { seed: 99 }); __RS.manual(true); __RS.step(120); const W = __RS.W; const n = W.cells.find((c) => !c.branch && c.index > 0 && c.kind === 'normal'); let p = W.findFloorIn(n); W.player.x = p.x; W.player.y = p.y - W.player.h; __RS.step(10); window.__afterNormal = __RS.save.run.cellIndex; const c = W.cells.find((c) => c.kind === 'checkpoint'); p = W.findFloorIn(c); W.player.x = p.x; W.player.y = p.y - W.player.h; __RS.step(10); window.__cp = c.index; localStorage.setItem('__cp', JSON.stringify([c.index, window.__afterNormal])); });
   await page.reload(); await sleep(700);
-  const s = await E(page, () => ({ g: __RS.save.progress.glimmers, sp: __RS.save.settings.speed, run: __RS.save.run, cont: !!document.querySelector('[data-act="continueRun"]') }));
+  const s = await E(page, () => ({ cp: JSON.parse(localStorage.getItem('__cp')), g: __RS.save.progress.glimmers, sp: __RS.save.settings.speed, run: __RS.save.run, cont: !!document.querySelector('[data-act="continueRun"]') }));
   const c = await E(page, () => { __RS.continueRun(); __RS.manual(true); __RS.step(5); return { mode: __RS.W.mode, cell: __RS.W.curCell && __RS.W.curCell.index, seed: __RS.W.seed }; });
   ok('save: progress + settings persist across reload', s.g === 321 && s.sp === 0.7, JSON.stringify({ g: s.g, sp: s.sp }));
-  ok('save: mid-run checkpoint -> Continue resumes same seed/cell', s.cont && s.run && c.mode === 'run' && c.seed === s.run.seed && c.cell === s.run.cellIndex, JSON.stringify({ run: s.run && { seed: s.run.seed, cell: s.run.cellIndex }, c }));
+  ok('save: normal rooms do not save; checkpoint shrine saves; Continue resumes there', s.cont && s.run && s.cp[1] === 0 && s.run.cellIndex === s.cp[0] && c.mode === 'run' && c.seed === s.run.seed && c.cell === s.run.cellIndex, JSON.stringify({ cp: s.cp, run: s.run && { seed: s.run.seed, cell: s.run.cellIndex }, c }));
   ok('no page errors (save)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
 // 7. touch layout on a 915x412 phone (Galaxy-class landscape)
 { const { browser, page, errors } = await fresh({ w: 915, h: 412, dpr: 2.6, mobile: true });

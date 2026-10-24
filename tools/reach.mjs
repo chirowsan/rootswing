@@ -2,8 +2,8 @@
 // weapon and the boss door using walk / jump(+dash) / wall-climb / hook moves?
 import { generateRun, CW, CH } from '../src/level.js';
 const JUMP_UP = 3, JUMP_DX = [7, 7, 6, 5]; // dx allowed for rise 0..3
-export function analyze(seed) {
-  const R = generateRun(seed), M = R.map, W = M.w, H = M.h;
+export function analyze(seed, biome = 'overpass') {
+  const R = generateRun(seed, biome), M = R.map, W = M.w, H = M.h;
   const solid = (x, y) => M.solid(x, y), haz = (x, y) => M.hazard(x, y);
   const plank = (x, y) => M.get(x, y) === '=';
   const free = (x, y) => (!solid(x, y) || M.get(x, y) === 'B') && !haz(x, y);
@@ -42,18 +42,19 @@ export function analyze(seed) {
   }
   const near = (x, y, r = 2) => { for (let dy = -r; dy <= r + 2; dy++) for (let dx = -r; dx <= r; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < W && yy < H && seen[yy * W + xx]) return true; } return false; };
   const fails = [];
-  for (const s of R.spawns) if ('cFWDM'.includes(s.c) && !near(s.x, s.y)) fails.push(`${s.c}@${s.cell.variant.ch.id}${s.cell.variant.flip ? "~f" : ""}[${s.x},${s.y}]`);
+  for (const s of R.spawns) if ('cFWDMS'.includes(s.c) && !near(s.x, s.y)) fails.push(`${s.c}@${s.cell.variant.ch.id}${s.cell.variant.flip ? "~f" : ""}[${s.x},${s.y}]`);
   for (const c of R.cells) { const ox = c.x * CW, oy = c.y * CH;
-    for (const e of c.need) { let ok = false;
+    for (const e of c.need) { let ok = false; if (c.pair) { const [dx, dy] = { L: [-1, 0], R: [1, 0], U: [0, -1], D: [0, 1] }[e]; if (c.pair.x === c.x + dx && c.pair.y === c.y + dy) continue; }
       if (e === 'R' || e === 'L') { const xx = e === 'R' ? ox + CW - 1 : ox; for (let yy = oy + 14; yy <= oy + 17; yy++) if (seen[yy * W + xx]) ok = true; }
       if (e === 'D') ok = true; // checked by the cell below being reached
       if (e === 'U') ok = true; if (false) { for (let xx = ox + 14; xx <= ox + 19; xx++) for (let yy = oy; yy <= oy + 3; yy++) if (seen[yy * W + xx]) ok = true; }
       if (!ok && !(c.secret === e)) fails.push(`exit ${e}@${c.variant.ch.id}${c.variant.flip ? '~f' : ''}(${c.kind})`);
     }
   }
+  for (const c of R.cells) { const ox = c.x * CW, oy = c.y * CH; let any = false; for (let yy = oy; yy < oy + CH && !any; yy++) for (let xx = ox; xx < ox + CW; xx++) if (seen[yy * W + xx]) { any = true; break; } if (!any) fails.push(`room@${c.variant.ch.id}(${c.kind})`); }
   return { seed, cells: R.cells.length, fails, R, seen };
 }
 export const MAIN = import.meta.url === `file://${process.argv[1]}`;
-if (MAIN) { const N = +(process.argv[2] || 200); const bad = {}; let nb = 0;
-for (let s = 1; s <= N; s++) { let r; try { r = analyze(s * 7919); } catch (e) { console.log('GEN ERROR', s, e.message); continue; } if (r.fails.length) { nb++; for (const f of r.fails) bad[f] = (bad[f] || 0) + 1; } }
-console.log(`seeds ${N}, with problems ${nb}`); console.log(Object.entries(bad).sort((a, b) => b[1] - a[1]).slice(0, 30)); }
+if (MAIN) { const N = +(process.argv[2] || 200), only = process.argv[3]; const bad = {}; let nb = 0, rooms = 0, runs = 0;
+for (const biome of only ? [only] : ['overpass', 'caverns']) for (let s = 1; s <= N; s++) { let r; try { r = analyze(s * 7919, biome); rooms += r.cells; runs++; } catch (e) { console.log('GEN ERROR', s, e.message); continue; } if (r.fails.length) { nb++; for (const f of r.fails) bad[f] = (bad[f] || 0) + 1; } }
+console.log(`maps ${runs}, avg rooms ${(rooms / runs).toFixed(1)}, with problems ${nb}`); console.log(Object.entries(bad).sort((a, b) => b[1] - a[1]).slice(0, 30)); }

@@ -23,3 +23,4 @@
 - 20:11 PDT: tests 24/24 after anim. Next: P2 painted tiles (paint.js renderPaintedChunk)
 - 20:19 PDT: P2 painted tiles DONE (tex_rock fill, painted lip strip w/ curled ends, hanging-root strip, crumbly ledge teeth, side vine drapes, 8 decor props, readable one-way planks). Fixed canvas filter+clip pixel-clearing bug (pre-baked toned sprites).
 - 20:20 PDT: P3 boss arena DONE (dark veil + focal warm pool on boss, boss 150 tall w/ hitbox 86x124, backlight glow, red fill-up telegraphs w/ chevrons)
+- P3+P4 committed: calmer boss arena; juice pass (dust, vine twang, glimmer arcs, damage numbers, micro-zoom, hit-stop, layered SFX, crossfading per-area music incl. mini-boss track). Tests 24/24.

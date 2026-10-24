@@ -15,6 +15,11 @@ export const ENEMY_INFO = {
   knight: { name: 'Kettle Knight', tip: 'Shields block hits. Use a charged heavy hit, or hit from behind.' },
   bomber: { name: 'Fizzpot', tip: 'Red circles show where bombs land. Step out of them.' },
   dummy: { name: 'Practice Dummy', tip: '' }, tturret: { name: 'Practice Puffcap', tip: 'Press parry just as the spit arrives.' },
+  lurefish: { name: 'Lurefish', tip: 'Its lantern flares before it dives. Dodge sideways, then strike.' },
+  jelly: { name: 'Glowjelly', tip: 'A growing ring means a pulse. Step out of the ring!' },
+  shellback: { name: 'Shellback', tip: 'Its shell blocks hits from the front. Hit it from behind or use a heavy hit.' },
+  tidegolem: { name: 'Tide Golem', tip: 'Jump its shockwaves, parry its shoulder bash.' },
+  drowned: { name: 'The Drowned Bloom', tip: 'Red markers show where the danger lands. Watch the tide.' },
   warden: { name: 'Scrap Warden', tip: 'Jump over its shockwave rings. Parry its shield bash!' },
   boss: { name: 'Grumblestack', tip: 'Watch the red markers: they show exactly where danger lands.' },
   thorns: { name: 'Thorns', tip: 'Red spikes hurt! Jump over them or swing on a gold ring.' },
@@ -27,6 +32,9 @@ const DEF = {
   puffcap: { w: 26, h: 26, hp: 30, dmg: 10, light: false, glim: 3 },
   knight: { w: 24, h: 38, hp: 70, dmg: 17, light: false, glim: 6 },
   bomber: { w: 24, h: 26, hp: 26, dmg: 14, light: true, glim: 4 },
+  lurefish: { w: 24, h: 18, hp: 26, dmg: 12, light: true, glim: 3, fly: true },
+  jelly: { w: 24, h: 24, hp: 30, dmg: 8, light: true, glim: 3, fly: true },
+  shellback: { w: 32, h: 22, hp: 52, dmg: 14, light: false, glim: 5 },
   dummy: { w: 22, h: 36, hp: 1e9, dmg: 0, light: false, glim: 0 },
   tturret: { w: 26, h: 26, hp: 1e9, dmg: 5, light: false, glim: 0 },
 };
@@ -35,7 +43,7 @@ export class Enemy {
     const d = DEF[type]; Object.assign(this, { type, w: d.w, h: d.h, light: d.light, fly: !!d.fly, glim: d.glim, cdmg: d.dmg });
     const scale = 1 + depth * 0.06; this.maxHp = this.hp = Math.round(d.hp * scale);
     this.x = x - d.w / 2; this.y = y - d.h; this.vx = 0; this.vy = 0; this.face = rand.chance(0.5) ? 1 : -1; this.st = 'idle'; this.t = 0; this.cd = rand.range(0.5, 1.5);
-    this.stun = 0; this.flash = 0; this.tele = 0; this.dead = false; this.onGround = false; this.homeX = this.x; this.homeY = this.y; this.anim = rand.range(0, 10); this.sq = 1; this.shield = type === 'knight'; this.hitsTaken = 0;
+    this.stun = 0; this.flash = 0; this.tele = 0; this.dead = false; this.onGround = false; this.homeX = this.x; this.homeY = this.y; this.anim = rand.range(0, 10); this.sq = 1; this.shield = type === 'knight' || type === 'shellback'; this.hitsTaken = 0;
     this.info = ENEMY_INFO[type];
   }
   get cx() { return this.x + this.w / 2; } get cy() { return this.y + this.h / 2; }
@@ -107,11 +115,32 @@ export class Enemy {
     else if (this.st === 'tele') { this.tele = this.t / 0.55; if (this.t > 0.55) { this.st = 'idle'; this.tele = 0; this.cd = 2.8; W.throwBomb(this, P.cx + P.vx * 0.4, P.y + P.h); sfx('bow'); } }
     this.physics(W, dt);
   }
+  u_lurefish(W, dt, P, dx, dy, adx, seen) { // hovers by its lure, flares, then dives in a straight line and swims back
+    if (this.st === 'idle') { const tx = seen ? P.cx - this.w / 2 - sign(dx) * 110 : this.homeX, ty = (seen ? P.y - 90 : this.homeY) + Math.sin(this.anim * 1.6) * 10; this.vx = approach(this.vx, clamp((tx - this.x) * 1.5, -90, 90), 220 * dt); this.vy = approach(this.vy, clamp((ty - this.y) * 1.5, -90, 90), 220 * dt); this.face = sign(dx) || this.face;
+      if (seen && this.cd <= 0 && adx < 280 && lineClear(W.map, this.cx, this.cy, P.cx, P.cy)) { this.st = 'tele'; this.t = 0; sfx('telegraph'); } }
+    else if (this.st === 'tele') { this.tele = this.t / 0.65; this.vx *= 0.88; this.vy = approach(this.vy, -40, 300 * dt); if (this.t > 0.65) { this.st = 'swoop'; this.t = 0; this.tele = 0; const tx = P.cx - this.cx, ty = P.cy - this.cy, d = Math.hypot(tx, ty) || 1; this.vx = tx / d * 360; this.vy = ty / d * 360; this.face = sign(tx) || 1; } }
+    else if (this.st === 'swoop') { if (Math.random() < 0.6) W.fx.burst(this.cx, this.cy, 1, { color: '#9ff6ff', min: 5, max: 30, life: 0.4, size: 2, glow: 1 }); const r = this.physics(W, dt); if (this.t > 0.6 || r.ground || r.wallL || r.wallR) { this.st = 'idle'; this.cd = 1.8; this.vy = -60; } return; }
+    this.physics(W, dt);
+  }
+  u_jelly(W, dt, P, dx, dy, adx, seen) { // drifts toward you, then a telegraphed pulse ring
+    if (this.st === 'idle') { const tx = seen ? P.cx - this.w / 2 : this.homeX, ty = (seen ? P.y - 30 : this.homeY) + Math.sin(this.anim * 1.2) * 16; this.vx = approach(this.vx, clamp((tx - this.x) * 0.8, -55, 55), 120 * dt); this.vy = approach(this.vy, clamp((ty - this.y) * 0.8, -55, 55), 120 * dt);
+      if (seen && this.cd <= 0 && Math.hypot(dx, dy) < 120) { this.st = 'tele'; this.t = 0; sfx('telegraph'); } }
+    else if (this.st === 'tele') { this.tele = this.t / 0.8; this.vx *= 0.9; this.vy *= 0.9; if (this.t > 0.8) { this.st = 'pulse'; this.t = 0; this.tele = 0; sfx('explode', 0.4); W.fx.burst(this.cx, this.cy, 14, { color: ['#9ff6ff', '#fff'], min: 80, max: 200, life: 0.35, glow: 1 }); if (Math.hypot(P.cx - this.cx, P.cy - this.cy) < 80) W.damagePlayer(12, this.cx, { name: this.info.name, tip: this.info.tip, parryable: false, src: this }); } }
+    else if (this.st === 'pulse') { this.ring = this.t / 0.3; if (this.t > 0.3) { this.st = 'idle'; this.ring = 0; this.cd = 2.2; } }
+    this.physics(W, dt);
+  }
+  u_shellback(W, dt, P, dx, dy, adx, seen) { // shell blocks frontal hits; rolls at you after a rattle
+    if (this.st === 'idle') { if (seen) this.face = sign(dx) || this.face; this.vx = this.face * 40; if (this.wallAhead(W, this.face) || this.ledgeAhead(W, this.face)) { this.face *= -1; this.vx = 0; } if (seen && Math.abs(dy) < 50 && adx < 230 && this.cd <= 0) { this.st = 'tele'; this.t = 0; this.vx = 0; sfx('telegraph'); } }
+    else if (this.st === 'tele') { this.tele = this.t / 0.55; this.vx = 0; if (this.t > 0.55) { this.st = 'charge'; this.t = 0; this.tele = 0; } }
+    else if (this.st === 'charge') { this.vx = this.face * 260; if (this.wallAhead(W, this.face) || this.ledgeAhead(W, this.face) || this.t > 0.8) { this.st = 'rest'; this.t = 0; if (this.wallAhead(W, this.face)) { W.fx.shake(0.1); sfx('thump'); } } }
+    else if (this.st === 'rest') { this.vx = approach(this.vx, 0, 900 * dt); if (this.t > 0.8) { this.st = 'idle'; this.cd = 1.6; } }
+    this.physics(W, dt);
+  }
   // ---------------- drawing ----------------
   drawPainted(g, W) {
     const X = this.cx, Y = this.y + this.h, t = this.anim, n = this.type, tele = this.tele, f = this.face;
     const lo = (W.game && W.game.lowPerf) || _save.settings.quality === 'low';
-    const H = { hopper: 27, charger: 27, moth: 30, puffcap: 32, knight: 47, bomber: 31, dummy: 40, tturret: 30 }[n] * 1.15 || this.h; // v1.2: drawn 15% larger than v1.1 (hitboxes unchanged)
+    const H = { hopper: 27, charger: 27, moth: 30, puffcap: 32, knight: 47, bomber: 31, dummy: 40, tturret: 30, lurefish: 28, jelly: 32, shellback: 30 }[n] * 1.15 || this.h; // v1.2: drawn 15% larger than v1.1 (hitboxes unchanged)
     const hot = tele > 0 || this.st === 'charge' || this.st === 'swoop' || this.st === 'swing';
     if (!lo) drawGlow(g, X, this.cy, H * 0.8, '#07060e', 0.35);
     if (hot) drawGlow(g, X, Y - H * 0.5, H * (0.9 + tele * 0.4), '#ff2a3a', 0.45 + tele * 0.45);
@@ -123,6 +152,9 @@ export class Enemy {
     else if (n === 'knight') rot = this.st === 'tele' ? -tele * 0.14 * f : this.st === 'swing' ? 0.14 * f : 0;
     else if (n === 'hopper' && !this.onGround) rot = Math.max(-0.3, Math.min(0.3, this.vy / 900)) * -f;
     else if (n === 'puffcap') { bx = by = 1 + tele * 0.25; }
+    else if (n === 'lurefish') rot = Math.sin(t * 5) * 0.06 + (this.st === 'swoop' ? Math.atan2(this.vy, Math.abs(this.vx) + 1) * 0.6 * f : 0);
+    else if (n === 'jelly') { by = 1 + Math.sin(t * 4) * 0.08 + tele * 0.15; bx = 1 - Math.sin(t * 4) * 0.05; }
+    else if (n === 'shellback' && this.st === 'charge') rot = Math.sin(t * 30) * 0.06;
     else if (n === 'dummy' && this.flash > 0) rot = Math.sin(t * 30) * this.flash * 2;
     g.rotate(rot); g.scale(st * bx, sq * by);
     const flip = f < 0;
@@ -201,6 +233,8 @@ export class Enemy {
       g.strokeStyle = '#a0402a'; g.lineWidth = 2; g.beginPath(); g.arc(0, -22, 6, 0, 7); g.stroke(); g.beginPath(); g.arc(0, -22, 1.5, 0, 7); g.stroke();
     }
     g.restore(); }
+    if (this.type === 'jelly' && (tele > 0 || this.ring > 0)) { const r = this.ring > 0 ? 30 + this.ring * 55 : 80 * tele; g.strokeStyle = this.ring > 0 ? 'rgba(200,255,255,' + (1 - this.ring) + ')' : 'rgba(255,80,90,' + (0.35 + tele * 0.5) + ')'; g.lineWidth = this.ring > 0 ? 5 : 2.5; g.beginPath(); g.arc(X, this.cy, r, 0, 7); g.stroke(); if (tele > 0) { g.setLineDash([5, 6]); g.strokeStyle = 'rgba(255,80,90,0.5)'; g.beginPath(); g.arc(X, this.cy, 80, 0, 7); g.stroke(); g.setLineDash([]); } }
+    if (this.type === 'lurefish' || this.type === 'jelly') drawGlow(g, X + (this.type === 'lurefish' ? this.face * 14 : 0), this.y - (this.type === 'lurefish' ? 4 : -8), 14 + tele * 10, tele > 0 ? '#ff6a7a' : '#9ff6ff', 0.6 + Math.sin(t * 4) * 0.15);
     if (this.flash > 0) drawGlow(g, X, this.cy, Math.max(this.w, this.h) * 0.9, '#ffffff', this.flash * (painted ? 3 : 5));
     if (tele > 0) this.drawBang(g, X, this.y - 16 - (this.type === 'knight' ? 10 : 0), tele);
     if (this.stun > 0 && this.type !== 'dummy') { for (let i = 0; i < 3; i++) { const a = t * 5 + i * 2.1; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(X + Math.cos(a) * 12, this.y - 6 + Math.sin(a) * 4, 2.4, 0, 7); g.fill(); } }

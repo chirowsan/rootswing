@@ -13,7 +13,8 @@ meta = {'bg': {}, 'tex': {}, 'spr': {}}
 from PIL import ImageFilter
 POST = {'ov_far': (4.0, 0.5, 0.72, (70, 80, 110), 0.30), 'ov_mid': (2.6, 0.6, 0.7, (60, 66, 96), 0.22), 'ov_near': (1.4, 0.72, 0.74, (40, 44, 70), 0.12),
         'hub_mid': (2.6, 0.62, 0.72, (60, 76, 90), 0.22), 'hub_near': (1.4, 0.75, 0.76, (40, 52, 64), 0.12),
-        'boss_mid': (2.6, 0.6, 0.66, (70, 40, 50), 0.22), 'boss_near': (1.4, 0.72, 0.7, (50, 30, 40), 0.12)}
+        'boss_mid': (2.6, 0.6, 0.66, (70, 40, 50), 0.22), 'boss_near': (1.4, 0.72, 0.7, (50, 30, 40), 0.12),
+        'cv_mid': (2.6, 0.7, 0.72, (30, 60, 80), 0.24), 'cv_near': (1.4, 0.8, 0.78, (20, 40, 56), 0.12)}
 def depth(im, blur, sat, bri, fog, mix):
     im = im.convert('RGBA'); a = np.asarray(im).astype(np.float32) / 255; al = a[..., 3:4]
     rgb = a[..., :3]; lum = (rgb * [0.299, 0.587, 0.114]).sum(-1, keepdims=True)
@@ -24,7 +25,8 @@ def depth(im, blur, sat, bri, fog, mix):
     return Image.fromarray((np.clip(np.concatenate([rgb, ab], -1), 0, 1) * 255).astype(np.uint8), 'RGBA')
 # ---- parallax layers: [file, green, opaque]
 for n, g, opaque in [('ov_sky', 0, 1), ('ov_far', 0, 0), ('ov_mid', 0, 0), ('ov_near', 0, 0), ('fg_vines', 0, 0),
-                     ('hub_sky', 0, 1), ('hub_mid', 0, 0), ('hub_near', 0, 0), ('boss_sky', 0, 1), ('boss_mid', 1, 0), ('boss_near', 1, 0), ('title_key', 0, 1)]:
+                     ('hub_sky', 0, 1), ('hub_mid', 0, 0), ('hub_near', 0, 0), ('boss_sky', 0, 1), ('boss_mid', 1, 0), ('boss_near', 1, 0), ('title_key', 0, 1),
+                     ('cv_sky', 0, 1), ('cv_mid', 0, 0), ('cv_near', 0, 0)]:
     im = Image.open(S + n + '.jpg').convert('RGB') if opaque else key(n, g)
     W, H = im.size; top = 0
     if not opaque:
@@ -46,7 +48,7 @@ def seamless(im, size=512):
     # m=1 near edges of the original -> use shifted copy (whose centre is the seam-free original edge)
     out = a * (1 - m) + sh * m
     return Image.fromarray(out.astype(np.uint8))
-for n in ['tex_stone', 'tex_metal', 'tex_root', 'tex_rock']:
+for n in ['tex_stone', 'tex_metal', 'tex_root', 'tex_rock', 'tex_cave']:
     seamless(Image.open(S + n + '.jpg'), 384).save(O + n + '.webp', quality=82, method=6)
 # ---- sprite sheets split by empty-column gaps
 def split(im, names, gap=None, ds=4):
@@ -94,6 +96,8 @@ add(split(key('enemies_a', True), ['hopper', 'charger', 'moth', 'puffcap']), 0.5
 add(split(key('enemies_b', True), ['knight', 'bomber', 'dummy', 'tturret']), 0.5)
 add({'warden': single(key('warden', True, ['--lo', '60', '--hi', '140']))}, 0.42)
 add({'boss': single(key('boss_body', True))}, 0.5)
+add({'boss2': single(key('boss2_body', True))}, 0.42)
+add(split(key('enemies_c'), ['lurefish', 'jelly', 'shellback', 'tidegolem']), 0.5)
 add(split(key('boss_fists', True), ['fist', 'pipe']), 0.4)
 add(split(key('props_a'), ['lantern', 'crate', 'sign', 'chest', 'fountain']), 0.5)
 add(split(key('props_b'), ['pedestal', 'door', 'station', 'ring', 'crystal']), 0.5)

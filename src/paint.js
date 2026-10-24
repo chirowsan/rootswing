@@ -6,6 +6,7 @@ const hash2 = (x, y) => { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453
 // parallax sets per biome: [image, parallax factor, zoom, extra y (fraction of screen)]
 const SETS = {
   overpass: { sky: 'ov_sky', layers: [['ov_far', 0.06, 1.0, 0.02], ['ov_mid', 0.16, 1.0, 0.06], ['ov_near', 0.34, 0.95, 0.12]], fg: 'fg_vines', deep: '44,54,86', dim: 'rgba(14,18,38,0.36)', haze: 'rgba(255,190,130,0.10)', fog: '255,200,150', mote: '#f2ffb8', moteG: -12 },
+  caverns: { sky: 'cv_sky', layers: [['cv_mid', 0.14, 1.0, 0.05], ['cv_near', 0.32, 0.95, 0.12]], fg: null, deep: '20,44,60', dim: 'rgba(6,16,26,0.34)', haze: 'rgba(90,230,220,0.07)', fog: '110,220,220', mote: '#9ff6ff', moteG: 8 },
   hub: { sky: 'hub_sky', layers: [['hub_mid', 0.14, 1.0, 0.05], ['hub_near', 0.32, 0.95, 0.12]], fg: 'fg_vines', deep: '40,60,72', dim: 'rgba(12,22,34,0.32)', haze: 'rgba(255,226,170,0.08)', fog: '255,230,180', mote: '#fff2c0', moteG: -6 },
   boss: { sky: 'boss_sky', layers: [['boss_mid', 0.14, 1.0, 0.04], ['boss_near', 0.3, 0.95, 0.10]], fg: null, deep: '52,30,52', dim: 'rgba(16,10,24,0.28)', haze: 'rgba(255,120,70,0.10)', fog: '255,140,90', mote: '#ffb13b', moteG: -40 },
 };
@@ -93,6 +94,8 @@ function toned(m, filt) {
 const SKIN = {
   overpass: { fill: 'tex_rock', fs: 0.3, lip: 'lip', lipH: 19, lipUp: 0.3, rim: 'rgba(255,236,170,0.55)', lipF: 'saturate(0.8) brightness(0.86)', hang: 42, propP: 0.16, propF: 'brightness(0.9)',
     props: [['d_mush', 15], ['d_fern', 18], ['d_rubble', 13], ['d_grass', 16], ['d_grass', 14], ['d_stump', 17], ['d_pillar', 26], ['d_lamp', 30, '#ffc070']] },
+  caverns: { fill: 'tex_cave', fs: 0.3, lip: 'lip', lipH: 19, lipUp: 0.3, rim: 'rgba(140,255,240,0.5)', lipF: 'hue-rotate(70deg) saturate(0.9) brightness(0.8)', hang: 46, hangF: 'hue-rotate(60deg) brightness(0.8)', propP: 0.17, propF: 'hue-rotate(35deg) brightness(0.9)',
+    props: [['d_mush', 16], ['d_crys', 18], ['d_fern', 16], ['d_rubble', 13], ['d_mush', 20], ['d_lamp', 28, '#7ff0ff'], ['d_crys', 22]] },
   hub: { fill: 'tex_rock', fs: 0.3, lip: 'lip', lipH: 19, lipUp: 0.3, rim: 'rgba(255,236,170,0.55)', lipF: 'saturate(0.85) brightness(0.92)', hang: 36, propP: 0.1, props: [['d_fern', 18], ['d_grass', 16], ['d_mush', 14]] },
   boss: { fill: 'tex_metal', fs: 0.36, lip: 'moss', lipH: 10, lipUp: 0.32, rim: 'rgba(255,150,90,0.4)', lipF: 'saturate(0.45) brightness(0.7)', hang: 0, propP: 0, props: [] },
 };

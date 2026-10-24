@@ -49,7 +49,8 @@ export function showTitle() {
 }
 export function showPause(ctx) {
   ui.pauseCtx = ctx;
-  show('pause', `<div class="card"><h2>Paused</h2><div class="col">
+  const map = ctx === 'run' ? `<div class="pmap"><canvas id="pmap" width="720" height="320"></canvas><div class="legend"><b style="color:#ffe27a">■</b> you <b style="color:#7ff6ff">■</b> checkpoint <b style="color:#ff9a5a">■</b> mini-boss <b style="color:#ffe9a0">■</b> treasure <b style="color:#ff6a8a">□</b> boss door</div></div>` : '';
+  show('pause', `<div class="card ${map ? 'wide pmapcard' : ''}"><h2>Paused</h2>${map}<div class="col">
   <button class="big primary" data-act="resume">${ic('right', '#15131f', 22)} Resume</button>
   <button class="big" data-act="settings">${ic('gear', '#fff', 22)} Settings</button>
   ${ctx === 'run' || ctx === 'boss' ? `<button class="big" data-act="leaveRun">${ic('door', '#fff', 22)} Give up run</button>` : ''}

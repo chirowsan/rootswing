@@ -39,7 +39,7 @@ export class Warden extends BigFoe {
     else if (this.st === 'leapTele') { this.tele = this.t / 0.7; this.sq = 1 - this.tele * 0.25; if (this.t > 0.7) { const tx = clamp(P.cx, W.room.x + 50, W.room.x + W.room.w - 50); const T = 0.85; this.vx = (tx - this.cx) / T; this.vy = -1500 * T / 2; this.leapX = tx; this.go('leap'); W.addMarker({ kind: 'zone', x: tx - 50, y: this.y + this.h - 26, w: 100, h: 26, life: T }); sfx('jump'); } }
     else if (this.st === 'leap') { const f = this.fall(W, dt); if (f.landed && this.t > 0.2) { this.vx = 0; this.sq = 0.7; W.fx.shake(0.45); sfx('explode'); W.enemyAttack({ x: this.cx - 50, y: this.y + this.h - 30, w: 100, h: 30 }, 16, this, { parryable: false, name: this.info.name, tip: this.info.tip }); W.spawnWave(this.cx, this.y + this.h, -1, 230, this); W.spawnWave(this.cx, this.y + this.h, 1, 230, this); this.go('rest'); } return; }
     else if (this.st === 'rest') { this.vx = approach(this.vx, 0, 1200 * dt); if (this.t > 0.85) { this.go('idle'); this.cd = 0.9; } }
-    else if (this.st === 'summon') { this.vx = 0; this.tele = Math.min(1, this.t / 0.6); if (this.t > 0.8) { for (const s of [-1, 1]) W.spawnEnemy('hopper', this.cx + s * 120, this.y + this.h - 30); sfx('roar'); W.fx.shake(0.2); this.go('rest'); } }
+    else if (this.st === 'summon') { this.vx = 0; this.tele = Math.min(1, this.t / 0.6); if (this.t > 0.8) { for (const s of [-1, 1]) W.spawnEnemy(this.minion || 'hopper', this.cx + s * 120, this.y + this.h - 30); sfx('roar'); W.fx.shake(0.2); this.go('rest'); } }
     this.fall(W, dt);
   }
   drawPainted(g) {
@@ -47,14 +47,14 @@ export class Warden extends BigFoe {
     drawGlow(g, X, this.cy, 60, '#07060e', 0.4); if (hot) drawGlow(g, X + f * 20, Y - 30, 46 + tele * 16, '#ff2a3a', 0.3 + tele * 0.35);
     g.save(); g.translate(X + (tele > 0 ? Math.sin(t * 50) * 1.4 : 0), Y + 1); const lean = this.st === 'bash' ? 0.12 * f : this.st === 'bashTele' ? -tele * 0.1 * f : this.st === 'sleep' ? 0.05 : 0;
     g.rotate(lean); g.scale(1 / Math.sqrt(this.sq), this.sq * (this.st === 'idle' ? 1 + Math.sin(t * 2.5) * 0.02 : 1));
-    paintSprite(g, 'warden', 0, 0, 66, f < 0, this.flash, hot ? 0.08 + tele * 0.17 : 0);
+    paintSprite(g, this.sprite || 'warden', 0, 0, this.sprH || 66, f < 0, this.flash, hot ? 0.08 + tele * 0.17 : 0);
     g.restore();
     if (this.st !== 'sleep') drawGlow(g, X + f * 9, Y - 50, 9, tele > 0 ? '#ff4a5a' : '#ffb13b', 0.8);
     if (this.flash > 0) drawGlow(g, X, this.cy, 50, '#ffffff', this.flash * 3);
     if (this.stun > 0) for (let i = 0; i < 3; i++) { const a = t * 5 + i * 2.1; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(X + Math.cos(a) * 20, this.y - 26 + Math.sin(a) * 5, 3, 0, 7); g.fill(); }
   }
   draw(g) {
-    if (has('warden')) return this.drawPainted(g);
+    if (has(this.sprite || 'warden')) return this.drawPainted(g);
     const X = this.cx, Y = this.y + this.h, t = this.anim, tele = this.tele;
     g.save(); g.translate(X, Y); g.scale(this.face / Math.sqrt(this.sq), this.sq); g.lineWidth = 3; g.strokeStyle = '#0c0a14'; g.lineJoin = 'round';
     for (const s of [-1, 1]) { g.fillStyle = '#3a2f45'; g.fillRect(s * 12 - 6, -12, 12, 12); }
@@ -87,7 +87,7 @@ export class Boss extends BigFoe {
     else if (this.st === 'intro') { if (this.t > 1.8) { this.go('idle'); this.cd = 0.8; } }
     else if (this.st === 'idle') {
       this.face = sign(dx) || 1; this.vx = Math.abs(dx) > 120 ? this.face * (this.phase === 3 ? 80 : 55) : 0; this.cd -= dt * A;
-      if (this.cd <= 0) { this.vx = 0; const pool = this.phase === 1 ? ['slam', 'volley'] : this.phase === 2 ? ['slam', 'beam', 'volley', 'beam'] : ['pillars', 'charge', 'slam', 'volley']; const a = pool[this.order++ % pool.length]; this.attack(W, a, P, floorY); }
+      if (this.cd <= 0) { this.vx = 0; const pool = this.pools ? this.pools[this.phase - 1] : this.phase === 1 ? ['slam', 'volley'] : this.phase === 2 ? ['slam', 'beam', 'volley', 'beam'] : ['pillars', 'charge', 'slam', 'volley']; const a = pool[this.order++ % pool.length]; this.attack(W, a, P, floorY); }
     }
     else if (this.st === 'slamTele') { this.tele = this.t / 0.9; if (this.t > 0.9) { this.go('slam'); this.sq = 0.75; W.fx.shake(0.55); sfx('explode'); const zx = this.face > 0 ? this.cx + 10 : this.cx - 130; W.enemyAttack({ x: zx, y: floorY - 48, w: 120, h: 48 }, 22, this, { parryable: true, name: this.info.name, tip: 'Parry the fist slam to stun the boss!' }); W.spawnWave(this.cx + this.face * 70, floorY, -1, 250, this); W.spawnWave(this.cx + this.face * 70, floorY, 1, 250, this); W.fx.burst(this.cx + this.face * 70, floorY, 20, { color: ['#ffb13b', '#7d5cff'], angle: -Math.PI / 2, spread: 1.2, max: 300, life: 0.6 }); } }
     else if (this.st === 'slam') { if (this.t > 0.8) { this.go('idle'); this.cd = 1.0; } }
@@ -95,7 +95,7 @@ export class Boss extends BigFoe {
     else if (this.st === 'volley') { if (this.t > 1.2) { this.go('idle'); this.cd = 0.8; } }
     else if (this.st === 'beamTele') { this.tele = this.t / 1.4; if (this.t > 1.4) { this.go('beam'); sfx('explode'); W.fx.shake(0.4); } }
     else if (this.st === 'beam') { this.beamT = this.t; W.enemyAttack({ x: W.room.x, y: floorY - 50, w: W.room.w, h: 50 }, 16, this, { parryable: false, name: 'Smog Beam', tip: 'When the floor flashes red, get up high: hook a gold ring or a cyan diamond!' }); if (Math.random() < 0.8) W.fx.burst(rand.range(W.room.x, W.room.x + W.room.w), floorY - rand.range(0, 40), 1, { color: ['#ff5a7a', '#ffb13b'], g: -200, max: 60, life: 0.5, glow: 1 }); if (this.t > 1.3) { this.beamT = 0; this.go('idle'); this.cd = 1.0; } }
-    else if (this.st === 'summon') { this.tele = Math.min(1, this.t / 0.6); if (this.t > 0.8) { for (const s of [-1, 1]) W.spawnEnemy('moth', this.cx + s * 60, this.y - 20); this.go('idle'); this.cd = 1.2; } }
+    else if (this.st === 'summon') { this.tele = Math.min(1, this.t / 0.6); if (this.t > 0.8) { for (const s of [-1, 1]) W.spawnEnemy(this.minion || 'moth', this.cx + s * 60, this.y - 20); this.go('idle'); this.cd = 1.2; } }
     else if (this.st === 'pillarsTele') { if (this.t > 0.2) { this.go('idle'); this.cd = 2.4; } }
     else if (this.st === 'chargeTele') { this.tele = this.t / 0.85; this.vx = -this.face * 20; if (Math.random() < 0.5) W.fx.burst(this.cx, this.y + 10, 1, { color: '#ddd', g: -150, max: 60, size: 8, life: 0.6 }); if (this.t > 0.85) { this.go('charge'); sfx('dash'); } }
     else if (this.st === 'charge') { this.vx = this.face * 380; W.enemyAttack({ x: this.x, y: this.y + 20, w: this.w, h: this.h - 20 }, 20, this, { parryable: true, name: this.info.name, tip: 'Jump over the charge, or parry it!' }); const tx = Math.floor((this.face > 0 ? this.x + this.w + 2 : this.x - 2) / TILE); if (W.map.solid(tx, Math.floor((this.y + this.h - 10) / TILE)) || this.t > 2.5) { this.vx = -this.face * 100; this.stun = 1.4; W.fx.shake(0.5); sfx('thump'); this.go('idle'); this.cd = 0.5; } }
@@ -107,6 +107,10 @@ export class Boss extends BigFoe {
     else if (a === 'volley') this.go('volleyTele');
     else if (a === 'beam') { this.go('beamTele'); W.addMarker({ kind: 'beam', x: W.room.x, y: floorY - 50, w: W.room.w, h: 50, life: 1.4 }); }
     else if (a === 'charge') { this.face = sign(P.cx - this.cx) || 1; this.go('chargeTele'); W.addMarker({ kind: 'zone', x: this.face > 0 ? this.cx : W.room.x, y: this.y + 20, w: this.face > 0 ? W.room.x + W.room.w - this.cx : this.cx - W.room.x, h: this.h - 20, life: 0.85 }); }
+    else if (a === 'tide') { // v1.3 final boss: a wave rolls across the floor from one wall; each step is marked first
+      this.go('pillarsTele'); const from = P.cx > W.room.x + W.room.w / 2 ? -1 : 1, n = 9, step = (W.room.w - 80) / n;
+      for (let i = 0; i < n; i++) { const x = from > 0 ? W.room.x + 40 + i * step : W.room.x + W.room.w - 40 - (i + 1) * step; W.addMarker({ kind: 'zone', x, y: floorY - 40, w: step, h: 40, life: 0.9 + i * 0.13 });
+        this.pending.push({ t: 0.9 + i * 0.13, fire: () => { W.enemyAttack({ x, y: floorY - 40, w: step, h: 40 }, 14, this, { parryable: false, name: 'Rising Tide', tip: 'The tide rolls along the red floor. Jump it or hang from a ring!' }); W.fx.burst(x + step / 2, floorY - 6, 6, { color: ['#9ff6ff', '#e8ffff'], g: 500, min: 80, max: 260, angle: -Math.PI / 2, spread: 0.7, life: 0.6, glow: 1 }); if (i % 3 === 0) sfx('explode', 0.25); } }); } }
     else if (a === 'pillars') { this.go('pillarsTele'); const xs = [P.cx]; for (let i = 0; i < 3; i++) xs.push(rand.range(W.room.x + 60, W.room.x + W.room.w - 60)); for (const x of xs) { W.addMarker({ kind: 'shadow', x: x - 22, y: floorY - 6, w: 44, h: 8, life: 1.0 }); this.pending.push({ t: 0.75, fire: () => W.dropPillar(x, W.room.y + TILE, floorY, this) }); } }
   }
   lobEmber(W, tx, floorY, T) {
@@ -165,6 +169,26 @@ export class Boss extends BigFoe {
     if (Math.random() < 0.3) this._smoke = true;
     drawGlow(g, X + this.face * 10, Y - 46, 50, hot, 0.25 + glow * 0.25);
     if (this.flash > 0) drawGlow(g, X, this.cy, 80, '#ffffff', this.flash * 5);
+    if (this.stun > 0) for (let i = 0; i < 4; i++) { const a = t * 5 + i * 1.6; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(X + Math.cos(a) * 30, this.y - 20 + Math.sin(a) * 6, 4, 0, 7); g.fill(); }
+  }
+}
+export class TideGolem extends Warden { // caverns mini-boss: Warden moves, new body, summons glowjellies
+  constructor(x, y, depth) { super(x, y, depth); this.type = 'tidegolem'; this.info = ENEMY_INFO.tidegolem; this.sprite = 'tidegolem'; this.sprH = 74; this.minion = 'jelly'; this.maxHp = this.hp = Math.round(this.hp * 1.15); this.glim = 40; }
+}
+export class DrownedBloom extends Boss { // final boss: Furnace fight rules, new body, Rising Tide attack, jelly adds
+  constructor(x, y) { super(x, y); this.type = 'drowned'; this.info = ENEMY_INFO.drowned; this.maxHp = this.hp = 900; this.glim = 120; this.minion = 'jelly';
+    this.pools = [['slam', 'volley', 'tide'], ['slam', 'beam', 'tide', 'volley'], ['tide', 'pillars', 'charge', 'slam', 'volley']]; }
+  draw(g) { if (!has('boss2')) return super.draw(g);
+    const X = this.cx, Y = this.y + this.h, t = this.anim, tele = this.tele || 0, f = this.face, H = 168;
+    const glow = clamp(0.5 + Math.sin(t * 5) * 0.15 + tele * 0.5 + (this.beamT > 0 ? 0.6 : 0), 0, 1.4), hot = this.phase === 3 ? '#7ffcff' : '#4fe0f0';
+    drawGlow(g, X, Y - 80, 200, hot, 0.1 + glow * 0.08); g.fillStyle = 'rgba(5,3,10,0.3)'; g.beginPath(); g.ellipse(X, Y + 2, 66, 6, 0, 0, 7); g.fill();
+    if (tele > 0) drawGlow(g, X, Y - 70, 90 + tele * 30, '#ff2a3a', 0.3 + tele * 0.4);
+    const lean = this.st === 'slamTele' ? -tele * 0.06 : this.st === 'slam' ? 0.05 : this.st === 'charge' ? 0.1 * f : 0;
+    g.save(); g.translate(X + (tele > 0 ? Math.sin(t * 45) * 1.5 : 0), Y + 1); g.rotate(lean); g.scale(1 / Math.sqrt(this.sq), this.sq * (1 + Math.sin(t * 1.8) * 0.015));
+    paintSprite(g, 'boss2', 0, 0, H, f < 0, this.flash, tele * 0.35);
+    g.globalCompositeOperation = 'lighter'; drawGlow(g, 0, -H * 0.5, 30 + glow * 14, hot, 0.5 * glow); drawGlow(g, 0, -H * 0.5, 12, '#ffffff', 0.35 * glow);
+    for (const ex of [-14, 14]) drawGlow(g, ex, -H * 0.64, 9, tele > 0 ? '#ff3a4a' : '#bffcff', 0.9);
+    g.globalCompositeOperation = 'source-over'; g.restore();
     if (this.stun > 0) for (let i = 0; i < 4; i++) { const a = t * 5 + i * 1.6; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(X + Math.cos(a) * 30, this.y - 20 + Math.sin(a) * 6, 4, 0, 7); g.fill(); }
   }
 }

@@ -138,6 +138,7 @@ export function makeBackground(biome, rs, seed = 7) {
 }
 export const BIOMES = {
   overpass: { key: 'overpass', name: 'Rustvine Overpass', skyTop: '#27345a', skyMid: '#5b6489', skyLow: '#f0a96e', far: '#46507a', farTree: '#3f5f6a', mid: '#2f3656', midVine: '#2c5a4c', near: '#222842', stone: '#2c2a3a', stone2: '#35324a', stoneHi: '#433e58', moss: '#5fb556', mossHi: '#a6e47a', mossDk: '#2f7a3f', fog: 'rgba(240,169,110,0.10)', light: '#ffcf8a' },
+  caverns: { key: 'caverns', name: 'Drowned Glowroots', skyTop: '#0c2230', skyMid: '#14485a', skyLow: '#3fb7b0', far: '#1a3a4e', farTree: '#1f4a50', mid: '#163044', midVine: '#1f5a54', near: '#0f2232', stone: '#1d2a38', stone2: '#233446', stoneHi: '#2e4458', moss: '#3fc0a8', mossHi: '#9ff0d8', mossDk: '#1f7068', fog: 'rgba(80,200,210,0.10)', light: '#8ff4ff' },
   hub: { key: 'hub', name: 'The Seedhouse', skyTop: '#2a4a6a', skyMid: '#5d8aa0', skyLow: '#ffd59a', far: '#4a6a86', farTree: '#4f7a62', mid: '#33506a', midVine: '#3d7a5a', near: '#27405a', stone: '#3a3346', stone2: '#443c52', stoneHi: '#544a64', moss: '#6cc860', mossHi: '#b6f080', mossDk: '#2f8a46', fog: 'rgba(255,213,154,0.08)', light: '#ffe2a8' },
   boss: { key: 'boss', name: 'The Smog Furnace', skyTop: '#1e1a34', skyMid: '#4a2f52', skyLow: '#ff8a5a', far: '#3a2a4a', farTree: '#3a3a4a', mid: '#2a2140', midVine: '#45304a', near: '#1c1730', stone: '#2a2434', stone2: '#332b40', stoneHi: '#433a52', moss: '#7aa04a', mossHi: '#c0dc70', mossDk: '#4a6a30', fog: 'rgba(255,120,80,0.10)', light: '#ff9a6a' },
 };

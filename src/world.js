@@ -6,7 +6,7 @@ import { buildFixed, generateRun, CW, CH, TileMap } from './level.js';
 import { TUTORIAL, HUB, BOSS_ROOM } from './chunks.js';
 import { Player } from './player.js';
 import { Enemy, ENEMY_INFO } from './enemies.js';
-import { Warden, Boss } from './boss.js';
+import { Warden, Boss, TideGolem, DrownedBloom } from './boss.js';
 import { FX } from './fx.js';
 import { PAL, drawGlow, drawIcon, renderTileChunk, makeBackground, BIOMES, CHUNK_T } from './art.js';
 import { sfx, playSong } from './audio.js';
@@ -29,11 +29,11 @@ export class World {
     this.game = game; this.mode = mode; this.fx = new FX(); this.t = 0; this.events = []; this.listeners = [];
     this.enemies = []; this.shots = []; this.bombs = []; this.waves = []; this.markers = []; this.pickups = []; this.props = []; this.anchors = []; this.sentries = []; this.pillars = []; this.lights = [];
     this.hs = 0; this.slow = 0; this.fight = null; this.runGlim = opts.glim || 0; this.cleared = new Set(opts.cleared || []); this.visited = new Set(opts.visited || []); this.opened = new Set(opts.opened || []);
-    let L; this.seed = opts.seed ?? ((Math.random() * 1e9) | 0);
+    let L; this.seed = opts.seed ?? ((Math.random() * 1e9) | 0); this.stage = opts.stage || 0; // stage 0 = Overpass (-> Furnace), stage 1 = Drowned Glowroots (-> Drowned Bloom)
     if (mode === 'tutorial') { L = buildFixed(TUTORIAL); this.biome = BIOMES.overpass; }
     else if (mode === 'hub') { L = buildFixed(HUB); this.biome = BIOMES.hub; }
-    else if (mode === 'boss') { L = buildFixed(BOSS_ROOM); this.biome = BIOMES.boss; }
-    else { L = generateRun(this.seed); this.biome = BIOMES.overpass; }
+    else if (mode === 'boss') { L = buildFixed(BOSS_ROOM); this.biome = this.stage ? BIOMES.caverns : BIOMES.boss; }
+    else { L = generateRun(this.seed + this.stage * 7919, this.stage ? 'caverns' : 'overpass'); this.biome = this.stage ? BIOMES.caverns : BIOMES.overpass; }
     this.map = L.map; this.cells = L.cells; this.gw = L.gw; this.gh = L.gh; this.cellGrid = new Map(); for (const [i, c] of this.cells.entries()) { c.index = i; this.cellGrid.set(c.x + ',' + c.y, c); }
     this.fullRoom = { x: TILE, y: 0, w: (this.map.w - 2) * TILE, h: this.map.h * TILE };
     const stats = { ...playerStats(), ...(opts.player || {}) };
@@ -43,24 +43,27 @@ export class World {
     let px = start ? start.x * TILE + 12 : 100, py = start ? (start.y + 1) * TILE : 100;
     if (opts.cellIndex !== undefined && this.cells[opts.cellIndex]) { const c = this.cells[opts.cellIndex]; const p = this.findFloorIn(c); px = p.x; py = p.y; }
     this.player = new Player(px - 9, py - 34, stats);
+    if (opts.cellIndex !== undefined && this.cells[opts.cellIndex]) { const c = this.cells[opts.cellIndex]; this.lastCheckpoint = opts.cellIndex; for (const o of this.props) if (o.kind === 'shrine' && this.cellAt(o.x + o.w / 2, o.y + o.h - 4) === c) o.lit = true; }
     this.room = this.fullRoom; this.cam = { x: px - 300, y: py - 200 }; this.updateRoom(true); this.snapCamera();
     this.chunkCache = new Map(); this.rs = 0; this.bg = null; this.hazTiles = [];
     for (let y = 0; y < this.map.h; y++) for (let x = 0; x < this.map.w; x++) { const c = this.map.get(x, y); if (c === '^' || c === 'v' || c === '~') this.hazTiles.push({ x, y, c }); }
     this.viewH = viewHFor(mode); this.heroK = heroKFor(mode); this.bossIntro = mode === 'boss'; this.countdown = mode === 'run' || mode === 'boss' ? 1.6 : 0; this.fade = 1;
-    playSong(mode === 'hub' ? 'hub' : mode === 'boss' ? 'boss' : mode === 'tutorial' ? 'calm' : 'biome');
+    playSong(mode === 'hub' ? 'hub' : mode === 'boss' ? 'boss' : mode === 'tutorial' ? 'calm' : this.stage ? 'caverns' : 'biome');
   }
   spawnEntity(s) {
     let gy = s.y; if ('cFWD'.includes(s.c)) while (gy < s.y + 6 && !this.map.solid(s.x, gy + 1) && this.map.get(s.x, gy + 1) !== '=') gy++; // props sit on the ground
-    const wx = s.x * TILE + 12, wy = (gy + 1) * TILE, depth = s.cell ? s.cell.depth : 0, ci = s.cell ? s.cell.index : -1;
+    const wx = s.x * TILE + 12, wy = (gy + 1) * TILE, depth = s.cell ? (this.stage ? 5 : 0) + s.cell.depth * 0.33 : 0, ci = s.cell ? s.cell.index : -1;
     const E = (type) => { if (ci >= 0 && this.cleared.has(ci)) return; const e = new Enemy(type, wx, wy, depth); e.cell = ci; this.enemies.push(e); };
     switch (s.c) {
       case 'o': this.anchors.push({ x: wx, y: s.y * TILE + 12, kind: 'swing', pulse: rand.range(0, 6) }); break;
       case 'z': this.anchors.push({ x: wx, y: s.y * TILE + 12, kind: 'zip', pulse: rand.range(0, 6) }); break;
-      case 'e': { const r = this.spawnRng(); E(depth >= 3 && r < 0.25 ? 'knight' : r < 0.55 ? 'hopper' : r < 0.8 ? 'charger' : 'bomber'); break; }
+      case 'e': { const r = this.spawnRng(); if (this.stage) E(r < 0.24 ? 'lurefish' : r < 0.46 ? 'jelly' : r < 0.66 ? 'shellback' : r < 0.78 ? 'knight' : r < 0.9 ? 'hopper' : 'bomber'); else E(depth >= 3 && r < 0.25 ? 'knight' : r < 0.55 ? 'hopper' : r < 0.8 ? 'charger' : 'bomber'); break; }
+      case 'w': E('lurefish'); break; case 'y': E('jelly'); break; case 's': E('shellback'); break;
+      case 'S': this.props.push({ kind: 'shrine', x: wx - 16, y: wy - 44, w: 32, h: 44, id: 'S' + s.x + '_' + s.y }); this.lights.push({ x: wx, y: wy - 30, lantern: true }); break;
       case 'f': E('moth'); break; case 't': E('puffcap'); break; case 'k': E('knight'); break; case 'b': E('bomber'); break; case 'h': E('charger'); break; case 'j': E('hopper'); break;
       case 'd': E('dummy'); break; case 'q': E('tturret'); break;
-      case 'M': if (!this.cleared.has(ci)) { const w = new Warden(wx, wy, depth); w.cell = ci; this.enemies.push(w); } break;
-      case 'X': { const b = new Boss(wx, wy); b.cell = -1; this.enemies.push(b); this.boss = b; break; }
+      case 'M': if (!this.cleared.has(ci)) { const w = this.stage ? new TideGolem(wx, wy, depth) : new Warden(wx, wy, depth); w.cell = ci; this.enemies.push(w); } break;
+      case 'X': { const b = this.stage ? new DrownedBloom(wx, wy) : new Boss(wx, wy); b.cell = -1; this.enemies.push(b); this.boss = b; break; }
       case 'c': this.props.push({ kind: 'chest', x: wx - 14, y: wy - 22, w: 28, h: 22, id: 'c' + s.x + '_' + s.y, open: this.opened.has('c' + s.x + '_' + s.y) }); break;
       case 'g': for (let i = 0; i < 5; i++) this.pickups.push({ kind: 'glim', x: wx + (i - 2) * 9, y: wy - 16 - Math.abs(i - 2) * 4, vx: 0, vy: 0, t: 1, float: true }); break;
       case 'F': this.props.push({ kind: 'fountain', x: wx - 18, y: wy - 40, w: 36, h: 40, id: 'F' + s.x + '_' + s.y, open: this.opened.has('F' + s.x + '_' + s.y) }); break;
@@ -88,7 +91,12 @@ export class World {
     if (c) { this.room = c.room; if (this.curCell !== c) { this.curCell = c; if (!this.visited.has(c.index)) { this.visited.add(c.index); } if (!initial) this.onEnterCell(c); } }
     else this.room = this.fullRoom;
   }
-  onEnterCell(c) { if (this.mode === 'run' && !c.branch) this.game.saveRunState(this, c.index); }
+  onEnterCell(c) { if (this.mode === 'run' && c.kind === 'checkpoint') this.reachCheckpoint(c); }
+  reachCheckpoint(c) { // v1.3: saves happen only at checkpoint shrines (every ~10 rooms) and at the start of each biome
+    const P = this.player; P.flasks = P.maxFlasks; this.lastCheckpoint = c.index;
+    for (const o of this.props) if (o.kind === 'shrine' && this.cellAt(o.x + o.w / 2, o.y + o.h - 4) === c && !o.lit) { o.lit = true; this.fx.burst(o.x + o.w / 2, o.y + 10, 26, { color: ['#9ff6ff', '#e8ffff'], g: -60, max: 170, kind: 'star', life: 1 }); }
+    this.game.saveRunState(this, c.index); sfx('unlock'); this.fx.text(P.cx, P.y - 24, 'Checkpoint saved', '#bffcff', 14); this.emit('checkpoint', c.index);
+  }
   snapCamera() { const t = this.camTarget(); this.cam.x = t.x; this.cam.y = t.y; }
   camTarget() {
     const P = this.player, VW = this.viewW || 760, VH = this.viewH || VIEW_H;
@@ -139,7 +147,7 @@ export class World {
   }
   // ---------------- interaction ----------------
   interactable(p) {
-    for (const o of this.props) { if (o.open || o.kind === 'trigger') continue; if (rectsOverlap({ x: p.x - 14, y: p.y - 10, w: p.w + 28, h: p.h + 20 }, o)) return o; }
+    for (const o of this.props) { if (o.open || o.kind === 'trigger' || o.kind === 'shrine') continue; if (rectsOverlap({ x: p.x - 14, y: p.y - 10, w: p.w + 28, h: p.h + 20 }, o)) return o; }
     return null;
   }
   tryInteract(p) {
@@ -203,13 +211,13 @@ export class World {
     return true;
   }
   killEnemy(e, p) {
-    if (e.type === 'boss') { e.hp = 0; e.go('dying'); sfx('roar'); this.fx.shake(0.8); this.slow = 1.0; return; }
+    if (e instanceof Boss) { e.hp = 0; e.go('dying'); sfx('roar'); this.fx.shake(0.8); this.slow = 1.0; return; }
     e.dead = true; this.fx.pop(e.cx, e.cy, e.boss ? 2 : 1); if (e.boss) this.zoomKick(0.8); sfx('pop'); vibrate(15);
     const lucky = save.progress.unlocks.lucky ? 1.25 : 1; this.dropGlims(e.cx, e.cy, Math.round(e.glim * lucky));
     if (!e.boss && rand.chance(0.08)) this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy, vx: rand.range(-50, 50), vy: -220, t: 0 });
     this.player.stats.kills++; this.emit('kill', e);
     if (e.cell >= 0 && !this.enemies.some((o) => !o.dead && o.cell === e.cell)) this.cleared.add(e.cell);
-    if (e.type === 'warden') this.onMinibossDefeated(e);
+    if (e instanceof Warden) this.onMinibossDefeated(e);
     if (e.type === 'tturret') this.emit('turretPopped');
   }
   dropGlims(x, y, n) { for (let i = 0; i < n; i++) this.pickups.push({ kind: 'glim', x, y, vx: rand.range(-140, 140), vy: rand.range(-320, -120), t: 0 }); }
@@ -225,7 +233,7 @@ export class World {
   }
   onPlayerDeath(info) { sfx('death'); this.slow = 0.8; this.fx.shake(0.6); this.emit('death'); setTimeout(() => this.game.onDeath(this, info || this.player.lastHit), 1100); }
   startFight(e) {
-    if (e.type === 'warden') {
+    if (e instanceof Warden) {
       const c = this.cells[e.cell]; if (!c) return; this.fight = { e, room: c.room }; const ox = c.x * CW, oy = c.y * CH; this.gates = [];
       for (const gx of [0, CW - 1]) for (let y = 14; y <= 17; y++) if (this.map.get(ox + gx, oy + y) === '.') { this.setTile(ox + gx, oy + y, 'G'); this.gates.push([ox + gx, oy + y]); }
       // never trap the player inside a gate tile
@@ -234,8 +242,8 @@ export class World {
     } else { this.fight = { e, room: this.fullRoom }; this.game.bossBar(e); }
   }
   onMinibossDefeated(e) {
-    for (const [x, y] of this.gates || []) this.setTile(x, y, '.'); this.gates = []; this.fight = null; this.game.bossBar(null); sfx('victory'); playSong('biome');
-    this.fx.text(e.cx, e.y - 30, 'Warden defeated!', '#ffe27a', 18); this.dropGlims(e.cx, e.cy, 10); this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy - 20, vx: 0, vy: -250, t: 0, big: true });
+    for (const [x, y] of this.gates || []) this.setTile(x, y, '.'); this.gates = []; this.fight = null; this.game.bossBar(null); sfx('victory'); playSong(this.stage ? 'caverns' : 'biome');
+    this.fx.text(e.cx, e.y - 30, e.info.name + ' defeated!', '#ffe27a', 18); this.dropGlims(e.cx, e.cy, 10); this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy - 20, vx: 0, vy: -250, t: 0, big: true });
     save.progress.minibossBeaten = (save.progress.minibossBeaten || 0) + 1; this.emit('miniboss');
   }
   onBossPhase(n) { this.fx.text(this.boss.cx, this.boss.y - 30, n === 2 ? 'It\'s getting hot!' : 'Final phase!', '#ffb13b', 18); this.emit('bossPhase', n); }
@@ -496,11 +504,12 @@ export class World {
     for (const l of this.lights) { if (!l.lantern) continue; if (has('lantern')) { g.strokeStyle = '#2a2018'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(l.x, l.y - 26); g.lineTo(l.x, l.y - 8); g.stroke(); spr(g, 'lantern', l.x, l.y + 12, 22, 0.5, 1); g.globalCompositeOperation = 'lighter'; drawGlow(g, l.x, l.y + 3, 16, '#ffb13b', 0.5 + Math.sin(t * 7 + l.x) * 0.08); g.globalCompositeOperation = 'source-over'; continue; } g.strokeStyle = '#3a3040'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(l.x, l.y - 24); g.lineTo(l.x, l.y - 4); g.stroke(); g.fillStyle = '#15131f'; g.beginPath(); g.roundRect(l.x - 6, l.y - 6, 12, 15, 3); g.fill(); g.fillStyle = this.biome.light; g.fillRect(l.x - 4, l.y - 3, 8, 9); drawGlow(g, l.x, l.y + 2, 30, this.biome.light, 0.7); }
   }
   drawPropPainted(g, o) {
-    const n = o.kind === 'pedestal' ? 'pedestal' : o.kind; if (!has(n)) return false;
+    const n = o.kind === 'shrine' ? 'crystal' : o.kind; if (!has(n)) return false;
     const t = this.t, X = o.x + o.w / 2, Y = o.y + o.h, ink = (nm, x, y, h) => { for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) spr(g, nm, x + dx, y + dy, h, 0.5, 1, false, tinted(nm, '#15131f')); spr(g, nm, x, y, h, 0.5, 1); };
     if (o.kind === 'chest') { ink('chest', X, Y + 1, 27); if (o.open) { g.globalAlpha = 0.55; spr(g, 'chest', X, Y + 1, 27, 0.5, 1, false, tinted('chest', '#0c0a14')); g.globalAlpha = 1; } else drawGlow(g, X, Y - 10, 26, '#ffd36b', 0.25 + Math.sin(t * 3) * 0.08); }
     else if (o.kind === 'fountain') { ink('fountain', X, Y + 2, 54); if (!o.open) { g.globalCompositeOperation = 'lighter'; drawGlow(g, X, Y - 26, 30, '#5ff2d8', 0.45 + Math.sin(t * 2.5) * 0.1); g.globalCompositeOperation = 'source-over'; } }
     else if (o.kind === 'door') { drawGlow(g, X, Y - 30, 40, '#ffb13b', 0.35); ink('door', X, Y + 1, 66); }
+    else if (o.kind === 'shrine') { const lit = o.lit; g.globalCompositeOperation = 'lighter'; drawGlow(g, X, Y - 26, lit ? 54 : 30, lit ? '#8ff4ff' : '#6a8a9a', lit ? 0.6 + Math.sin(t * 2.5) * 0.12 : 0.25); g.globalCompositeOperation = 'source-over'; ink('crystal', X, Y + 1, 46 + (lit ? Math.sin(t * 2) * 1.5 : 0)); if (lit && Math.random() < 0.15) this.fx.burst(X, Y - 30, 1, { color: '#bffcff', g: -40, min: 5, max: 30, life: 1.2, size: 2, glow: 1 }); }
     else if (o.kind === 'pedestal') { ink('pedestal', X, Y + 1, 30); if (!o.open) { const w = WEAPONS[o.weapon], y = o.y - 8 + Math.sin(t * 2) * 3; drawGlow(g, X, y, 30, w.color, 0.7); g.save(); g.translate(X, y); g.rotate(-0.7); spr(g, 'w_' + o.weapon, 0, 0, 10, 0.5, 0.5); g.restore(); } }
     else if (o.kind === 'station') { const icon = o.n === 1 ? 'gear' : o.n === 2 ? 'blade' : 'heart'; const col = o.n === 1 ? '#ffd36b' : o.n === 2 ? '#bfe8ff' : '#ff9ab0'; ink('station', X, Y + 1, 40);
       const y = Y - 54 + Math.sin(t * 2 + o.n) * 3; drawGlow(g, X, y, 28, col, 0.6); g.fillStyle = 'rgba(20,18,32,0.8)'; g.beginPath(); g.arc(X, y, 13, 0, 7); g.fill(); g.strokeStyle = col; g.lineWidth = 1.5; g.stroke(); drawIcon(g, icon, X, y, 17, col); }

@@ -4,7 +4,7 @@ import { initAudio, sfx, playSong, applyVolumes } from './audio.js';
 import { input, initInput, pollInput, endStep, pressed, held, computeLayout, drawTouch, clearAll, simButton, simAxes } from './input.js';
 import { World, VIEW_H, playerStats } from './world.js';
 import { Tutorial } from './tutorial.js';
-import { drawHUD } from './hud.js';
+import { drawHUD, drawMap } from './hud.js';
 import { GADGETS } from './weapons.js';
 import * as UI from './ui.js';
 import { TILE } from './util.js';
@@ -15,13 +15,13 @@ const canvas = document.getElementById('c'); const g = canvas.getContext('2d', {
 const game = {
   state: 'title', world: null, tut: null, bossShown: null, paused: false, dpr: 1, cssW: 0, cssH: 0, perf: { frames: 0, slow: 0, ms: [] }, runStart: 0, god: false,
   bossBar(e) { this.bossShown = e; },
-  saveRunState(W, cellIndex) { save.run = { seed: W.seed, cellIndex, hp: W.player.hp, flasks: W.player.flasks, weapon: W.player.weapon, glim: W.runGlim, cleared: [...W.cleared], visited: [...W.visited], opened: [...W.opened], boss: false, kills: W.player.stats.kills, t: this.runTime() }; writeSave(); },
+  saveRunState(W, cellIndex) { save.run = { seed: W.seed, stage: W.stage || 0, cellIndex, hp: W.player.hp, flasks: W.player.flasks, weapon: W.player.weapon, glim: W.runGlim, cleared: [...W.cleared], visited: [...W.visited], opened: [...W.opened], boss: false, kills: W.player.stats.kills, t: this.runTime() }; this.runStart = performance.now(); writeSave(); },
   runTime() { return (save.run && save.run.t || 0) + (performance.now() - this.runStart) / 1000; },
   openStation(n) { this.paused = true; clearAll(); if (n === 1) UI.showShop(); else if (n === 2) UI.showLoadout(); else UI.showJournal(); UI.ui.back = 'game'; },
   useDoor(W) {
     if (W.mode === 'tutorial') { save.progress.tutorialDone = true; writeSave(); this.go('hub'); }
     else if (W.mode === 'hub') { save.progress.runs++; save.run = null; writeSave(); this.runStart = performance.now(); this.go('run', {}); }
-    else if (W.mode === 'run') { const P = W.player; save.run = { seed: W.seed, hp: P.hp, flasks: P.flasks, weapon: P.weapon, glim: W.runGlim, boss: true, kills: P.stats.kills, rooms: W.visited.size, t: this.runTime() }; this.runStart = performance.now(); save.progress.bossSeen = true; writeSave(); this.go('boss', { player: { hp: P.hp, flasks: P.flasks, weapon: P.weapon }, glim: W.runGlim, kills: P.stats.kills }); }
+    else if (W.mode === 'run') { const P = W.player; save.run = { seed: W.seed, stage: W.stage || 0, hp: P.hp, flasks: P.flasks, weapon: P.weapon, glim: W.runGlim, boss: true, kills: P.stats.kills, rooms: W.visited.size, t: this.runTime() }; this.runStart = performance.now(); save.progress.bossSeen = true; writeSave(); this.go('boss', { seed: W.seed, stage: W.stage || 0, player: { hp: P.hp, flasks: P.flasks, weapon: P.weapon }, glim: W.runGlim, kills: P.stats.kills }); }
   },
   onDeath(W, info) {
     if (this.world !== W) return;
@@ -31,6 +31,10 @@ const game = {
   },
   onVictory(W) {
     if (this.world !== W) return;
+    if (W.mode === 'boss' && !W.stage) { // v1.3: the Furnace opens the way down into biome 2; checkpoint between biomes
+      const P = W.player; save.progress.bossBeaten++; const t = this.runTime(); save.run = null; this.runStart = performance.now();
+      this.go('run', { seed: W.seed, stage: 1, player: { hp: P.maxHp, flasks: P.maxFlasks, weapon: P.weapon }, glim: W.runGlim, kills: P.stats.kills }); save.run.t = t; writeSave(); this.world.fx.text(this.world.player.cx, this.world.player.y - 40, 'Biome 2: Drowned Glowroots', '#bffcff', 18); return;
+    }
     const glim = W.runGlim; save.progress.glimmers += glim; save.progress.totalGlimmers += glim; save.progress.wins++; save.progress.bossBeaten++; save.run = null; writeSave();
     const t = Math.round(this.runTime()); this.paused = true; UI.showVictory(glim, { kills: W.player.stats.kills, time: Math.floor(t / 60) + 'm ' + String(t % 60).padStart(2, '0') + 's' });
   },
@@ -45,11 +49,12 @@ const game = {
     this.relayout();
   },
   relayout() { input.layout = computeLayout(game.cssW, game.cssH); input.layout && (input.visible.skill2 = !game.world || game.world.player.gadgets.length > 1); },
-  pause() { if (this.state !== 'play' || this.paused || !this.world) return; this.paused = true; clearAll(); sfx('uiBack'); UI.showPause(this.world.mode); },
+  pause() { if (this.state !== 'play' || this.paused || !this.world) return; this.paused = true; clearAll(); sfx('uiBack'); UI.showPause(this.world.mode); this.drawPauseMap(); },
+  drawPauseMap() { const W = this.world, cv = document.getElementById('pmap'); if (!cv || !W || W.mode !== 'run') return; const g = cv.getContext('2d'); g.clearRect(0, 0, cv.width, cv.height); const cs = Math.floor(Math.min(cv.width / W.gw, cv.height / W.gh * 1.7)), chh = Math.floor(cs / 1.7); drawMap(g, W, (cv.width - cs * W.gw) / 2, (cv.height - chh * W.gh) / 2, cs, chh, true); if (this.paused && UI.ui.open === 'pause') requestAnimationFrame(() => this.drawPauseMap()); },
 };
 UI.initUI({
   play() { initAudio(); if (!save.progress.tutorialDone) game.go('tutorial'); else game.go('hub'); },
-  continueRun() { initAudio(); const r = save.run; if (!r) return; game.runStart = performance.now(); if (r.boss) game.go('boss', { player: { hp: r.hp, flasks: r.flasks, weapon: r.weapon }, glim: r.glim, kills: r.kills }); else game.go('run', { seed: r.seed, cellIndex: r.cellIndex, player: { hp: r.hp, flasks: r.flasks, weapon: r.weapon }, glim: r.glim, cleared: r.cleared, visited: r.visited, opened: r.opened, kills: r.kills }); },
+  continueRun() { initAudio(); const r = save.run; if (!r) return; game.runStart = performance.now(); if (r.boss) game.go('boss', { seed: r.seed, stage: r.stage || 0, player: { hp: r.hp, flasks: r.flasks, weapon: r.weapon }, glim: r.glim, kills: r.kills }); else game.go('run', { seed: r.seed, stage: r.stage || 0, cellIndex: r.cellIndex, player: { hp: r.hp, flasks: r.flasks, weapon: r.weapon }, glim: r.glim, cleared: r.cleared, visited: r.visited, opened: r.opened, kills: r.kills }); },
   resume() { UI.close(); game.paused = false; clearAll(); },
   toHub() { game.go('hub'); }, toTitle() { game.state = 'title'; game.world = null; UI.showTitle(); playSong('hub'); },
   leaveRun() { const W = game.world; game.onDeath(W, { name: 'giving up', tip: 'No worries! Your kept glimmers are safe in the Seedhouse.' }); },

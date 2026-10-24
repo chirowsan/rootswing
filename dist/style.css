@@ -75,3 +75,8 @@ button.danger{background:#5a1f34;padding:8px 14px;border-radius:10px;font-weight
 .unl-r i{flex:1;height:6px;border-radius:3px;background:linear-gradient(90deg,#ffd25a calc(var(--p)*100%),rgba(255,255,255,.12) 0)}
 .unl-r em{font-style:normal;font-size:12px;min-width:56px;text-align:right}.unl-r.ready{opacity:1}.unl-r.ready em{color:#ffe27a;font-weight:800}
 @media (max-height:430px){.res{gap:5px}.res h2{font-size:28px}.res .big-t{font-size:13px}.unl{font-size:12px;padding:4px 10px}.unl-r:nth-child(n+4){display:none}.res .cause{padding:6px 12px}.res .cause .who{font-size:15px}.res .cause .tip{font-size:12px;margin-top:3px}.res .stats div{padding:4px}.res .stats b{font-size:20px}.res-glim{padding:2px 12px}.res-glim b{font-size:32px}.res .big{padding-top:8px;padding-bottom:8px}}
+.card.pmapcard{display:grid;grid-template-columns:1.7fr 1fr;column-gap:16px;align-items:start;width:min(860px,96vw)}
+.card.pmapcard h2,.card.pmapcard .hint{grid-column:1/-1}
+.pmap{display:flex;flex-direction:column;gap:6px;min-width:0}
+.pmap canvas{width:100%;height:auto;max-height:52vh;object-fit:contain;background:rgba(10,8,20,.55);border-radius:12px}
+.pmap .legend{font-size:12px;opacity:.75;display:flex;flex-wrap:wrap;gap:4px 10px}

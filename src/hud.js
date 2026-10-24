@@ -63,15 +63,14 @@ export function drawHUD(g, W, w, h, s) {
   if (W.mode === 'run' && W.cells.length) {
     const cs = 9 * s, chh = 6 * s, mx = w - (W.gw * cs) - (input.touchActive || input.forceTouch ? 64 : 14) * s, my = 12 * s;
     g.fillStyle = 'rgba(14,12,24,0.55)'; g.beginPath(); g.roundRect(mx - 4 * s, my - 4 * s, W.gw * cs + 8 * s, W.gh * chh + 8 * s, 5 * s); g.fill();
-    for (const c of W.cells) { const seen = W.visited.has(c.index); const adj = !seen && [...W.visited].some((i) => { const o = W.cells[i]; return Math.abs(o.x - c.x) + Math.abs(o.y - c.y) === 1 && !c.branch; }); if (!seen && !adj) continue;
-      g.fillStyle = W.curCell === c ? '#ffe27a' : seen ? (c.kind === 'miniboss' ? '#ff9a5a' : c.kind === 'exit' ? '#ff6a8a' : c.kind === 'dead' ? '#7ff0ff' : '#c9c2e0') : 'rgba(200,190,230,0.25)'; g.fillRect(mx + c.x * cs + 1, my + c.y * chh + 1, cs - 2, chh - 2); }
+    drawMap(g, W, mx, my, cs, chh, false);
   }
   // boss bar
   const B = W.game.bossShown; if (B && !B.dead) {
     const bw2 = Math.min(w * 0.5, 420 * s), bx = w / 2 - bw2 / 2, by = (W.mode === 'run' ? 46 : 14) * s, f = Math.max(0, B.hp / B.maxHp);
     g.fillStyle = 'rgba(14,12,24,0.75)'; g.beginPath(); g.roundRect(bx - 4 * s, by - 4 * s, bw2 + 8 * s, 18 * s, 7 * s); g.fill();
     g.fillStyle = '#ff9a5a'; g.beginPath(); g.roundRect(bx, by, bw2 * f, 10 * s, 5 * s); g.fill();
-    if (B.type === 'boss') for (const p of [0.66, 0.33]) { g.fillStyle = '#15131f'; g.fillRect(bx + bw2 * p - 1, by, 2 * s, 10 * s); }
+    if (B.phase) for (const p of [0.66, 0.33]) { g.fillStyle = '#15131f'; g.fillRect(bx + bw2 * p - 1, by, 2 * s, 10 * s); }
     g.font = `900 ${11 * s}px system-ui,sans-serif`; g.textAlign = 'center'; g.fillStyle = '#fff4dc'; g.fillText(B.info.name, w / 2, by + 24 * s);
   }
   // countdown
@@ -80,4 +79,30 @@ export function drawHUD(g, W, w, h, s) {
     if (label) { g.save(); g.translate(w / 2, h * 0.42); const sc = (1.4 - Math.min(k, 1) * 0.4) * s; g.scale(sc, sc); g.globalAlpha = W.countdown > 0 ? 1 : 1 - k; g.font = '900 64px system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 10; g.strokeStyle = '#15131f'; g.strokeText(label, 0, 0); g.fillStyle = label === 'GO!' ? '#7fe08a' : '#ffe27a'; g.fillText(label, 0, 0); g.restore(); g.textBaseline = 'alphabetic'; }
   }
   g.restore();
+}
+
+// v1.3 map: used by the HUD minimap and the big pause map. Shows explored rooms, the room you are in, doors between explored rooms,
+// checkpoints, the mini-boss, drop shortcuts and (always) the boss door, so a long run never feels lost.
+export function mapInfo(W) {
+  const seen = (c) => W.visited.has(c.index), out = [];
+  for (const c of W.cells) { const s = seen(c); const adj = !s && !c.branch && W.cells.some((o) => W.visited.has(o.index) && Math.abs(o.x - c.x) + Math.abs(o.y - c.y) === 1);
+    out.push({ c, state: s ? 'seen' : c.kind === 'exit' ? 'boss' : adj ? 'near' : 'hidden' }); }
+  return out;
+}
+export function drawMap(g, W, x0, y0, cs, chh, big) {
+  const t = performance.now() / 1000, info = mapInfo(W), col = (c) => c.kind === 'miniboss' ? '#ff9a5a' : c.kind === 'exit' ? '#ff6a8a' : c.kind === 'checkpoint' ? '#7ff6ff' : c.kind === 'dead' ? '#ffe9a0' : c.kind === 'start' ? '#bff0a0' : '#c9c2e0';
+  const pad = big ? 2 : 1;
+  for (const { c, state } of info) { if (state === 'hidden') continue; const x = x0 + c.x * cs, y = y0 + c.y * chh;
+    if (state === 'near') { g.fillStyle = 'rgba(200,190,230,0.22)'; g.fillRect(x + pad, y + pad, cs - pad * 2, chh - pad * 2); continue; }
+    if (state === 'boss') { g.strokeStyle = 'rgba(255,106,138,' + (0.55 + Math.sin(t * 3) * 0.25) + ')'; g.lineWidth = big ? 2 : 1; g.strokeRect(x + pad + 0.5, y + pad + 0.5, cs - pad * 2 - 1, chh - pad * 2 - 1); if (big) { g.fillStyle = '#ff6a8a'; g.font = `900 ${Math.round(chh * 0.42)}px system-ui,sans-serif`; g.textAlign = 'center'; g.fillText('BOSS', x + cs / 2, y + chh * 0.66); g.textAlign = 'left'; } continue; }
+    g.fillStyle = col(c); g.globalAlpha = c.branch ? 0.8 : 1; g.fillRect(x + pad, y + pad, cs - pad * 2, chh - pad * 2); g.globalAlpha = 1;
+    // open joints of multi-cell rooms, and doors to explored neighbours
+    for (const d of c.need) { const [dx, dy] = { L: [-1, 0], R: [1, 0], U: [0, -1], D: [0, 1] }[d]; const o = W.cellGrid.get((c.x + dx) + ',' + (c.y + dy)); if (!o || !(W.visited.has(o.index) || o.kind === 'exit')) continue;
+      g.fillStyle = col(c); if (dx) g.fillRect(x + (dx > 0 ? cs - pad : 0) - (dx > 0 ? 0 : pad), y + chh * 0.3, pad * 2, chh * 0.4); else g.fillRect(x + cs * 0.3, y + (dy > 0 ? chh - pad : 0) - (dy > 0 ? 0 : pad), cs * 0.4, pad * 2); }
+    if (c.pair && W.visited.has(c.pair.index)) { const o = c.pair; if (o.x !== c.x) g.fillRect(Math.min(x, x0 + o.x * cs) + cs - pad, y + pad, pad * 2, chh - pad * 2); else g.fillRect(x + pad, Math.min(y, y0 + o.y * chh) + chh - pad, cs - pad * 2, pad * 2); }
+    if (big && c.cut === 'D') { g.strokeStyle = '#7ff6ff'; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(x + cs / 2, y + chh * 0.7); g.lineTo(x + cs / 2, y + chh * 1.3); g.stroke(); g.setLineDash([]); }
+    if (big && (c.kind === 'checkpoint' || c.kind === 'miniboss' || c.kind === 'dead' || c.kind === 'exit')) { const icon = c.kind === 'checkpoint' ? 'heart' : c.kind === 'miniboss' ? 'attack' : c.kind === 'exit' ? 'door' : 'glimmer'; try { drawIcon(g, icon, x + cs / 2, y + chh / 2, chh * 0.55, '#15131f'); } catch (e) {} }
+  }
+  const cur = W.curCell; if (cur) { const x = x0 + cur.x * cs, y = y0 + cur.y * chh, k = 0.6 + Math.sin(t * 5) * 0.4; g.fillStyle = '#ffe27a'; g.fillRect(x + pad, y + pad, cs - pad * 2, chh - pad * 2); g.strokeStyle = 'rgba(255,255,255,' + k + ')'; g.lineWidth = big ? 2.5 : 1.2; g.strokeRect(x, y, cs, chh);
+    if (big) { const P = W.player, px = x + ((P.cx / 24) % CW) / CW * cs, py = y + ((P.cy / 24) % CH) / CH * chh; g.fillStyle = '#15131f'; g.beginPath(); g.arc(px, py, 4, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(px, py, 2.5, 0, 7); g.fill(); } }
 }
