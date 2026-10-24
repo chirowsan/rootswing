@@ -11,3 +11,4 @@
 - 2026-10-23 19:05 PDT v1.1 step2-3: docs/ART.md style guide; 25 GenerateImage assets in art/src; tools/key.py + tools/build-art.py -> assets/gfx (WebP parallax, seamless textures, 2048px sprite atlas, ~2 MB)
 - 2026-10-23 19:17 PDT v1.1: painted HUD, touch buttons restyle, additive sparks/smears, painted title key art; shots/wip2 0 page errors; compare sheets shots/compare-1/2.png
 - 2026-10-23 19:20 PDT v1.1: low-mode anchor gating, lowshot ok (0 errors), prof v1.0 draw 32.2ms vs v1.1 24.3ms (swiftshader CPU, 915x412), 1.1.0/versionCode 2 signed APK 5,717,446 B AAB 5,531,717 B same cert; tests 24/24
+- 2026-10-23 19:22 PDT v1.1.0 shipped: pushed main+tag, gh-pages deployed, release v1.1.0 (APK 5,717,446 B, AAB 5,531,717 B, source zip 5,387,095 B), live verified (gfx ready, 0 console errors)
