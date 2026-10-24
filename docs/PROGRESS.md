@@ -20,3 +20,5 @@
 - 2026-10-23 20:03 PDT: v1.3 started (anim, painted tiles, calmer boss arena, juice, biome 2)
 - 2026-10-23 20:04 PDT: steering: v1.3 also needs much bigger runs (25-40 min Easy, 40-60 rooms/biome, 2-3 biomes, final boss, pause map, checkpoints, streaming). Anim decision: frame-by-frame painted sheets (pose test in art/src/anim/ showed consistent character + distinct poses)
 - 20:10 PDT: P1 hero anim DONE: 26 painted frames (art/src/anim/*.jpg -> tools/build-anim.py -> assets/gfx/hero.webp/json), player.js heroPose/drawFrames (rig = fallback), sheets shots/v13/anim-contact*.png, anim-compare.png
+- 20:11 PDT: tests 24/24 after anim. Next: P2 painted tiles (paint.js renderPaintedChunk)
+- 20:19 PDT: P2 painted tiles DONE (tex_rock fill, painted lip strip w/ curled ends, hanging-root strip, crumbly ledge teeth, side vine drapes, 8 decor props, readable one-way planks). Fixed canvas filter+clip pixel-clearing bug (pre-baked toned sprites).

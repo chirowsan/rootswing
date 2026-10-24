@@ -46,7 +46,7 @@ def seamless(im, size=512):
     # m=1 near edges of the original -> use shifted copy (whose centre is the seam-free original edge)
     out = a * (1 - m) + sh * m
     return Image.fromarray(out.astype(np.uint8))
-for n in ['tex_stone', 'tex_metal', 'tex_root']:
+for n in ['tex_stone', 'tex_metal', 'tex_root', 'tex_rock']:
     seamless(Image.open(S + n + '.jpg'), 384).save(O + n + '.webp', quality=82, method=6)
 # ---- sprite sheets split by empty-column gaps
 def split(im, names, gap=None, ds=4):
@@ -99,6 +99,19 @@ add(split(key('props_a'), ['lantern', 'crate', 'sign', 'chest', 'fountain']), 0.
 add(split(key('props_b'), ['pedestal', 'door', 'station', 'ring', 'crystal']), 0.5)
 add(split(key('hud_icons'), ['leaf', 'leafdry', 'glim', 'flask', 'dew', 'bomb']), 0.4)
 add({'moss': single(key('moss_strip'))}, 0.5)
+# v1.3 painted edge strips (made horizontally seamless) + platform decor props
+def hseam(im, f=0.18):
+    a = np.asarray(im).astype(np.float32); W = a.shape[1]; sh = np.roll(a, W // 2, 1)
+    x = np.abs(np.linspace(-1, 1, W)); m = np.clip((x - (1 - 2 * f)) / (2 * f), 0, 1)[None, :, None]
+    pa, ps = a[..., 3:] / 255, sh[..., 3:] / 255; al = pa * (1 - m) + ps * m
+    rgb = (a[..., :3] * pa * (1 - m) + sh[..., :3] * ps * m) / np.maximum(al, 1e-3)
+    return Image.fromarray(np.dstack([rgb, al * 255]).clip(0, 255).astype(np.uint8), 'RGBA')
+def strip(name, extra=()):
+    im = key(name, False, extra); bb = im.getchannel('A').point(lambda v: 255 if v > 20 else 0).getbbox()
+    return hseam(im.crop((0, bb[1], im.width, bb[3])))
+add({'lip': strip('lip_strip')}, 0.5)
+add({'hang': strip('hang_strip')}, 0.42)
+add(split(key('props_c'), ['d_mush', 'd_fern', 'd_rubble', 'd_pillar', 'd_lamp', 'd_grass', 'd_crys', 'd_stump']), 0.32)
 # shelf-pack
 items = sorted(sprites.items(), key=lambda kv: -kv[1].height); AW = 2048; x = y = sh = 0; pos = {}
 for k, im in items:

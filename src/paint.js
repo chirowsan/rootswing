@@ -76,13 +76,26 @@ export function drawGrade(W, g, cw, ch) {
   g.fillStyle = W._grade[0]; g.fillRect(0, 0, cw, ch); g.fillStyle = W._grade[1]; g.fillRect(0, 0, cw, ch);
 }
 // ---------- textured tile chunks ----------
+const _toned = new Map();
+function toned(m, filt) {
+  const k = m.join(',') + (filt || ''); let c = _toned.get(k); if (c && c._v === G.ver) return c;
+  c = document.createElement('canvas'); c.width = m[2]; c.height = m[3]; c._v = G.ver; const g = c.getContext('2d'); if (filt) g.filter = filt;
+  g.drawImage(G.atlas, m[0], m[1], m[2], m[3], 0, 0, m[2], m[3]); _toned.set(k, c); return c;
+}
+// per-biome tile skin: fill texture, lip strip, hanging strip height, props [sprite, height, glow]
+const SKIN = {
+  overpass: { fill: 'tex_rock', fs: 0.3, lip: 'lip', lipH: 19, lipUp: 0.3, rim: 'rgba(255,236,170,0.55)', lipF: 'saturate(0.8) brightness(0.86)', hang: 42, propP: 0.16, propF: 'brightness(0.9)',
+    props: [['d_mush', 15], ['d_fern', 18], ['d_rubble', 13], ['d_grass', 16], ['d_grass', 14], ['d_stump', 17], ['d_pillar', 26], ['d_lamp', 30, '#ffc070']] },
+  hub: { fill: 'tex_rock', fs: 0.3, lip: 'lip', lipH: 19, lipUp: 0.3, rim: 'rgba(255,236,170,0.55)', lipF: 'saturate(0.85) brightness(0.92)', hang: 36, propP: 0.1, props: [['d_fern', 18], ['d_grass', 16], ['d_mush', 14]] },
+  boss: { fill: 'tex_metal', fs: 0.36, lip: 'moss', lipH: 10, lipUp: 0.32, rim: 'rgba(255,150,90,0.4)', lipF: 'saturate(0.45) brightness(0.7)', hang: 0, propP: 0, props: [] },
+};
 export function renderPaintedChunk(map, cx, cy, rs, biome) {
   const Wd = CHUNK_T * TILE, c = document.createElement('canvas');
   c.width = Math.ceil(Wd * rs); c.height = Math.ceil(Wd * rs); const g = c.getContext('2d');
   g.scale(rs, rs); g.translate(-cx * Wd, -cy * Wd);
   const x0 = cx * CHUNK_T, y0 = cy * CHUNK_T, at = (x, y) => map.get(x, y), S = (x, y) => isSolidCh(at(x, y));
   const boss = biome.key === 'boss';
-  const pStone = pattern(g, boss ? 'tex_metal' : 'tex_stone', boss ? 0.36 : 0.5), pRoot = pattern(g, 'tex_root', 0.4);
+  const SK = SKIN[biome.key] || SKIN.overpass, pStone = pattern(g, G.img[SK.fill] ? SK.fill : 'tex_stone', SK.fs), pRoot = pattern(g, 'tex_root', 0.4);
   const path = (X, Y, tl, tr, br, bl) => { g.beginPath(); g.moveTo(X + tl, Y); g.lineTo(X + TILE - tr, Y); g.quadraticCurveTo(X + TILE, Y, X + TILE, Y + tr); g.lineTo(X + TILE, Y + TILE - br); g.quadraticCurveTo(X + TILE, Y + TILE, X + TILE - br, Y + TILE); g.lineTo(X + bl, Y + TILE); g.quadraticCurveTo(X, Y + TILE, X, Y + TILE - bl); g.lineTo(X, Y + tl); g.quadraticCurveTo(X, Y, X + tl, Y); g.closePath(); };
   const each = (fn) => { for (let ty = y0 - 1; ty < y0 + CHUNK_T + 1; ty++) for (let tx = x0 - 1; tx < x0 + CHUNK_T + 1; tx++) { const ch = at(tx, ty); if (isSolidCh(ch)) fn(tx, ty, ch); } };
   const corners = (tx, ty) => { const up = !S(tx, ty - 1), dn = !S(tx, ty + 1), lf = !S(tx - 1, ty), rt = !S(tx + 1, ty), r = 6; return [up, dn, lf, rt, up && lf ? r : 0, up && rt ? r : 0, dn && rt ? r : 0, dn && lf ? r : 0]; };
@@ -104,34 +117,71 @@ export function renderPaintedChunk(map, cx, cy, rs, biome) {
     if (!up && h > 0.93 && !boss) { drawGlow(g, X + 12, Y + 12, 7, '#5ff0d8', 0.55); g.fillStyle = '#bffff2'; g.fillRect(X + 11, Y + 11, 2, 2); } // bioluminescent speck
     if (dn && h > 0.5) { g.strokeStyle = '#1d3a2a'; g.lineWidth = 2.4; g.lineCap = 'round'; const rx = X + 4 + h * 14; g.beginPath(); g.moveTo(rx, Y + TILE - 1); g.bezierCurveTo(rx + 4, Y + TILE + 5, rx - 3, Y + TILE + 9, rx + 1, Y + TILE + 8 + h * 12); g.stroke(); g.strokeStyle = '#3f7a4a'; g.lineWidth = 1; g.stroke(); if (h > 0.8) { g.fillStyle = '#5fbf5a'; g.beginPath(); g.ellipse(rx + 1, Y + TILE + 8 + h * 12, 2.6, 1.4, 0.6, 0, 7); g.fill(); } }
   });
-  // moss caps from the painted strip, in runs of top tiles
-  const m = G.spr.moss;
-  for (let ty = y0 - 1; ty < y0 + CHUNK_T + 1; ty++) {
-    let tx = x0 - 2;
-    while (tx < x0 + CHUNK_T + 2) {
-      const top = (x) => isSolidCh(at(x, ty)) && !S(x, ty - 1) && at(x, ty - 1) !== '^';
-      if (!top(tx)) { tx++; continue; }
-      let e = tx; while (top(e + 1)) e++;
-      const X0 = tx * TILE, X1 = (e + 1) * TILE, Y = ty * TILE, mh = boss ? 11 : 15, mw = m ? m[2] * mh / m[3] : 0;
-      if (m) {
-        g.save(); g.beginPath(); g.rect(X0 - (S(tx - 1, ty) ? 0 : 1), Y - mh, X1 - X0 + 2, mh * 2); g.clip();
-        if (boss) g.filter = 'saturate(0.55) brightness(0.8)';
-        const start = Math.floor(X0 / mw) * mw - hash2(ty, 9) * 0;
-        for (let x = start; x < X1; x += mw) g.drawImage(G.atlas, m[0], m[1], m[2], m[3], x, Y - mh * 0.32, mw + 0.5, mh);
-        g.restore(); g.filter = 'none';
-      }
-      tx = e + 1;
+  const DBG = globalThis.__tileDbg || {};
+  // v1.3: crumbly ledge silhouettes under exposed bottoms (jagged rock teeth, ink-outlined)
+  if (!DBG.noCrumb) each((tx, ty) => {
+    if (S(tx, ty + 1) || at(tx, ty + 1) === '=') return; const X = tx * TILE, Y = (ty + 1) * TILE, h = hash2(tx, ty + 7);
+    const lf = S(tx - 1, ty) && !S(tx - 1, ty + 1), rt = S(tx + 1, ty) && !S(tx + 1, ty + 1);
+    const pts = [[lf ? 0 : 5, 0]]; const n = 3 + (h * 2 | 0);
+    for (let i = 0; i <= n; i++) { const u = (lf ? 0 : 5) + (TILE - (lf ? 0 : 5) - (rt ? 0 : 5)) * i / n; pts.push([u, 2 + hash2(tx * 3 + i, ty) * (i % 2 ? 7 : 3)]); }
+    pts.push([rt ? TILE : TILE - 5, 0]);
+    g.beginPath(); pts.forEach(([u, v], i) => i ? g.lineTo(X + u, Y - 1 + v) : g.moveTo(X + u, Y - 1 + v)); g.closePath();
+    g.strokeStyle = PAL.ink; g.lineWidth = 3; g.lineJoin = 'round'; g.stroke(); g.fillStyle = pStone || '#3a3d50'; g.fill(); g.fillStyle = 'rgba(8,6,18,0.55)'; g.fill();
+  });
+  const TS = SKIN[biome.key] || SKIN.overpass, spr = G.spr, at2 = (x, y) => at(x, y) || ' ', air = (c) => c === '.' || c === ' ';
+  const runs = (rowFn, cb) => { for (let ty = y0 - 3; ty < y0 + CHUNK_T + 2; ty++) { let tx = x0 - 3; while (tx < x0 + CHUNK_T + 3) { if (!rowFn(tx, ty)) { tx++; continue; } let e = tx; while (rowFn(e + 1, ty)) e++; cb(tx, e, ty); tx = e + 1; } } };
+  // (canvas filter + clip clears pixels on some rasterisers, so filtered sprites are pre-baked once instead)
+  const strip = (m, X0, X1, Y, h, off, alpha, filt) => {
+    const src = toned(m, filt), w = m[2] * h / m[3]; g.save(); g.beginPath(); g.rect(X0, Y - h, X1 - X0, h * 3); g.clip(); g.globalAlpha = alpha;
+    for (let x = X0 - off * w; x < X1; x += w) g.drawImage(src, 0, 0, m[2], m[3], x, Y, w + 0.6, h);
+    g.restore();
+  };
+  // hanging roots under ceilings (runs of exposed undersides with open air below)
+  if (spr.hang && TS.hang && !DBG.noHang) runs((x, y) => isSolidCh(at(x, y)) && air(at2(x, y + 1)) && air(at2(x, y + 2)), (tx, e, ty) => {
+    if (e - tx < 1) return; const X0 = tx * TILE + 6, X1 = (e + 1) * TILE - 6, h = TS.hang * (0.85 + hash2(tx, ty) * 0.3);
+    strip(spr.hang, X0, X1, (ty + 1) * TILE - h * 0.2, h, hash2(ty, tx), 0.92, TS.hangF);
+  });
+  // painted mossy lip on top surfaces: overhangs the front, curls past exposed ends, per-run offset for variation
+  const m = spr[TS.lip] || spr.moss;
+  if (m && !DBG.noLip) runs((x, y) => isSolidCh(at(x, y)) && !S(x, y - 1) && at(x, y - 1) !== '^', (tx, e, ty) => {
+    const lx = !S(tx - 1, ty), rx = !S(e + 1, ty), X0 = tx * TILE - (lx ? 3 : 0), X1 = (e + 1) * TILE + (rx ? 3 : 0), Y = ty * TILE, mh = TS.lipH;
+    g.save(); g.beginPath(); const r = 7; g.moveTo(X0, Y - mh); g.lineTo(X1, Y - mh);
+    if (rx) { g.lineTo(X1, Y + mh * 0.25); g.quadraticCurveTo(X1, Y + mh * 0.7, X1 - r, Y + mh * 0.75); } else g.lineTo(X1, Y + mh);
+    if (lx) { g.lineTo(X0 + r, Y + mh * 0.75); g.quadraticCurveTo(X0, Y + mh * 0.7, X0, Y + mh * 0.25); } else g.lineTo(X0, Y + mh);
+    g.closePath(); g.clip(); strip(m, X0, X1, Y - mh * TS.lipUp, mh, hash2(tx, ty * 3), 1, TS.lipF); g.restore();
+    // warm top-lip highlight
+    const gr = g.createLinearGradient(0, Y - mh * TS.lipUp, 0, Y - mh * TS.lipUp + 4); gr.addColorStop(0, TS.rim); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(X0 + 2, Y - mh * TS.lipUp, X1 - X0 - 4, 4);
+  });
+  // root/vine drapes down exposed side walls just under a top lip (overhang feel at ledge ends)
+  if (TS.hang) each((tx, ty) => {
+    if (S(tx, ty - 1)) return; const Y = ty * TILE;
+    for (const [d, X] of [[-1, tx * TILE], [1, (tx + 1) * TILE]]) {
+      if (S(tx + d, ty)) continue; const h = hash2(tx * 5 + d, ty); if (h < 0.35) continue; const L = 14 + h * 26;
+      g.lineCap = 'round'; g.strokeStyle = '#173022'; g.lineWidth = 3; g.beginPath(); g.moveTo(X - d * 2, Y + 2); g.bezierCurveTo(X + d * 4, Y + L * 0.3, X - d * 1, Y + L * 0.7, X + d * 2, Y + L); g.stroke();
+      g.strokeStyle = '#4f8f3e'; g.lineWidth = 1.4; g.stroke();
+      for (let i = 1; i < 4; i++) { const u = i / 4, lx = X + d * (1 + Math.sin(i * 2 + h * 9) * 2), ly = Y + L * u; g.fillStyle = i % 2 ? '#6fbf4a' : '#3f8a3a'; g.beginPath(); g.ellipse(lx + d * 2.5, ly, 2.8, 1.4, d * 0.6, 0, 7); g.fill(); }
     }
+  });
+  // decor props on open tops (deterministic per tile; skip near spawns/doors so gameplay stays readable)
+  if (TS.props.length && !DBG.noProps) for (let ty = y0 - 1; ty < y0 + CHUNK_T + 2; ty++) for (let tx = x0 - 1; tx < x0 + CHUNK_T + 1; tx++) {
+    if (!isSolidCh(at(tx, ty)) || !air(at2(tx, ty - 1)) || !air(at2(tx, ty - 2))) continue;
+    if (!S(tx - 1, ty) || !S(tx + 1, ty) || !air(at2(tx - 1, ty - 1)) || !air(at2(tx + 1, ty - 1))) continue;
+    const h = hash2(tx * 1.7, ty * 2.3); if (h > TS.propP) continue; const k = TS.props[(hash2(tx, ty * 5) * TS.props.length) | 0], q = spr[k[0]]; if (!q) continue;
+    const ph = k[1] * 1.25 * (0.8 + hash2(ty, tx) * 0.4), pw = q[2] * ph / q[3], X = tx * TILE + 12 + (hash2(tx, 3) - 0.5) * 8, Y = ty * TILE + 3, fl = hash2(tx, 11) > 0.5;
+    if (k[2]) drawGlow(g, X, Y - ph * 0.6, ph * 0.9, k[2], 0.4);
+    g.save(); g.translate(X, Y); if (fl) g.scale(-1, 1); g.drawImage(toned(q, TS.propF), 0, 0, q[2], q[3], -pw / 2, -ph, pw, ph); g.restore();
   }
-  // one-way planks (rusty metal + wood)
-  for (let ty = y0; ty < y0 + CHUNK_T; ty++) for (let tx = x0; tx < x0 + CHUNK_T; tx++) {
-    if (at(tx, ty) !== '=') continue; const X = tx * TILE, Y = ty * TILE;
-    g.fillStyle = PAL.ink; g.fillRect(X - 1, Y - 1, TILE + 2, 10);
-    const wg = g.createLinearGradient(0, Y, 0, Y + 7); wg.addColorStop(0, '#d9a066'); wg.addColorStop(0.3, '#a8713f'); wg.addColorStop(1, '#5c3a24'); g.fillStyle = wg; g.fillRect(X, Y, TILE, 7);
-    g.fillStyle = 'rgba(40,20,10,0.35)'; g.fillRect(X + 7 + hash2(tx, ty) * 6, Y + 2, 6, 1); g.fillStyle = '#3a2a24'; g.fillRect(X + TILE - 1.5, Y, 1.5, 7);
-    g.fillStyle = '#8a8a96'; g.beginPath(); g.arc(X + 3, Y + 3.5, 1, 0, 7); g.arc(X + TILE - 4, Y + 3.5, 1, 0, 7); g.fill();
-    if (at(tx - 1, ty) !== '=') { g.strokeStyle = '#4a3a3a'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(X + 3, Y); g.lineTo(X + 3, Y - 30); g.stroke(); }
-    if (at(tx + 1, ty) !== '=') { g.strokeStyle = '#4a3a3a'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(X + TILE - 3, Y); g.lineTo(X + TILE - 3, Y - 30); g.stroke(); }
+  // one-way planks: warm wood with bright top edge, vine lashings and rope hangers so they never read as solid stone
+  for (let ty = y0 - 1; ty < y0 + CHUNK_T + 1; ty++) for (let tx = x0 - 1; tx < x0 + CHUNK_T + 1; tx++) {
+    if (at(tx, ty) !== '=') continue; const X = tx * TILE, Y = ty * TILE, h = hash2(tx, ty), L = at(tx - 1, ty) !== '=', R = at(tx + 1, ty) !== '=';
+    g.fillStyle = 'rgba(5,4,12,0.35)'; g.fillRect(X, Y + 9, TILE, 4);
+    g.fillStyle = PAL.ink; g.beginPath(); g.roundRect(X - (L ? 2 : 0), Y - 1.5, TILE + (L ? 2 : 0) + (R ? 2 : 0), 11, L || R ? 3 : 0); g.fill();
+    const wg = g.createLinearGradient(0, Y, 0, Y + 8); wg.addColorStop(0, '#f0b878'); wg.addColorStop(0.25, '#b9793f'); wg.addColorStop(1, '#5c3520'); g.fillStyle = wg; g.fillRect(X + (L ? 0 : 0.5), Y, TILE - 1, 8);
+    g.fillStyle = '#ffe2a8'; g.fillRect(X, Y, TILE, 1.4);
+    g.fillStyle = 'rgba(60,28,10,0.5)'; g.fillRect(X + 4 + h * 8, Y + 3, 7, 1); g.fillRect(X + 2 + h * 3, Y + 5.5, 5, 1);
+    g.fillStyle = '#2a1a14'; g.fillRect(X + TILE - 1, Y, 1, 8);
+    if (h > 0.55) { g.strokeStyle = '#2f6a3a'; g.lineWidth = 2; g.beginPath(); g.moveTo(X + 8, Y - 1); g.bezierCurveTo(X + 10, Y + 4, X + 13, Y + 3, X + 14, Y + 9); g.stroke(); g.fillStyle = '#6fcf5a'; g.beginPath(); g.ellipse(X + 15, Y + 11, 3, 1.6, 0.5, 0, 7); g.fill(); }
+    for (const [e, px] of [[L, X + 4], [R, X + TILE - 4]]) if (e) { g.strokeStyle = '#2a1f1a'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(px, Y); g.lineTo(px, Y - 34); g.stroke(); g.strokeStyle = '#b08a5a'; g.lineWidth = 1.1; g.stroke(); g.fillStyle = '#d9b07a'; g.fillRect(px - 2, Y + 2, 4, 3); }
   }
   return c;
 }
