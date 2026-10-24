@@ -3,7 +3,7 @@
 import { TILE } from './util.js';
 import { drawGlow, drawIcon } from './art.js';
 import { sfx } from './audio.js';
-import { save, writeSave } from './save.js';
+import { save, writeSave, diff } from './save.js';
 export const SEED_COL = '#a6f05a', SEED_GOLD = '#ffe27a', NEED = 3;
 export const VINES = [ // persistent cosmetic rewards: hook-vine colours (unlocked by total stars)
   { id: 'green', stars: 0, dark: '#3f7a32', light: '#9be070' },
@@ -104,10 +104,10 @@ function edgeArrow(g, W, wx, wy, w, h, s, col, icon) {
 // rank + rewards at the end of a full run. stars: restored (always) + under par time + found treasures
 export const PAR_SECONDS = 22 * 60;
 export function scoreRun(t, treasures) {
-  const stars = 1 + (t <= PAR_SECONDS ? 1 : 0) + (treasures >= 4 ? 1 : 0);
+  const stars = 1 + (t <= PAR_SECONDS ? 1 : 0) + (treasures >= 4 ? 1 : 0), bonus = diff().stars || 0; // v2.0: Hard +1, Nightmare +2 bonus stars
   const P = save.progress, prevBest = P.bestTime || 0, best = !prevBest || t < prevBest;
-  if (best) P.bestTime = Math.round(t); P.bestStars = Math.max(P.bestStars || 0, stars); P.totalStars = (P.totalStars || 0) + stars; P.rootRestored = true;
-  const before = P.totalStars - stars, fresh = VINES.filter((v) => v.stars > before && v.stars <= P.totalStars), top = fresh[fresh.length - 1];
+  if (best) P.bestTime = Math.round(t); P.bestStars = Math.max(P.bestStars || 0, stars); P.totalStars = (P.totalStars || 0) + stars + bonus; P.rootRestored = true;
+  const before = P.totalStars - stars - bonus, fresh = VINES.filter((v) => v.stars > before && v.stars <= P.totalStars), top = fresh[fresh.length - 1];
   if (top) P.vine = top.id; writeSave();
-  return { stars, best, bestTime: P.bestTime, newVine: top || null, totalStars: P.totalStars };
+  return { stars, bonus, diffLabel: diff().label, best, bestTime: P.bestTime, newVine: top || null, totalStars: P.totalStars };
 }

@@ -255,7 +255,7 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
   // save migration: a v1.7 save (no missions) keeps progress and gains a mission block
   const mg = await E(page, () => { const s = JSON.parse(localStorage.getItem('rootswing.save.v1') || '{}'); s.progress = s.progress || __RS.save.progress; delete s.progress.missions; delete s.progress.saveVer; s.progress.glimmers = 777; s.progress.vine = 'moss'; localStorage.setItem('rootswing.save.v1', JSON.stringify(s)); __RS.loadSave();
     const p = __RS.save.progress, st = JSON.parse(localStorage.getItem('rootswing.save.v1')).progress; return { g: p.glimmers, vine: p.vine, act: p.missions && p.missions.active.length, ver: p.saveVer, stored: !!st.missions, types: new Set(p.missions.active.map((a) => a.type)).size }; });
-  ok('v1.8 save migration: v1.7 save -> glimmers/vine kept, 3 distinct active missions, saved as v18', mg.g === 777 && mg.vine === 'moss' && mg.act === 3 && mg.types === 3 && mg.ver === 18 && mg.stored, JSON.stringify(mg));
+  ok('v1.8 save migration: v1.7 save -> glimmers/vine kept, 3 distinct active missions, saved as v20 (v2.0 save version)', mg.g === 777 && mg.vine === 'moss' && mg.act === 3 && mg.types === 3 && mg.ver === 20 && mg.stored, JSON.stringify(mg));
   // progress events + completion + reward unlock (driven by real World events)
   const ev = await E(page, () => { const m = __RS.missions(); m.owned = m.owned.filter((r) => r !== 'cape:sky' && r !== 'pet:hog'); m.wardrobe.cape = 'none';
     m.active = [{ id: 901, type: 'hunt', enemy: 'hopper', target: 2, prog: 0, tier: 0, reward: 'cape:sky' }, { id: 902, type: 'chain', target: 3, prog: 0, tier: 0, reward: 'pet:hog' }, { id: 903, type: 'gold', target: 1000, prog: 0, tier: 0, reward: 'glim:25' }];
@@ -332,5 +332,113 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
     return { n, cap: W.fx.cap, tr: c.trails.length, dc: c.decals.length }; });
   ok('v1.9 particle cap holds under a 2400-spark flood (and combat fx lists are bounded)', pc.cap > 0 && pc.n <= pc.cap * 1.25 && pc.tr <= 11 && pc.dc <= 12, JSON.stringify(pc));
   ok('no page errors (v1.9)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
+{ // v2.0 fighting styles, style rank, guard/armor/elites, trap KO + wall splat, boss phases, save migration
+  const { browser, page, errors } = await fresh({ w: 1280, h: 576 });
+  const setup = `(() => { const W = __RS.W, P = W.player, ev = []; const on = W.emit.bind(W); W.emit = (n, ...a) => { ev.push(n); return on(n, ...a); }; return { W, P, ev }; })()`;
+  // 1) style damage + timing (data), then each style lands its whole combo live on a foe
+  const ws = await E(page, () => { const out = {};
+    for (const wpn of ['blade', 'hammer', 'whip']) { const c = __RS.WEAPONS[wpn].combo; const t = c.reduce((a, d) => a + d.wind + d.active + d.rec, 0);
+      out[wpn] = { n: c.length, avg: +(c.reduce((a, d) => a + d.dmg, 0) / c.length).toFixed(1), perHit: +(t / c.length).toFixed(3), reach: c[0].w, maxReach: Math.max(...c.map((d) => d.w || 0)), dps: Math.round(c.reduce((a, d) => a + d.dmg, 0) / t), kinds: new Set(c.map((d) => d.mv)).size };
+      Object.assign(__RS.save.progress.unlocks, { hammer: true, whip: true }); __RS.save.progress.weapon = wpn; __RS.start('hub'); __RS.manual(true); __RS.god(true); __RS.step(40);
+      const W = __RS.W, P = W.player; const mv = new Set(); let hits = 0; const h0 = W.hitEnemy.bind(W); W.hitEnemy = (e, h, p) => { if (h.src === 'melee' || h.quakeHit) hits++; return h0(e, h, p); };
+      W.spawnEnemy('knight', P.cx + 50, P.y + P.h); const e = W.enemies[W.enemies.length - 1]; e.shield = false; e.hp = e.maxHp = 99999; e.poise = 1e9; P.face = 1;
+      for (let f = 0; f < 420; f++) { if (Math.abs(e.cx - P.cx) > 70 || e.cx < P.cx) { e.x = P.cx + 46 - e.w / 2; e.y = P.y + P.h - e.h; e.vx = e.vy = 0; } if (f % 10 === 0) __RS.press('attack'); if (f % 10 === 3) __RS.release('attack'); __RS.step(1); if (P.atk && P.atk.def && P.atk.def.mv) mv.add(P.atk.def.mv); }
+      out[wpn].live = hits; out[wpn].moves = [...mv].join('/'); W.enemies.length = 0; __RS.step(60); } return out; });
+  ok('v2.0 styles: Leaf Blade fastest per hit, Thorn Hammer hardest per blow (+highest dps), Vine Whip longest reach; each lands its combo live',
+    ws.blade.perHit < ws.hammer.perHit && ws.blade.perHit < ws.whip.perHit && ws.hammer.avg > ws.blade.avg * 1.6 && ws.whip.reach > ws.blade.reach * 1.6 && ws.hammer.dps >= ws.blade.dps && ['blade', 'hammer', 'whip'].every((k) => ws[k].live >= ws[k].n && ws[k].moves.split('/').length >= ws[k].kinds), JSON.stringify(ws));
+  // 2) combo counter + style rank
+  const cc = await E(page, (setup) => { __RS.save.progress.weapon = 'blade'; __RS.start('hub'); __RS.manual(true); __RS.god(true); __RS.step(40); const { W, P, ev } = eval(setup);
+    W.spawnEnemy('hopper', P.cx + 50, P.y + P.h); const e = W.enemies[0]; e.hp = e.maxHp = 99999; e.poise = 1e9; P.face = 1;
+    for (let f = 0; f < 200; f++) { e.x = P.cx + 50 - e.w / 2; e.vx = 0; if (f % 9 === 0) __RS.press('attack'); if (f % 9 === 2) __RS.release('attack'); if (f === 100) { __RS.axes(0, -1); } if (f === 104) __RS.axes(0, 0); __RS.step(1); }
+    const s = W.sty, mid = { n: s.n, rank: s.rank, best: s.best }; __RS.god(false); P.iframes = 0; P.parry = 0; P.hp = Math.max(P.hp, 8); P.atk = null; W.damagePlayer(1, P.cx + 20); __RS.god(true); const afterHurt = W.sty.n; __RS.step(240); return { mid, afterHurt, decayed: W.sty.n, rankEv: ev.includes('rank') }; }, setup);
+  ok('v2.0 combo counter: hits count up, style rank climbs past D, taking a hit drops the chain, idle chain times out', cc.mid.n >= 8 && cc.mid.rank >= 1 && cc.rankEv && cc.afterHurt === 0 && cc.decayed === 0, JSON.stringify(cc));
+  // 3) trap KO + wall splat
+  const tk = await E(page, (setup) => { __RS.start('hub'); __RS.manual(true); __RS.god(true); __RS.step(40); const { W, P, ev } = eval(setup); const T = __RS.TILE;
+    W.spawnEnemy('hopper', P.cx + 80, P.y + P.h); const e = W.enemies[0]; e.flungT = W.t + 1; const g0 = W.sty ? W.sty.score : 0;
+    W.hitEnemy(e, { dmg: 8, kb: 0, src: 'hazard' }, null); __RS.step(2); const trap = { dead: e.dead || e.hp <= 0, ev: ev.includes('trapKO'), label: (W.sty.labels || []).some((l) => /TRAP/.test(l.s)) };
+    W.spawnEnemy('puffcap', P.cx + 40, P.y + P.h); const f = W.enemies[W.enemies.length - 1]; __RS.step(20); const ty = Math.floor((f.y + f.h / 2) / T); let tx = Math.floor(f.cx / T); while (tx < W.map.w && !W.map.solid(tx, ty)) tx++;
+    f.x = tx * T - f.w - 6; P.x = f.x - 120; f.stun = 1; f.flungT = W.t + 1; f.vx = 460; let n = 0; for (; n < 30 && !ev.includes('wallSplat'); n++) { __RS.step(1); }
+    return { trap, splat: ev.includes('wallSplat'), n, tx, hp: Math.round(f.hp), max: f.maxHp }; }, setup);
+  ok('v2.0 trap KO: a foe knocked into a trap is wiped out for a TRAP KO! bonus', tk.trap.dead && tk.trap.ev && tk.trap.label, JSON.stringify(tk));
+  ok('v2.0 wall splat: a foe launched into a wall splats (damage + WALL SPLAT bonus)', tk.splat && tk.hp < tk.max, JSON.stringify(tk));
+  // 4) guard break, armor, elites
+  const ga = await E(page, (setup) => { __RS.start('hub'); __RS.manual(true); __RS.god(true); __RS.step(40); const { W, P, ev } = eval(setup);
+    W.spawnEnemy('knight', P.cx + 70, P.y + P.h); const k = W.enemies[0]; k.face = -1; const hp0 = k.hp; const g = [];
+    for (let i = 0; i < 3; i++) { k.face = Math.sign(P.cx - k.cx) || -1; k.stun = 0; W.hitEnemy(k, { dmg: 6, kb: 20 }, P); g.push(k.guard); }
+    const guard = { g, broke: ev.includes('guardBreak'), stun: k.stun > 0, hpSame: hp0 - k.hp <= 0.5 * 6 * 2 };
+    W.spawnEnemy('charger', P.cx + 90, P.y + P.h); const c = W.enemies[W.enemies.length - 1]; const a0 = c.armor, h0 = c.hp; W.hitEnemy(c, { dmg: 10, kb: 20 }, P); const light = h0 - c.hp, armLight = c.armor;
+    W.hitEnemy(c, { dmg: 20, kb: 60, breaks: true }, P); const armHeavy = c.armor; W.hitEnemy(c, { dmg: 20, kb: 60, breaks: true }, P);
+    W.spawnEnemy('hopper', P.cx - 90, P.y + P.h); const el = W.enemies[W.enemies.length - 1]; const eh = el.maxHp; __RS.BR.makeElite(el); const elite = { hp: el.maxHp / eh, flag: el.elite };
+    W.hitEnemy(el, { dmg: 999, kb: 20 }, P); __RS.step(5);
+    return { guard, armor: { a0, light, armLight, armHeavy, broke: ev.includes('armorBreak') }, elite: { ...elite, kill: W.sty.labels.some((l) => l.s === 'ELITE DOWN') || ev.includes('styleBonus') && el.dead } }; }, setup);
+  ok('v2.0 guard break: a shield blocks 3 light hits, then GUARD BREAK stuns it', ga.guard.broke && ga.guard.stun && ga.guard.g[2] <= 0, JSON.stringify(ga.guard));
+  ok('v2.0 armor: light hits clank (reduced dmg, armor intact), heavy hits crack it -> ARMOR BREAK', ga.armor.a0 === 2 && ga.armor.light < 10 && ga.armor.armLight === 2 && ga.armor.armHeavy === 1 && ga.armor.broke, JSON.stringify(ga.armor));
+  ok('v2.0 elites: 1.8x hp, aura flag, special kill reward', ga.elite.flag && ga.elite.hp > 1.7 && ga.elite.kill, JSON.stringify(ga.elite));
+  // 5) boss: phases at 66% / 33% with a cinematic each, poise-break cine, satisfying death -> victory
+  const bp = await E(page, (setup) => { __RS.start('boss', {}); __RS.manual(true); __RS.skipCountdown(); __RS.god(true); __RS.step(120); const { W, P, ev } = eval(setup); const B = W.boss; if (!B) return { noboss: true };
+    const out = { type: B.type, ph: [B.phase], cine: [] }; B.hp = B.maxHp * 0.6; __RS.step(6); out.ph.push(B.phase); out.cine.push(W.cine && W.cine.label); __RS.step(150);
+    B.hp = B.maxHp * 0.3; __RS.step(6); out.ph.push(B.phase); out.cine.push(W.cine && W.cine.label); __RS.step(150);
+    if (B.maxPoise) { B.poise = 1; W.hitEnemy(B, { dmg: 5, kb: 0 }, P); out.poiseCine = false; for (let i = 0; i < 300 && !out.poiseCine; i++) { __RS.step(1); if (B.poisePending && i % 10 === 0) W.hitEnemy(B, { dmg: 1, kb: 0 }, P); if (B.poiseBroke > 0 && W.cine) out.poiseCine = true; } __RS.step(180); }
+    W.hitEnemy(B, { dmg: 99999, kb: 0 }, P); out.dying = B.st; out.deathCine = !!W.cine; let f = 0; for (; f < 600 && !ev.includes('bossDefeated'); f++) __RS.step(1);
+    out.f = f; out.def = ev.includes('bossDefeated'); __RS.step(30); out.cineGone = !W.cine; return out; }, setup);
+  ok('v2.0 boss phases: 2 at 66%, 3 at 33%, each with a PHASE cinematic', bp.noboss || (bp.ph.join() === '1,2,3' && /PHASE/.test(bp.cine[0]) && /FINAL/.test(bp.cine[1])), JSON.stringify(bp));
+  ok('v2.0 boss poise-break cinematic + death sequence (dying -> beats -> defeated, no stuck camera)', bp.noboss || ((bp.poiseCine !== false) && bp.dying === 'dying' && bp.deathCine && bp.def && bp.f > 60 && bp.cineGone), JSON.stringify(bp));
+  // 6) no soft-locks: every style, swap mid-combo, quake, hold -- then the hero is free and time is normal
+  const sl = await E(page, () => { Object.assign(__RS.save.progress.unlocks, { hammer: true, whip: true }); __RS.save.progress.weapon = 'blade'; __RS.start('hub'); __RS.manual(true); __RS.god(true); __RS.step(40); const W = __RS.W, P = W.player; const seen = [];
+    W.spawnEnemy('knight', P.cx + 60, P.y + P.h); W.spawnEnemy('charger', P.cx + 90, P.y + P.h);
+    for (let r = 0; r < 3; r++) { seen.push(P.weapon); for (let f = 0; f < 70; f++) { if (f % 7 === 0) __RS.press('attack'); if (f % 7 === 2) __RS.release('attack'); __RS.step(1); } __RS.press('swap'); __RS.step(2); __RS.release('swap'); __RS.step(30); }
+    __RS.press('attack'); __RS.step(50); __RS.release('attack'); __RS.step(240); const x0 = P.x; __RS.axes(1, 0); __RS.step(25); __RS.axes(0, 0); const moved = P.x - x0; __RS.press('jump'); __RS.step(3); __RS.release('jump'); const vy = P.vy; __RS.step(60);
+    return { seen, back: P.weapon, moved: Math.round(moved), vy: Math.round(vy), atk: !!P.atk, hs: W.hs, slow: W.slow, cine: !!W.cine, zoom: +(W.zoomK || 0).toFixed(3) }; });
+  ok('v2.0 no soft-lock: 3 styles + quick-swap + quake + whirl -> hero walks/jumps, no hitstop/slow-mo/cine stuck', sl.seen.join() === 'blade,hammer,whip' && sl.back === 'blade' && sl.moved > 20 && sl.vy < -100 && !sl.atk && sl.hs <= 0 && sl.slow <= 0 && !sl.cine, JSON.stringify(sl));
+  // 7) v1.9 -> v2.0 save migration + weapon rewards from missions + toasts don't stack
+  const mg = await E(page, () => { const raw = JSON.parse(localStorage.getItem('rootswing.save.v1') || '{}'); raw.progress = raw.progress || JSON.parse(JSON.stringify(__RS.save.progress));
+    const p = raw.progress; p.saveVer = 18; p.glimmers = 4242; p.weapon = 'hammer'; p.unlocks = { blade: true, hammer: true }; p.missions = p.missions || {}; p.missions.done = 7; p.missions.owned = ['cape:leaf', 'vine:berry']; p.missions.active = [];
+    localStorage.setItem('rootswing.save.v1', JSON.stringify(raw)); __RS.loadSave(); const q = __RS.save.progress, m = __RS.missions();
+    const r = { ver: q.saveVer, g: q.glimmers, w: q.weapon, done: m.done, owned: m.owned.join(), ownsHammer: __RS.MS.owns(m, 'wpn:hammer'), next: __RS.MS.nextReward(m), stored: JSON.parse(localStorage.getItem('rootswing.save.v1')).progress.saveVer };
+    __RS.MS.grant(m, 'wpn:whip'); r.whip = !!q.unlocks.whip && q.weapon === 'whip';
+    __RS.start('hub'); __RS.manual(true); __RS.step(10); const G = __RS.game; G.toasts = []; for (let i = 0; i < 5; i++) __RS.toast(G, { key: 'm1', icon: 'leaf', color: '#9be070', prog: i, target: 5 }); r.toasts = G.toasts.length; r.prog = G.toasts[0].prog;
+    __RS.toast(G, { key: 'm1', icon: 'leaf', color: '#9be070', done: true, reward: 'wpn:whip' }); r.toastsDone = G.toasts.length; return r; });
+  ok('v2.0 save migration: v1.9 save -> v20, glimmers/weapon/missions kept, owned hammer not re-offered', mg.ver === 20 && mg.g === 4242 && mg.w === 'hammer' && mg.done === 7 && mg.ownsHammer && mg.next !== 'wpn:hammer', JSON.stringify(mg));
+  ok('v2.0 missions grant fighting styles (wpn:whip unlocks + equips); progress toasts update in place (no stacking)', mg.whip && mg.toasts === 1 && mg.prog === 4 && mg.toastsDone === 1, JSON.stringify(mg));
+  ok('no page errors (v2.0)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
+{ // v2.0 "more traps, more enemies, harder": trap pack, foe variants + elite affixes, arenas, ambushes, warden variants, difficulty
+  const { browser, page, errors } = await fresh({ w: 1280, h: 576 });
+  const fresh0 = await E(page, () => __RS.save.settings.difficulty);
+  ok('v2.0 difficulty: fresh install defaults to Normal; select offers Relaxed / Normal / Hard / Nightmare', fresh0 === 'normal', fresh0);
+  const tt = await E(page, () => { const T = __RS.T20, out = {}; for (const k of T.KINDS20) out[k] = { warn: T.warnBefore(k) === Infinity ? 'track' : T.warnBefore(k), dmg: T.TRAP20_DMG[k], info: !!T.TRAP20_INFO[k] }; return out; });
+  ok('v2.0 new traps (pendulum, poison vine, falling branch, spore cloud, thorn roller, thorn gate): each telegraphed >= 0.5 s or always visible on its track, fair damage, has a tip', Object.keys(tt).length >= 6 && Object.values(tt).every((v) => (v.warn === 'track' || v.warn >= 0.5) && v.dmg > 0 && v.dmg <= 12 && v.info), JSON.stringify(tt));
+  const gd = await E(page, () => { const out = {}; const maps = {};
+    for (const d of ['relaxed', 'normal', 'hard', 'nightmare']) { __RS.save.settings.difficulty = d; const a = { traps: 0, thirds: [0, 0, 0], foes: 0, arenas: 0, amb: 0, variants: 0, affixes: new Set(), bad: [], kinds: new Set() };
+      for (const sd of [11, 22, 33, 44, 55, 66]) { __RS.start('run', { seed: sd }); const W = __RS.W, m = W.map, P = W.player, N = Math.max(...W.cells.filter((c) => !c.branch).map((c) => c.depth));
+        maps[sd] = maps[sd] || m.t.join(''); if (maps[sd] !== m.t.join('')) a.bad.push('map changed ' + sd);
+        const fl = (x, y) => !m.solid(x, y) && m.solid(x, y + 1) && !m.hazard(x, y);
+        const v = W.traps.list.filter((t) => t.v20); for (const t of v) { a.traps++; a.kinds.add(t.k); a.thirds[Math.min(2, Math.floor(3 * t.cell.depth / (N + 1)))]++;
+          if (Math.abs(t.px - P.cx) < 8 * 24 && Math.abs(t.py - P.cy) < 6 * 24) a.bad.push('near start ' + t.k);
+          const gx = t.x, gy = t.k === 'pendulum' || t.k === 'stalactite' ? Math.round((t.floor || (t.py + t.len + 24)) / 24) - 1 : t.y, x2 = t.k === 'roller' ? t.x2 : t.k === 'vine' ? t.x + t.n - 1 : t.x;
+          if (t.k !== 'pendulum' && t.k !== 'stalactite' && !(fl(gx - 1, gy) && fl(x2 + 1, gy))) a.bad.push('no safe ground ' + t.k + '@' + gx + ',' + gy);
+          for (const o of v) if (o !== t && o.cell === t.cell && Math.abs(o.x - t.x) < 6 && Math.abs(o.y - t.y) < 4) a.bad.push('crowded ' + t.k); }
+        a.foes += W.enemies.filter((e) => !e.boss).length; a.arenas += W.arenas.list.length; a.amb += W.arenas.amb.length;
+        for (const e of W.enemies) { if (e.variant && !e.boss) a.variants++; if (e.affix) a.affixes.add(e.affix + ':' + e.auraCol); if (!e.boss && m.solidPx(e.cx, e.cy)) a.bad.push('foe in wall ' + e.type); } }
+      out[d] = { ...a, affixes: [...a.affixes], kinds: [...a.kinds], bad: a.bad.slice(0, 4) }; } __RS.save.settings.difficulty = 'normal'; return out; });
+  const o = gd, lv = ['relaxed', 'normal', 'hard', 'nightmare'];
+  ok('v2.0 trap pack: all 6 new kinds appear, rooms mix two kinds, density ramps with depth (late > early) and with difficulty (relaxed < normal < hard < nightmare)', o.normal.kinds.length === 6 && lv.every((d, i) => !i || o[d].traps > o[lv[i - 1]].traps) && o.normal.thirds[2] > o.normal.thirds[0] && o.hard.thirds[2] > o.hard.thirds[0], JSON.stringify(lv.map((d) => [d, o[d].traps, o[d].thirds, o[d].kinds.length])));
+  ok('v2.0 fair placement: map tiles unchanged (reach validator result holds), nothing near the start, safe ground beside every floor trap, no crowding', lv.every((d) => o[d].bad.length === 0), JSON.stringify(lv.map((d) => o[d].bad)));
+  ok('v2.0 more enemies: foe count, arenas and ambushes rise with difficulty; variants + 4 elite affixes with their own aura colours', lv.every((d, i) => !i || o[d].foes > o[lv[i - 1]].foes) && o.relaxed.arenas === 0 && o.nightmare.arenas > o.normal.arenas && o.hard.amb > o.normal.amb && o.hard.variants > 6 && new Set(o.hard.affixes.map((s) => s.split(':')[1])).size >= 4, JSON.stringify(lv.map((d) => [d, o[d].foes, o[d].arenas, o[d].amb, o[d].variants, o[d].affixes.length])));
+  const sc = await E(page, () => { const r = {}; for (const d of ['normal', 'nightmare']) { __RS.save.settings.difficulty = d; __RS.start('run', { seed: 77 }); const W = __RS.W; W.spawnEnemy('knight', 0, 0); const e = W.enemies[W.enemies.length - 1]; e.depth = 3; __RS.GA.dressFoe(W, e, null); const w = W.enemies.find((x) => x.type === 'warden'); r[d] = { hp: e.maxHp, wv: w && w.variant, whp: w && w.maxHp, wk: w && (w.aggroK || 1) }; }
+    __RS.save.settings.difficulty = 'normal'; const D = __RS.DIFF; r.tough = D.tough === D.hard; r.stars = [D.normal.stars, D.hard.stars, D.nightmare.stars]; r.reward = [D.normal.reward, D.hard.reward, D.nightmare.reward]; return r; });
+  ok('v2.0 difficulty scaling: Nightmare foes + Warden have ~1.6x HP; Hard/Nightmare pay 1.5x/2x glimmers and +1/+2 bonus stars; old "tough" maps to Hard', sc.nightmare.hp / sc.normal.hp > 1.4 && sc.nightmare.whp / sc.normal.whp > 1.4 && sc.tough && sc.stars.join() === '0,1,2' && sc.reward.join() === '1,1.5,2', JSON.stringify(sc));
+  const wv = await E(page, () => { __RS.save.settings.difficulty = 'hard'; const s = new Set(); for (let sd = 1; sd <= 9; sd++) { __RS.start('run', { seed: sd }); const w = __RS.W.enemies.find((x) => x.type === 'warden'); if (w) s.add(w.variant + ':' + (w.minion || 'hopper') + ':' + (w.aggroK || 1)); } __RS.save.settings.difficulty = 'normal'; return [...s]; });
+  ok('v2.0 mini-boss variety: Classic, Thornback (charger minions) and Stormhide (faster) Wardens by seed', new Set(wv.map((s) => s.split(':')[0])).size === 3, wv.join(' '));
+  const ar = await E(page, (setup) => { __RS.save.settings.difficulty = 'hard'; let sd = 1, a; for (; sd < 40; sd++) { __RS.start('run', { seed: sd }); if (__RS.W.arenas.list.length) break; } __RS.manual(true); __RS.skipCountdown(); __RS.god(true); __RS.step(5);
+    const { W, P, ev } = eval(setup); a = W.arenas.list[0]; const c = a.c; const go = () => { const sp = __RS.GA.floorSpots(W.map, c).sort((u, v) => Math.abs(u.x * 24 - c.room.x - c.room.w / 2) - Math.abs(v.x * 24 - c.room.x - c.room.w / 2))[0]; P.x = sp.x * 24 + 12 - P.w / 2; P.y = (sp.y + 1) * 24 - P.h - 1; P.vx = P.vy = 0; W.updateRoom(true); W.snapCamera(); };
+    W.fight = null; go(); __RS.step(10); const r = { seed: sd, st: a.st, gates: (a.gates || []).length, solidGate: a.gates && a.gates.length && W.map.solid(a.gates[0][0], a.gates[0][1]) };
+    let waves = 0; for (let f = 0; f < 6000 && a.st === 'lock'; f++) { __RS.step(1); for (const e of W.enemies) if (e.arena && !e.dead && f % 20 === 0) W.hitEnemy(e, { dmg: 9999, kb: 0 }, P); waves = Math.max(waves, a.wave); }
+    r.after = a.st; r.waves = waves; r.want = a.waves; r.open = !(a.gates || []).length && (W.gates || []).every(([x, y]) => !W.map.solid(x, y) || W.map.get(x, y) !== 'G'); r.ev = ['arenaStart', 'arenaWave', 'arenaClear'].every((n) => ev.includes(n));
+    const b = W.arenas.list[1] || null; r.abort = 'n/a'; if (b) { W.fight = null; const c2 = b.c, sp = __RS.GA.floorSpots(W.map, c2).sort((u, v) => Math.abs(u.x * 24 - c2.room.x - c2.room.w / 2) - Math.abs(v.x * 24 - c2.room.x - c2.room.w / 2))[0]; P.x = sp.x * 24; P.y = (sp.y + 1) * 24 - P.h - 1; W.updateRoom(true); __RS.step(10); const locked = b.st === 'lock'; P.x = c.room.x + 100; W.updateRoom(true); __RS.step(5); r.abort = locked && b.st === 'idle' && !(b.gates || []).length; }
+    __RS.save.settings.difficulty = 'normal'; return r; }, `(() => { const W = __RS.W, P = W.player, ev = []; const on = W.emit.bind(W); W.emit = (n, ...a) => { ev.push(n); return on(n, ...a); }; return { W, P, ev }; })()`);
+  ok('v2.0 arena: entering locks the room with gates, telegraphed waves (3 on Hard) spawn, clearing them opens the gates + pays out; leaving/dying never soft-locks', ar.st === 'lock' && ar.gates > 0 && ar.solidGate && ar.after === 'done' && ar.waves === ar.want && ar.want === 3 && ar.open && ar.ev && ar.abort !== false, JSON.stringify(ar));
+  const sp = await E(page, () => { __RS.start('hub'); __RS.manual(true); __RS.god(true); __RS.step(20); const W = __RS.W, P = W.player; W.spawnEnemy('knight', P.cx + 120, P.y + P.h); const e = W.enemies[W.enemies.length - 1]; __RS.GA.applyAffix(e, 'splitter'); const n0 = W.enemies.filter((x) => !x.dead).length; W.hitEnemy(e, { dmg: 99999, kb: 0 }, P); __RS.step(5); const kids = W.enemies.filter((x) => !x.dead && x.variant === 'swarm'); return { n0, kids: kids.length, aura: e.auraCol }; });
+  ok('v2.0 Splitter elite splits into 2 Thornlings on defeat (green aura)', sp.kids === 2 && sp.aura === '#9bff6a', JSON.stringify(sp));
+  ok('no page errors (v2.0 gauntlet)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
 server.close(); const fail = results.filter((r) => !r.pass);
 console.log(`\n${results.length - fail.length}/${results.length} passed`); process.exit(fail.length ? 1 : 0);

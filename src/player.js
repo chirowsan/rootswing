@@ -9,7 +9,8 @@ import { sfx } from './audio.js';
 import { WEAPONS, GADGETS } from './weapons.js';
 import { diff, save } from './save.js';
 import { PAL, drawGlow } from './art.js';
-import { G, has, spr, sprAspect, shaded, heroFlash } from './gfx.js';
+import { G, has, spr, sprAspect, shaded, heroFlash, heroTint } from './gfx.js';
+import { palOf, STYLES } from './weapons.js';
 import { MV, GAUGE_MAX, trail, lash, decal, wave, leaves, petals, gain } from './combat.js';
 
 const C = HERO; // unchanged values (moved to physics.js in v1.5 so the validator shares them)
@@ -56,6 +57,8 @@ export class Player {
     // actions
     if (this.hookBuf > 0 && this.canCancel()) { this.atk = null; this.queued = false; this.hookBuf = 0; this.fireHook(W, mx, my); } // v1.4: hook cancels attack recovery / air attacks
     if (pressed('dash') && this.dashCd <= 0 && (this.onGround || this.airDash || this.coyote > 0)) this.startDash(W, mx);
+    this.swapCd = Math.max(0, (this.swapCd || 0) - dt); this.swapBuf = Math.max(0, (this.swapBuf || 0) - dt); if (pressed('swap')) this.swapBuf = 0.3; // v2.0 quick-swap (buffered; cancels recovery)
+    if (this.swapBuf > 0 && this.swapCd <= 0 && (!this.atk || this.atk.phase === 'rec') && this.atk?.kind !== 'special') { this.swapBuf = 0; this.atk = null; this.swapStyle(W); }
     if (pressed('parry') && this.parryLock <= 0 && this.dashT <= 0) { this.parryT = D.parry; this.parryLock = D.parry + 0.14; this.atk = null; this.vx *= 0.3; sfx('block'); W.emit('parryTry'); }
     if (pressed('flask') && this.flasks > 0 && this.flaskT <= 0) { if (this.hp < this.maxHp) { this.flasks--; W.emit('flask'); this.flaskT = 0.45; this.healLeft = this.maxHp * 0.5; sfx('flask'); W.fx.burst(this.cx, this.cy, 20, { color: ['#9ff0ff', '#e8ffff', '#7fe0a0'], g: -120, max: 120, life: 0.8, kind: 'star' }); W.emit('flask'); } else W.fx.text(this.cx, this.y - 6, 'Full!', '#bff', 12); }
     for (let i = 0; i < 2; i++) if (pressed(i ? 'skill2' : 'skill1') && this.gadgets[i] && this.gcd[i] <= 0) { this.gcd[i] = GADGETS[this.gadgets[i]].cd; W.useGadget(this.gadgets[i], this); }
@@ -269,19 +272,31 @@ export class Player {
     if (d.hop) { this.vy = d.hop; this.onGround = false; this.coyote = 0; }
     if (d.proj) W.spawnArrow(this, d); if (d.quake) W.quake(this, d);
     a.hd = { ...d, crit: d.crit || this.critT > 0, air: a.kind === 'air' };
-    const mv = MV[a.mv || d.mv], col = wpn.color;
+    const mv = MV[a.mv || d.mv], pal = palOf(this.weapon), col = pal[0], core = pal[1], heavy = this.weapon === 'hammer', up = a.kind === 'rise' || a.up;
+    if (mv && !d.proj && this.weapon === 'whip' && !mv.spin && !mv.foot && (mv.arc || mv.thrust)) trail(W, this, { kind: 'whip', arc: mv.arc || [-0.15, 0.1], r: Math.min(124, (d.w || 90) * 1.02), sq: mv.thrust ? 0.4 : 1, dur: Math.max(0.07, d.active * 0.9), fade: 0.13, col, core, ox: 2, oy: up ? -10 : -6 });
+    if (heavy && !d.proj && a.kind !== 'special') { W.fx.burst(this.cx + this.face * 30, this.cy - 4, d.fin ? 10 : 6, { color: [col, '#ffd08a', core], kind: 'spark', min: 90, max: d.fin ? 340 : 230, life: 0.4, glow: 1, g: 420, angle: this.face > 0 ? -0.7 : Math.PI + 0.7, spread: 0.9, size: 3 }); } // embers off the hammer head
+    else if (this.weapon === 'blade' && a.kind !== 'special' && !d.proj) leaves(W, this.cx + this.face * 26, this.cy - 8, d.fin ? 6 : 2, { angle: up ? -Math.PI / 2 : (this.face > 0 ? 0 : Math.PI), spread: 0.9 });
     if (mv && !d.proj && !(this.weapon === 'whip' && !mv.spin)) {
-      if (mv.thrust) trail(W, this, { kind: 'thrust', L: Math.min(110, d.w * 0.95), h: 16, dur: d.active, col, oy: -4 + (d.oy || 0) });
-      else if (mv.line) trail(W, this, { kind: 'dash', L: 74, h: 18, dur: d.active, fade: 0.2, col });
-      else if (mv.spin) trail(W, this, { kind: 'spin', r: Math.min(64, (d.w || 70) * 0.5), th: mv.th, dur: d.active, turns: d.ticks > 2 ? d.ticks * 0.6 : 1, col, oy: -2 });
+      if (mv.thrust) trail(W, this, { kind: 'thrust', L: Math.min(110, d.w * 0.95), h: 16, dur: d.active, col, core, heavy, oy: -4 + (d.oy || 0) });
+      else if (mv.line) trail(W, this, { kind: 'dash', L: 74, h: 18, dur: d.active, fade: 0.2, col, core, heavy });
+      else if (mv.spin) trail(W, this, { kind: 'spin', r: Math.min(64, (d.w || 70) * 0.5), th: mv.th, dur: d.active, turns: d.ticks > 2 ? d.ticks * 0.6 : 1, col, core, heavy, oy: -2 });
       else if (mv.foot) trail(W, this, { kind: 'foot', dur: d.active, col: '#e8fff0' });
-      else if (mv.arc) trail(W, this, { kind: 'arc', arc: mv.arc, r: mv.r, th: mv.th, dur: Math.max(0.06, d.active * 0.85), col, ox: a.kind === 'rise' || a.up ? 6 : 2, oy: a.kind === 'rise' || a.up ? -10 : -6 });
+      else if (mv.arc) trail(W, this, { kind: 'arc', arc: mv.arc, r: mv.r, th: mv.th, dur: Math.max(0.06, d.active * 0.85), col, core, heavy, ox: a.kind === 'rise' || a.up ? 6 : 2, oy: a.kind === 'rise' || a.up ? -10 : -6 });
     }
     if (d.fin) { // finisher: vine lash along the ground, shockwave, crack decal, white flash
       const gy = this.y + this.h, fx0 = this.cx + this.face * 18; W.fx.flash = Math.max(W.fx.flash, 0.22); W.fx.flashColor = '#fff6d8'; W.fx.shake(0.22); W.zoomKick(0.45);
-      if (this.onGround) { wave(W, fx0, gy, 64); decal(W, fx0, gy, 1.1); leaves(W, fx0, gy - 4, 10, { angle: -Math.PI / 2, spread: 1.2 }); W.fx.dust && W.fx.dust(fx0, gy, 6, { dir: this.face, speed: 90, size: 4, life: 0.5 });
-        if (d.lashL) { lash(W, fx0, gy, this.face, d.lashL); const L = d.lashL; W.attackBox({ x: this.face > 0 ? fx0 : fx0 - L, y: gy - 22, w: L, h: 22 }, a.hd, this, a.hit); } }
+      if (this.onGround) { wave(W, fx0, gy, heavy ? 90 : 64, col); decal(W, fx0, gy, 1.1); leaves(W, fx0, gy - 4, 10, { angle: -Math.PI / 2, spread: 1.2 }); W.fx.dust && W.fx.dust(fx0, gy, 6, { dir: this.face, speed: 90, size: 4, life: 0.5 });
+        if (d.lashL) { lash(W, fx0, gy, this.face, d.lashL, col); const L = d.lashL; W.attackBox({ x: this.face > 0 ? fx0 : fx0 - L, y: gy - 22, w: L, h: 22 }, a.hd, this, a.hit); } }
     }
+  }
+  ownedStyles() { const u = save.progress.unlocks || {}; return STYLES.filter((id) => id === 'blade' || u[id] || id === this.weapon); }
+  swapStyle(W) { // v2.0 quick-swap: cycle the fighting styles you have earned (Leaf Blade / Thorn Hammer / Vine Whip)
+    const own = this.ownedStyles(); this.swapCd = 0.3;
+    if (own.length < 2) { W.fx.text(this.cx, this.y - 18, 'Earn styles in missions!', '#d8e6ff', 11); sfx('uiBack'); return; }
+    const i = own.indexOf(this.weapon), next = own[(i + 1) % own.length], pal = palOf(next); this.weapon = next; this.comboIdx = 0; this.comboT = 0; this.queued = false;
+    if (W.mode !== 'run') save.progress.weapon = next;
+    const gy = this.onGround ? this.y + this.h : this.cy + 14; wave(W, this.cx, gy, 52, pal[0]); W.fx.burst(this.cx, this.cy - 4, 14, { color: pal, kind: next === 'blade' ? 'leaf' : next === 'hammer' ? 'spark' : 'leaf', min: 60, max: 200, life: 0.5, glow: 1, size: 4 });
+    W.fx.text(this.cx, this.y - 18, WEAPONS[next].name.toUpperCase(), pal[1], 13); sfx(next === 'hammer' ? 'hamA' : next === 'whip' ? 'whipCrack' : 'slashA'); vibrate(10); W.emit('styleSwap', next);
   }
   onConnect(W, a) {
     if (a.connected) return; a.connected = true; if (this.critT > 0 && a.hd && a.hd.crit) this.critT = 0;
@@ -543,6 +558,11 @@ export class Player {
     const H = G.hero, F = p.F, lo = (W.game && W.game.lowPerf) || save.settings.quality === 'low';
     if (!lo) drawGlow(g, p.X, this.cy - 8, 36, '#0a0814', 0.4);
     const blink = this.iframes > 0 && !this.dead && this.flash <= 0 && Math.sin(this.t * 38) > 0;
+    const atk = this.atk; if (!lo && atk && atk.phase === 'active' && atk.kind !== 'special' && !this.dead) { // v2.0 style afterimages: tinted ghosts trailing the swing
+      const pal = palOf(this.weapon); g.save(); g.globalCompositeOperation = 'lighter';
+      for (const [d, al] of [[16, 0.3], [32, 0.14]]) { g.save(); g.globalAlpha = al; g.translate(p.X - this.face * d, p.Y); g.rotate(p.rot); g.scale(p.sx * p.K, p.sy * p.K); g.translate(-p.pvx, -p.pvy); g.drawImage(heroTint(p.n, pal[0]), 0, 0); g.restore(); }
+      g.restore();
+    }
     g.save(); g.translate(p.X + p.shake, p.Y); g.rotate(p.rot); g.scale(p.sx * p.K, p.sy * p.K); g.translate(-p.pvx, -p.pvy);
     if (blink) g.globalAlpha = 0.5;
     const fi = this.fist(p.n);

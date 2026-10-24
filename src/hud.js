@@ -6,6 +6,7 @@ import { save } from './save.js';
 import { drawTracker, drawSeedIcon, gateOpen, SEED_COL } from './objective.js';
 import { WEAPONS, GADGETS } from './weapons.js';
 import { CW, CH } from './level.js';
+import * as BR from './brawl.js';
 function badge(g, x, y, r, s) { g.fillStyle = 'rgba(12,10,20,0.72)'; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.strokeStyle = '#c99a4a'; g.lineWidth = 1.6 * s; g.stroke(); g.strokeStyle = 'rgba(255,230,170,0.25)'; g.lineWidth = 1 * s; g.beginPath(); g.arc(x, y, r - 2.5 * s, 3.6, 5.6); g.stroke(); }
 function drawPaintedTop(g, W, P, x, y, s, t) {
   const n = Math.max(1, Math.round(P.maxHp / 20)), per = P.maxHp / n, hp = Math.max(0, P.hp), L = 22 * s, gap = 17 * s, x0 = x + 26 * s, cy = y + 16 * s;
@@ -31,6 +32,7 @@ function drawPaintedTop(g, W, P, x, y, s, t) {
   const gl = W.mode === 'hub' || W.mode === 'tutorial' ? save.progress.glimmers : W.runGlim; W._gl = W._gl === undefined ? gl : W._gl + Math.sign(gl - W._gl) * Math.max(1, Math.abs(gl - W._gl) * 0.15) * (Math.abs(gl - W._gl) < 1 ? 0 : 1);
   g.font = `900 ${13 * s}px system-ui,sans-serif`; g.textAlign = 'left'; g.lineWidth = 3 * s; g.strokeStyle = 'rgba(10,8,18,0.85)'; g.strokeText(String(Math.round(W._gl)), gx + 10 * s, yy + 5 * s); g.fillStyle = PAL.glimmer; g.fillText(String(Math.round(W._gl)), gx + 10 * s, yy + 5 * s);
   const wpn = WEAPONS[P.weapon]; const wx = gx + 54 * s; badge(g, wx, yy, 12 * s, s); g.save(); g.translate(wx, yy); g.rotate(-0.78); spr(g, 'w_' + P.weapon, 0, 0, P.weapon === 'bow' ? 18 * s : P.weapon === 'hammer' ? 13 * s : 7.5 * s, 0.5, 0.5); g.restore();
+  { const k = input.w ? g.canvas.width / input.w : 1; input.swapZone = { x: wx / k, y: yy / k, r: 30 * s / k, t: performance.now() }; } // v2.0: badge = quick-swap touch zone
   gaugeRing(g, P, wx, yy, 14.5 * s, s);
   if (!(input.touchActive || input.forceTouch)) P.gadgets.forEach((gd, i) => { const cx = wx + (28 + i * 26) * s; badge(g, cx, yy, 11 * s, s); if (gd === 'bomb' && has('bomb')) spr(g, 'bomb', cx, yy + 7 * s, 15 * s, 0.5, 1); else drawIcon(g, GADGETS[gd].icon, cx, yy, 14 * s, '#fff'); const cd = P.gcd[i] / GADGETS[gd].cd; if (cd > 0) { g.fillStyle = 'rgba(10,8,18,0.6)'; g.beginPath(); g.moveTo(cx, yy); g.arc(cx, yy, 11 * s, -Math.PI / 2, -Math.PI / 2 + cd * Math.PI * 2); g.fill(); } });
 }
@@ -80,6 +82,7 @@ export function drawHUD(g, W, w, h, s) {
   const gl = W.mode === 'hub' || W.mode === 'tutorial' ? save.progress.glimmers : W.runGlim; W._gl = W._gl === undefined ? gl : W._gl + Math.sign(gl - W._gl) * Math.max(1, Math.abs(gl - W._gl) * 0.15) * (Math.abs(gl - W._gl) < 1 ? 0 : 1);
   g.fillStyle = PAL.glimmer; g.font = `900 ${13 * s}px system-ui,sans-serif`; g.fillText(String(Math.round(W._gl)), gx + 10 * s, yy + 5 * s);
   const wpn = WEAPONS[P.weapon]; const wx = gx + 52 * s; g.fillStyle = 'rgba(14,12,24,0.6)'; g.beginPath(); g.arc(wx, yy, 11 * s, 0, 7); g.fill(); drawIcon(g, wpn.icon, wx, yy, 15 * s, wpn.color);
+  { const k = input.w ? g.canvas.width / input.w : 1; input.swapZone = { x: wx / k, y: yy / k, r: 30 * s / k, t: performance.now() }; } // v2.0: badge = quick-swap touch zone
   gaugeRing(g, P, wx, yy, 13.5 * s, s);
   if (!(input.touchActive || input.forceTouch)) { // desktop: gadget icons with cooldown
     P.gadgets.forEach((gd, i) => { const cx = wx + (26 + i * 24) * s; g.fillStyle = 'rgba(14,12,24,0.6)'; g.beginPath(); g.arc(cx, yy, 11 * s, 0, 7); g.fill(); drawIcon(g, GADGETS[gd].icon, cx, yy, 14 * s, '#fff'); const cd = P.gcd[i] / GADGETS[gd].cd; if (cd > 0) { g.fillStyle = 'rgba(0,0,0,0.6)'; g.beginPath(); g.moveTo(cx, yy); g.arc(cx, yy, 11 * s, -Math.PI / 2, -Math.PI / 2 + cd * Math.PI * 2); g.fill(); } });
@@ -102,6 +105,7 @@ export function drawHUD(g, W, w, h, s) {
     g.font = `900 ${11 * s}px system-ui,sans-serif`; g.textAlign = 'center'; g.fillStyle = '#fff4dc'; g.fillText(B.info.name, w / 2, by + 26 * s);
   }
   drawMovesHint(g, W, w, h, s);
+  BR.drawCombo(g, W, w, h, s); BR.drawCineHUD(g, W, w, h, s);
   // countdown
   if (W.countdown > 0 || W.goT > 0) {
     const n = Math.ceil(W.countdown / 0.5); const label = W.countdown > 0 ? (n > 3 ? '' : String(n)) : 'GO!'; const k = W.countdown > 0 ? 1 - ((W.countdown / 0.5) % 1) : 1 - W.goT / 0.6;

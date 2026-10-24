@@ -1,6 +1,7 @@
 // Smudgelings: cartoon ink critters that pop into ink and sparks. Every attack is telegraphed (glow + "!").
 import { TILE, clamp, sign, approach, rand } from './util.js';
 import { moveBody, groundBelow, lineClear } from './physics.js';
+import { splat } from './brawl.js';
 import { PAL, drawGlow } from './art.js';
 import { has, spr, tinted, hasE } from './gfx.js';
 import { track, drawRig, regPose, wardenPose, bossPose } from './eanim.js';
@@ -42,7 +43,7 @@ const DEF = {
 export class Enemy {
   constructor(type, x, y, depth = 0) {
     const d = DEF[type]; Object.assign(this, { type, w: d.w, h: d.h, light: d.light, fly: !!d.fly, glim: d.glim, cdmg: d.dmg });
-    const scale = 1 + depth * 0.06; this.maxHp = this.hp = Math.round(d.hp * scale);
+    this.depth = depth; const scale = 1 + depth * diff().ramp; /* v2.0 steeper ramp per difficulty */ this.maxHp = this.hp = Math.round(d.hp * scale);
     this.x = x - d.w / 2; this.y = y - d.h; this.vx = 0; this.vy = 0; this.face = rand.chance(0.5) ? 1 : -1; this.st = 'idle'; this.t = 0; this.cd = rand.range(0.5, 1.5);
     this.stun = 0; this.flash = 0; this.tele = 0; this.dead = false; this.onGround = false; this.homeX = this.x; this.homeY = this.y; this.anim = rand.range(0, 10); this.sq = 1; this.shield = type === 'knight' || type === 'shellback'; this.hitsTaken = 0;
     this.info = ENEMY_INFO[type];
@@ -50,7 +51,7 @@ export class Enemy {
   get cx() { return this.x + this.w / 2; } get cy() { return this.y + this.h / 2; }
   yank(p) { const d = sign(p.cx - this.cx); this.vx = d * Math.min(1000, Math.max(200, 10 * (Math.abs(p.cx - this.cx) - 26))); this.vy = -160; this.stun = Math.max(this.stun, 0.9); this.st = 'idle'; this.tele = 0; }
   update(W, dt) {
-    const P = W.player, A = diff().aggro; this.t += dt; this.anim += dt; this.flash = Math.max(0, this.flash - dt); this.sq = approach(this.sq, 1, dt * 4);
+    const P = W.player, A = diff().aggro * (this.aggroK || 1); this.t += dt; this.anim += dt; this.flash = Math.max(0, this.flash - dt); this.sq = approach(this.sq, 1, dt * 4);
     const dx = P.cx - this.cx, dy = P.cy - this.cy, adx = Math.abs(dx);
     const seen = adx < 330 && Math.abs(dy) < 150 && !P.dead;
     if (this.juggle > 0) { this.juggle -= dt; if (this.vy > -400) this.vy -= 1500 * dt * 0.55; } // v1.9 juggle float
@@ -64,7 +65,9 @@ export class Enemy {
   physics(W, dt, stunned) {
     if (this.fly && !stunned) { const r = moveBody(W.map, this, dt); this.onGround = r.ground; return r; }
     this.vy = Math.min(this.vy + 1500 * dt, 600); if (stunned || this.onGround) this.vx *= stunned ? 0.9 : 1;
-    const r = moveBody(W.map, this, dt); this.onGround = r.ground || (this.vy >= 0 && !!groundBelow(W.map, this));
+    const vx0 = this.vx, r = moveBody(W.map, this, dt);
+    if (this.flungT > W.t && (r.wallL || r.wallR) && Math.abs(vx0) > 180 && this.type !== 'dummy' && !this.dead) splat(W, this, vx0); // v2.0 wall splat
+    this.onGround = r.ground || (this.vy >= 0 && !!groundBelow(W.map, this));
     if (this.fly && stunned && this.onGround) this.vx *= 0.8;
     const hz = W.map.hazard(Math.floor(this.cx / TILE), Math.floor((this.y + this.h - 2) / TILE)); if (hz && !this.fly && this.type !== 'dummy') W.hitEnemy(this, { dmg: 999, kb: 0, src: 'hazard' }, null);
     return r;
@@ -169,7 +172,7 @@ export class Enemy {
     if (!lo) { const ink = tinted(n, '#0c0a14'), rim = tinted(n, '#ff5a28'); for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) spr(g, n, dx * 1.8, dy * 1.8, H, 0.5, 1, flip, ink); for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) spr(g, n, dx * 0.85, dy * 0.85, H, 0.5, 1, flip, rim); } // ink border + red-orange danger rim
     spr(g, n, 0, 0, H, 0.5, 1, flip);
     if (hot) { g.globalAlpha = 0.25 + tele * 0.35; g.globalCompositeOperation = 'lighter'; spr(g, n, 0, 0, H, 0.5, 1, flip, tinted(n, '#ff3040')); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; }
-    if (this.flash > 0) { g.globalAlpha = Math.min(1, this.flash * 7); spr(g, n, 0, 0, H, 0.5, 1, flip, tinted(n, '#ffffff')); g.globalAlpha = 1; }
+    if (this.flash > 0) { g.globalAlpha = Math.min(1, this.flash * 14); spr(g, n, 0, 0, H, 0.5, 1, flip, tinted(n, '#ffffff')); g.globalAlpha = 1; }
     if (this.shield && n === 'knight' && this.shieldFlash) { g.globalAlpha = Math.min(1, this.shieldFlash * 5); drawGlow(g, 8 * f, -H * 0.45, 14, '#bfefff', 1); g.globalAlpha = 1; }
     g.restore();
   }

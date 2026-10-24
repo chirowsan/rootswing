@@ -1,5 +1,6 @@
 // The world: a scene (tutorial, hub, run or boss), its entities, camera and rendering.
 import * as CB from './combat.js';
+import * as BR from './brawl.js';
 import { TILE, clamp, sign, rand, makeRng, rectsOverlap, lerp } from './util.js';
 import { G, has, spr, tinted } from './gfx.js';
 import { drawPaintedBg, drawForeground, drawMotes, drawGrade, renderPaintedChunk, paintedOK } from './paint.js';
@@ -8,6 +9,7 @@ import { TUTORIAL, HUB, BOSS_ROOM } from './chunks.js';
 import { Player } from './player.js';
 import { Enemy, ENEMY_INFO } from './enemies.js';
 import { Warden, Boss, TideGolem, DrownedBloom } from './boss.js';
+import * as GA from './gauntlet.js';
 import { FX } from './fx.js';
 import { PAL, drawGlow, drawIcon, renderTileChunk, makeBackground, BIOMES, CHUNK_T } from './art.js';
 import { sfx, playSong } from './audio.js';
@@ -33,7 +35,7 @@ export function playerStats() {
 const CHUNK_KEEP = 40; // ~2.5 screens of painted 384px chunks; long maps stream instead of growing memory
 export class World {
   constructor(game, mode, opts = {}) {
-    this.game = game; this.mode = mode; this.fx = new FX(); this.fx.cap = (game && game.lowPerf) || (save.settings && save.settings.quality === 'low') ? 260 : 520; this.t = 0; this.events = []; this.listeners = [];
+    this.game = game; this.mode = mode; this.fx = new FX(); this.quake = (p, d) => BR.quake(this, p, d); this.fx.cap = (game && game.lowPerf) || (save.settings && save.settings.quality === 'low') ? 220 : 480; this.t = 0; this.events = []; this.listeners = [];
     this.enemies = []; this.shots = []; this.bombs = []; this.waves = []; this.markers = []; this.pickups = []; this.props = []; this.anchors = []; this.sentries = []; this.pillars = []; this.lights = [];
     this.hs = 0; this.slow = 0; this.fight = null; this.runGlim = opts.glim || 0; this.cleared = new Set(opts.cleared || []); this.visited = new Set(opts.visited || []); this.opened = new Set(opts.opened || []);
     let L; this.seed = opts.seed ?? ((Math.random() * 1e9) | 0); this.stage = opts.stage || 0; // stage 0 = Overpass (-> Furnace), stage 1 = Drowned Glowroots (-> Drowned Bloom)
@@ -47,6 +49,7 @@ export class World {
     let start = L.spawns.find((s) => s.c === 'P');
     initSeeds(this, opts.seeds);
     this.spawnRng = makeRng((this.seed ^ 0x9e3779b9) >>> 0);
+    GA.planRun(this, L); // v2.0: more traps, foes, arenas, ambushes (scaled by difficulty + depth)
     for (const s of L.spawns) this.spawnEntity(s);
     let px = start ? start.x * TILE + 12 : 100, py = start ? (start.y + 1) * TILE : 100;
     if (opts.cellIndex !== undefined && this.cells[opts.cellIndex]) { const c = this.cells[opts.cellIndex]; const p = this.findFloorIn(c); px = p.x; py = p.y; }
@@ -54,7 +57,7 @@ export class World {
     this.movesHint = 0; if ((mode === 'run' || mode === 'hub') && !opts.noHint) { const pr = save.progress; if ((pr.movesSeen || 0) < 3 && mode === 'run') { pr.movesSeen = (pr.movesSeen || 0) + 1; this.movesHint = this.movesHintMax = 8; try { writeSave(); } catch (e) {} } } // v1.9 icon-only moves card on the first 3 runs
     if (opts.cellIndex !== undefined && this.cells[opts.cellIndex]) { const c = this.cells[opts.cellIndex]; this.lastCheckpoint = opts.cellIndex; for (const o of this.props) if (o.kind === 'shrine' && this.cellAt(o.x + o.w / 2, o.y + o.h - 4) === c) o.lit = true; }
     this.room = this.fullRoom; this.cam = { x: px - 300, y: py - 200 }; this.updateRoom(true); this.snapCamera();
-    this.chunkCache = new Map(); this.rs = 0; this.bg = null; this.hazTiles = []; this.traps = new Traps(this, L.traps || []); this.guides = buildGuides(this);
+    this.chunkCache = new Map(); this.rs = 0; this.bg = null; this.hazTiles = []; this.traps = new Traps(this, L.traps || []); this.arenas = new GA.Arenas(this); this.guides = buildGuides(this);
     // v1.6: nothing floats - every plank/anchor/trap mount/island gets a drawn support chain to ground, wall, canopy or edge
     this.map.sup = computeSupports(this.map, this.anchors, L.traps || []);
     for (let y = 0; y < this.map.h; y++) for (let x = 0; x < this.map.w; x++) { const c = this.map.get(x, y); if (c === '^' || c === 'v' || c === '~') this.hazTiles.push({ x, y, c }); }
@@ -65,7 +68,7 @@ export class World {
   spawnEntity(s) {
     let gy = s.y; if ('cFWD'.includes(s.c)) while (gy < s.y + 6 && !this.map.solid(s.x, gy + 1) && this.map.get(s.x, gy + 1) !== '=') gy++; // props sit on the ground
     const wx = s.x * TILE + 12, wy = (gy + 1) * TILE, depth = s.cell ? (this.stage ? 5 : 0) + s.cell.depth * 0.33 : 0, ci = s.cell ? s.cell.index : -1;
-    const E = (type) => { if (ci >= 0 && this.cleared.has(ci)) return; const e = new Enemy(type, wx, wy, depth); e.cell = ci; this.enemies.push(e); };
+    const E = (type) => { if (ci >= 0 && this.cleared.has(ci)) return; const e = new Enemy(type, wx, wy, depth); e.cell = ci; BR.initFoe(this, e, this.seed | 0); GA.dressFoe(this, e, s); this.enemies.push(e); };
     switch (s.c) {
       case 'o': this.anchors.push({ x: wx, y: s.y * TILE + 12, kind: 'swing', pulse: rand.range(0, 6) }); break;
       case 'z': this.anchors.push({ x: wx, y: s.y * TILE + 12, kind: 'zip', pulse: rand.range(0, 6) }); break;
@@ -74,7 +77,7 @@ export class World {
       case 'S': this.props.push({ kind: 'shrine', x: wx - 16, y: wy - 44, w: 32, h: 44, id: 'S' + s.x + '_' + s.y }); this.lights.push({ x: wx, y: wy - 30, lantern: true }); break;
       case 'f': E('moth'); break; case 't': E('puffcap'); break; case 'k': E('knight'); break; case 'b': E('bomber'); break; case 'h': E('charger'); break; case 'j': E('hopper'); break;
       case 'd': E('dummy'); break; case 'q': E('tturret'); break;
-      case 'M': if (!this.cleared.has(ci)) { const w = this.stage ? new TideGolem(wx, wy, depth) : new Warden(wx, wy, depth); w.cell = ci; this.enemies.push(w); } break;
+      case 'M': if (!this.cleared.has(ci)) { const w = this.stage ? new TideGolem(wx, wy, depth) : new Warden(wx, wy, depth); w.cell = ci; GA.dressWarden(this, w); this.enemies.push(w); } break;
       case 'X': { const b = this.stage ? new DrownedBloom(wx, wy) : new Boss(wx, wy); b.cell = -1; this.enemies.push(b); this.boss = b; break; }
       case 'c': this.props.push({ kind: 'chest', x: wx - 14, y: wy - 22, w: 28, h: 22, id: 'c' + s.x + '_' + s.y, open: this.opened.has('c' + s.x + '_' + s.y) }); break;
       case 'g': for (let i = 0; i < 5; i++) this.pickups.push({ kind: 'glim', x: wx + (i - 2) * 9, y: wy - 16 - Math.abs(i - 2) * 4, vx: 0, vy: 0, t: 1, float: true }); break;
@@ -142,17 +145,18 @@ export class World {
     this.snapPrev(); this.t += dt; this.fade = Math.max(0, this.fade - dt * 2.5);
     if (this.countdown > 0) { const before = Math.ceil(this.countdown / 0.5); this.countdown -= dt; const after = Math.ceil(this.countdown / 0.5); if (after !== before && this.countdown > 0 && after <= 3) sfx('beep'); if (this.countdown <= 0) { sfx('go'); this.goT = 0.6; if (this.boss && this.boss.st === 'sleep') { this.boss.go('intro'); this.startFight(this.boss); sfx('roar'); this.fx.shake(0.4); } } this.fx.update(dt); this.updateCamera(dt); return; }
     if (this.goT > 0) this.goT -= dt;
-    if (this.zoomK > 0) this.zoomK = Math.max(0, this.zoomK - dt * 4.5);
+    if (this.zoomK > 0) this.zoomK = Math.max(0, this.zoomK - dt * 4.5); BR.tickCine(this, dt);
     if (this.hs > 0) { this.hs -= dt; this.fx.update(dt * 0.3); CB.tickPops(this, dt); return 'hs'; } // v1.4: callers keep button edges through hit-stop
-    CB.tickPops(this, dt); if (this.slow > 0) { this.slow -= dt; dt *= 0.4; }
+    CB.tickPops(this, dt); if (this.slow > 0) { this.slow -= dt; dt *= 0.4; } if (this.cine && this.cine.slow) dt *= 1 - (1 - this.cine.slow) * BR.cineK(this); // v2.0 cinematic slow-mo
     const P = this.player; P.update(this, dt); this.updateRoom(false);
     const ax = P.cx, ay = P.cy;
     for (const e of this.enemies) { if (e.dead) continue; const near = Math.abs(e.cx - ax) < 640 && Math.abs(e.cy - ay) < 420; if (near || e.boss && e.st !== 'sleep') e.update(this, dt); }
     this.enemies = this.enemies.filter((e) => !e.dead);
-    this.updateShots(dt); this.updateBombs(dt); this.updateWaves(dt); this.updatePillars(dt); this.updateSentries(dt); this.updatePickups(dt); this.traps.update(dt); updateSeeds(this, dt); updateMissions(this, dt);
+    this.updateShots(dt); this.updateBombs(dt); this.updateWaves(dt); this.updatePillars(dt); this.updateSentries(dt); this.updatePickups(dt); this.traps.update(dt); this.arenas.update(dt); updateSeeds(this, dt); updateMissions(this, dt);
     for (const m of this.markers) m.t += dt; this.markers = this.markers.filter((m) => m.t < m.life);
     for (const p of this.props) if (p.kind === 'trigger' && !p.fired && Math.abs(P.cx - p.x) < 20 && Math.abs(P.cy - p.y) < 120) { p.fired = true; this.emit('trigger', p.n); }
     if (this.movesHint > 0) this.movesHint -= dt; else if (this.mode === 'hub' && this.t > 1) { const P = this.player; for (const e of this.enemies) if (e.type === 'dummy' && !e.dead && Math.abs(e.cx - P.cx) < 110 && Math.abs(e.cy - P.cy) < 60) { this.movesHint = this.movesHintMax = 4; break; } } // near the hub dummy: show the moves card
+    for (const e of this.enemies) BR.tickFoe(e, dt); BR.update(this, dt);
     CB.update(this, dt); if (this.special && (this.special.t += dt) > this.special.life) this.special = null;
     for (const e of this.enemies) if (e.maxPoise && e.poise < e.maxPoise && this.t - (e.lastHitT || 0) > 2.5 && !(e.poiseBroke > 0)) e.poise = Math.min(e.maxPoise, e.poise + e.maxPoise * 0.25 * dt); // v1.9 boss poise regen
     this.fx.update(dt); this.updateCamera(dt);
@@ -194,7 +198,7 @@ export class World {
   }
   // ---------------- combat plumbing ----------------
   overlapPlayer(e, inset = 4) { const P = this.player; if (P.dead || P.respawnT > 0) return false; return P.x + inset < e.x + e.w && P.x + P.w - inset > e.x && P.y + inset < e.y + e.h && P.y + P.h - inset > e.y; }
-  damagePlayer(dmg, srcX, info) { const r = this.player.hurt(this, dmg, srcX, info); if (r === 'hit') this.emit('hurt'); return r; }
+  damagePlayer(dmg, srcX, info) { const r = this.player.hurt(this, dmg, srcX, info); if (r === 'hit') { this.emit('hurt'); BR.hurt(this); } return r; }
   enemyAttack(box, dmg, src, info) { if (this.overlapPlayer(box, 4)) return this.damagePlayer(dmg, src.cx ?? box.x + box.w / 2, { ...info, src }); return null; }
   onParry(p, info) {
     sfx('parry'); vibrate(30); this.hitstop(0.1); this.zoomKick(1); this.slow = 0.35; p.iframes = Math.max(p.iframes, 0.45); this.fx.shake(0.3);
@@ -227,17 +231,24 @@ export class World {
     if (e.dead) return false;
     if (e.boss && (e.st === 'sleep' || e.st === 'intro' || e.st === 'roar' || e.st === 'dying' || e.st === 'wake')) { sfx('block'); this.fx.burst(e.cx, e.cy, 4, { color: '#fff', max: 120 }); return false; }
     const srcX = p ? p.cx : e.cx;
-    if (e.shield && p && hit.src !== 'hazard') {
-      if (hit.breaks) { e.shield = false; sfx('shieldBreak'); this.fx.burst(e.cx + e.face * 12, e.cy, 16, { color: ['#c8d2e2', '#fff'], max: 260, size: 5 }); this.fx.text(e.cx, e.y - 14, 'Shield broken!', '#ffe27a', 13); this.emit('shieldBreak'); }
-      else if (sign(p.cx - e.cx) === e.face && e.stun <= 0 && hit.src !== 'bomb') { sfx('block'); this.fx.burst(e.cx + e.face * 14, e.cy - 4, 6, { color: ['#fff', '#ffe27a'], kind: 'spark', max: 240, glow: 1 }); p.vx = -p.face * 160; this.fx.text(e.cx, e.y - 12, 'blocked', '#cfd6e6', 11); this.emit('blocked'); e.blocks = (e.blocks || 0) + 1; return false; }
+    let armorMul = 1;
+    if (p && hit.src !== 'hazard' && hit.src !== 'splat' && (e.shield || e.armor > 0)) { // v2.0: shields have a guard meter (3 blocks = GUARD BREAK); armored foes need heavy hits
+      const facing = e.shield && sign(p.cx - e.cx) === e.face && e.stun <= 0;
+      if (e.shield && hit.breaks) { e.shield = false; e.guard = 0; sfx('shieldBreak'); this.fx.burst(e.cx + e.face * 12, e.cy, 16, { color: ['#c8d2e2', '#fff'], max: 260, size: 5 }); this.fx.text(e.cx, e.y - 14, 'SHIELD SMASH!', '#8ff6ff', 15); BR.bonus(this, 'SHIELD SMASH', 25, '#ffe27a'); this.emit('shieldBreak'); }
+      else { const gc = BR.guardCheck(this, e, hit, p, facing);
+        if (gc === 'block') { sfx('block'); this.fx.burst(e.cx + e.face * 14, e.cy - 4, 6, { color: ['#fff', '#ffe27a'], kind: 'spark', max: 240, glow: 1 }); p.vx = -p.face * 160; this.fx.text(e.cx, e.y - 12, 'blocked', '#cfd6e6', 11); this.hitstop(0.03); this.emit('blocked'); e.blocks = (e.blocks || 0) + 1; return false; }
+        armorMul = gc; }
     }
-    const crit = !!(p && (hit.crit || (e.yankUntil > this.t && hit.src === 'melee'))); // v1.9 crits: counters, perfect-dodge follow-ups, hook-zip strikes, hits on yanked foes, Bloom
-    let dmg = hit.dmg * (p ? diff().dmgDealt * (this.dmgDealt || 1) : 1) * (e.parried > 0 ? 2 : 1) * (e.boss && e.stun > 0 ? 1.4 : 1) * (crit ? 1.5 : 1);
-    if (e.type === 'dummy') { e.flash = 0.15; this.fx.text(e.cx, e.y - 6, String(Math.round(dmg)), '#fff', 13); this.emit('dummyHit'); sfx(hit.fin ? 'finisherHit' : 'hit'); CB.pop(this, lerp(e.cx, srcX, 0.35), e.cy - 2, hit.fin || hit.crit ? 1.5 : 1, hit.crit ? '#ffe9a0' : '#ffffff'); e.sq = hit.fin ? 0.35 : 0.2; if (hit.fin) CB.leaves(this, e.cx, e.cy, 8); this.hitstop(hit.hs || 0.04); this.fx.burst(e.cx, e.cy, 6, { color: ['#fff', '#ffe27a'], kind: 'spark', max: 260 }); return true; }
+    const tip = !!(p && hit.tip && !hit.quakeHit && Math.abs(e.cx - p.cx) > (hit.w || 80) * 0.6), crit = !!(p && (hit.crit || tip || (e.yankUntil > this.t && hit.src === 'melee')));
+    const trapped = !p && hit.src === 'hazard' && e.flungT > this.t && !e.boss; // v2.0: knocked into a trap // v1.9 crits: counters, perfect-dodge follow-ups, hook-zip strikes, hits on yanked foes, Bloom
+    let dmg = hit.dmg * (p ? diff().dmgDealt * (this.dmgDealt || 1) : 1) * (e.parried > 0 ? 2 : 1) * (e.boss && e.stun > 0 ? 1.4 : 1) * (crit ? 1.5 : 1) * armorMul * (e.flipT > this.t ? 1.5 : 1); if (trapped) dmg = Math.max(45, dmg * 3);
+    if (e.type === 'dummy') { e.flash = 0.07; this.fx.dmg(e.cx, e.y - 6, Math.round(dmg), { key: e, crit, tag: tip ? 'TIP!' : null, heavy: !!hit.fin }); if (p) BR.addHit(this, hit.mv || hit.src || 'hit', dmg, { crit, fin: hit.fin }); BR.react(this, e, sign(e.cx - srcX || 1), hit.fin || crit); this.emit('dummyHit'); sfx(hit.fin ? 'finisherHit' : 'hit'); CB.pop(this, lerp(e.cx, srcX, 0.35), e.cy - 2, hit.fin || hit.crit ? 1.5 : 1, hit.crit ? '#ffe9a0' : '#ffffff'); e.sq = hit.fin ? 0.35 : 0.2; if (hit.fin) CB.leaves(this, e.cx, e.cy, 8); this.hitstop(hit.hs || 0.04); this.fx.burst(e.cx, e.cy, 6, { color: ['#fff', '#ffe27a'], kind: 'spark', max: 260 }); return true; }
     if (e.type === 'tturret') { e.flash = 0.15; e.hitsTaken += hit.reflected ? 99 : 1; sfx('hit'); if (e.hitsTaken < 5) { this.fx.text(e.cx, e.y - 8, hit.reflected ? '' : 'Parry its spit!', '#bff2ff', 11); return true; } dmg = 1e9; }
-    dmg = Math.max(1, Math.round(dmg)); e.hp -= dmg; e.flash = this.slow > 0 ? 0.05 : 0.12;
-    const dir = sign(e.cx - srcX || 1), stg = hit.stag ?? hit.stun ?? 0.22;
-    if (!e.boss) { const k = (hit.kb || 0) * (e.light ? 1 : 0.4); e.vx = dir * k; if (e.light && k > 0) e.vy = -Math.min(220, k * 0.5);
+    dmg = Math.max(1, Math.round(dmg)); e.hp -= dmg; e.flash = 0.07; // v2.0: a crisp 2-frame white flash (was up to 0.3 s in slow-mo)
+    const dir0 = sign(e.cx - srcX || 1), dir = hit.kdir === 'pull' ? -dir0 : dir0, stg = hit.stag ?? hit.stun ?? 0.22, armored = e.armor > 0;
+    if (!e.boss && armored) { e.vx = dir * (hit.kb || 0) * 0.25; e.sq = 0.9; } // armour: barely moves, no stagger
+    else if (!e.boss) { const k = (hit.kb || 0) * (e.light ? 1 : 0.4); e.vx = hit.kdir === 'pull' ? dir * Math.min(k, Math.abs(e.cx - srcX) * 5) : dir * k; if (e.light && k > 0) e.vy = -Math.min(220, k * 0.5);
+      if (p && (k >= 200 || hit.launch) && hit.kdir !== 'pull') e.flungT = this.t + 0.85; // v2.0: flung foes splat on walls and take trap KOs
       if (e.light || hit.breaks) { e.stun = Math.max(e.stun, hit.stun || stg); e.tele = 0; if (e.st !== 'hop') e.st = 'idle'; }
       else if (stg >= 0.5 || crit) { e.stun = Math.max(e.stun, 0.3); e.tele = 0; } // v1.9: heavy foes only stagger from big hits
       if (e.light && hit.launch) { e.vy = -hit.launch; e.juggle = 0.9; e.spinV = dir * (9 + Math.random() * 6); e.stun = Math.max(e.stun, 0.8); }
@@ -247,22 +258,27 @@ export class World {
       e.sq = 0.78; }
     if (hit.stun && e.boss) e.stun = Math.max(e.stun, 0.2);
     if (e.maxPoise && p) { e.lastHitT = this.t; e.poise -= dmg * (hit.poise || 1) * (hit.fin ? 2 : 1); if (e.poise <= 0 && !(e.poiseBroke > 0)) e.poisePending = true; }
-    if (e.poisePending && (e.st === 'idle' || /Tele$/.test(e.st || ''))) { e.poisePending = false; e.poiseBroke = 2.2; e.poise = e.maxPoise; e.stun = Math.max(e.stun, 2.2); if (e.go) e.go('idle'); else e.st = 'idle'; e.tele = 0; e.cd = Math.max(e.cd || 0, 0.8); sfx('poiseBreak'); this.fx.text(e.cx, e.y - 20, 'BREAK!', '#ffe27a', 20); this.fx.ring(e.cx, e.cy, 70, '#ffe27a', 0.45, 7); CB.leaves(this, e.cx, e.cy, 18); this.hitstop(0.14); this.zoomKick(1); this.fx.flash = 0.3; this.fx.flashColor = '#fff2b0'; this.emit('poiseBreak'); }
+    if (e.poisePending && (e.st === 'idle' || /Tele$/.test(e.st || ''))) { e.poisePending = false; e.poiseBroke = 2.2; e.poise = e.maxPoise; e.stun = Math.max(e.stun, 2.2); if (e.go) e.go('idle'); else e.st = 'idle'; e.tele = 0; e.cd = Math.max(e.cd || 0, 0.8); sfx('poiseBreak'); BR.cine(this, { x: e.cx, y: e.cy, life: 1.1, zoom: 1.22, slow: 0.3, label: 'BREAK!' }); BR.bonus(this, 'POISE BREAK', 60, '#ffe27a'); this.fx.ring(e.cx, e.cy, 70, '#ffe27a', 0.45, 7); CB.leaves(this, e.cx, e.cy, 18); this.hitstop(0.14); this.zoomKick(1); this.fx.flash = 0.3; this.fx.flashColor = '#fff2b0'; this.emit('poiseBreak'); }
     const heavy = dmg >= 25 || !!hit.breaks; this.hitstop(Math.max(hit.hs || 0.035, heavy ? 0.065 : 0)); this.fx.shake(hit.shake || 0.08); sfx(heavy ? 'hitHeavy' : 'hit'); if (heavy) this.zoomKick(0.6);
     this.fx.burst(lerp(e.cx, srcX, 0.3), e.cy, dmg >= 25 ? 12 : 7, { color: ['#fff', '#ffe27a', PAL.inkPop], kind: 'spark', min: 120, max: 360, glow: 1, life: 0.3 });
-    this.fx.dmg(e.cx + rand.range(-4, 4), e.y - 4, dmg, { heavy: heavy || crit, gold: e.parried > 0 || crit, dir });
+    this.fx.dmg(e.cx, e.y - 4, dmg, { key: e, heavy: heavy || crit, gold: e.parried > 0 || crit, dir, crit, tag: tip ? 'TIP!' : trapped ? 'TRAP' : null }); BR.react(this, e, dir, heavy || crit || !!hit.fin);
+    if (p && hit.src !== 'hazard') BR.addHit(this, hit.mv || hit.src || 'hit', dmg, { crit, fin: hit.fin });
     CB.pop(this, lerp(e.cx, srcX, 0.35), e.cy - 2, heavy || crit ? 1.5 : 1, crit ? '#ffe9a0' : '#ffffff');
-    if (crit) { sfx('crit'); this.hitstop(Math.max(hit.hs || 0.035, 0.07)); this.fx.text(e.cx, e.y - 18, 'CRIT!', '#ffe27a', 13); this.fx.ring(e.cx, e.cy, 30, '#ffe27a', 0.25, 4); this.fx.burst(e.cx, e.cy, 5, { color: ['#fff6d8', '#ffe27a'], kind: 'star', min: 60, max: 200, life: 0.5, size: 6 }); this.emit('crit'); }
-    if (hit.fin) { sfx('finisherHit'); this.fx.text(e.cx, e.y - 24, 'FINISH!', '#c8f08a', 15); CB.leaves(this, e.cx, e.cy, 12); this.zoomKick(0.8); }
+    if (crit) { sfx('crit'); this.hitstop(Math.max(hit.hs || 0.035, 0.07)); this.fx.ring(e.cx, e.cy, 30, '#ffe27a', 0.25, 4); this.fx.burst(e.cx, e.cy, 5, { color: ['#fff6d8', '#ffe27a'], kind: 'star', min: 60, max: 200, life: 0.5, size: 6 }); this.emit('crit'); }
+    if (hit.fin) { sfx('finisherHit'); CB.leaves(this, e.cx, e.cy, p && p.weapon === 'hammer' ? 5 : 12); this.zoomKick(0.8); }
     if (p && hit.src !== 'special' && hit.src !== 'hazard' && p.gauge !== undefined) CB.gain(p, Math.min(8, dmg * 0.5), this);
+    if (trapped) BR.trapKO(this, e, e.hp <= 0);
     if (e.hp <= 0) this.killEnemy(e, p);
     return true;
   }
   killEnemy(e, p) {
-    if (e instanceof Boss) { e.hp = 0; e.go('dying'); sfx('roar'); this.fx.shake(0.8); this.slow = 1.0; return; }
+    if (e instanceof Boss) { e.hp = 0; e.go('dying'); sfx('roar'); this.fx.shake(0.8); this.slow = 1.0; BR.cine(this, { x: e.cx, y: e.cy, life: 2.5, zoom: 1.28 }); BR.bonus(this, 'BOSS DOWN', 150, '#ff7ac8'); return; }
     e.dead = true; CB.leaves(this, e.cx, e.cy, e.boss ? 24 : 10); CB.spores(this, e.cx, e.cy, e.boss ? 16 : 8); this.fx.shatter(e._dr, e.boss ? 4 : 3, e.boss ? 1.2 : 1); this.fx.pop(e.cx, e.cy, e.boss ? 2 : 1); if (e.boss) this.zoomKick(0.8); sfx('pop'); vibrate(15);
     const lucky = save.progress.unlocks.lucky ? 1.25 : 1; this.dropGlims(e.cx, e.cy, Math.round(e.glim * lucky));
-    if (!e.boss && rand.chance(0.08)) this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy, vx: rand.range(-50, 50), vy: -220, t: 0 });
+    GA.onFoeDown(this, e);
+    if (e.elite) { BR.bonus(this, 'ELITE DOWN', 50, '#ff7ad8'); this.fx.ring(e.cx, e.cy, 70, '#ff7ad8', 0.5, 6); this.hitstop(0.08); this.zoomKick(0.7); this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy, vx: 0, vy: -260, t: 0 }); this.emit('eliteKill', e.type); }
+    if (e instanceof Warden) BR.cine(this, { x: e.cx, y: e.cy, life: 1.2, zoom: 1.2, slow: 0.35 });
+    if (!e.boss && !e.elite && rand.chance(0.08)) this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy, vx: rand.range(-50, 50), vy: -220, t: 0 });
     this.player.stats.kills++; this.emit('kill', e);
     if (e.cell >= 0 && !this.enemies.some((o) => !o.dead && o.cell === e.cell) && !this.cleared.has(e.cell)) { this.cleared.add(e.cell); this.emit('roomClear', e.cell); }
     if (e instanceof Warden) this.onMinibossDefeated(e);
@@ -299,9 +315,9 @@ export class World {
     this.fx.text(e.cx, e.y - 30, e.info.name + ' defeated!', '#ffe27a', 18); this.dropGlims(e.cx, e.cy, 10); this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy - 20, vx: 0, vy: -250, t: 0, big: true });
     save.progress.minibossBeaten = (save.progress.minibossBeaten || 0) + 1; this.emit('miniboss');
   }
-  onBossPhase(n) { this.fx.text(this.boss.cx, this.boss.y - 30, n === 2 ? 'It\'s getting hot!' : 'Final phase!', '#ffb13b', 18); this.emit('bossPhase', n); }
+  onBossPhase(n) { BR.cine(this, { x: this.boss.cx, y: this.boss.cy, life: 1.5, zoom: 1.14, label: n === 2 ? 'PHASE 2' : 'FINAL PHASE', col: '#ffb13b' }); BR.bonus(this, 'PHASE ' + n, 40, '#ffb13b'); this.emit('bossPhase', n); }
   onBossDefeated(b) { this.fx.pop(b.cx, b.cy, 3); this.fx.flash = 0.8; this.fx.flashColor = '#fff6d8'; this.dropGlims(b.cx, b.cy, 40); this.fight = null; this.game.bossBar(null); sfx('victory'); this.bloomT = 0.01; this.emit('bossDefeated'); setTimeout(() => this.game.onVictory(this), 2600); }
-  spawnEnemy(type, x, y) { const e = new Enemy(type, x, y, 2); e.cell = -1; e.stun = 0.5; this.enemies.push(e); this.fx.burst(x, y - 10, 14, { color: [PAL.inkPop, '#3b2a6b'], max: 160, kind: 'blob', size: 6 }); }
+  spawnEnemy(type, x, y) { const e = new Enemy(type, x, y, 2); e.cell = -1; e.stun = 0.5; BR.initFoe(this, e, 0, true); this.enemies.push(e); this.fx.burst(x, y - 10, 14, { color: [PAL.inkPop, '#3b2a6b'], max: 160, kind: 'blob', size: 6 }); }
   addMarker(m) { this.markers.push({ t: 0, ...m }); }
   // ---------------- projectiles & hazards ----------------
   spawnEnemyShot(x, y, vx, vy, o) { this.shots.push({ x, y, vx, vy, r: o.r || 7, dmg: o.dmg, g: o.g || 0, owner: 'enemy', life: o.life || 3, info: o, ember: o.ember, burst: o.burst || 0, t: 0 }); }
@@ -411,7 +427,10 @@ export class World {
     if (!lo) { g.globalCompositeOperation = 'lighter'; g.fillStyle = B.fog; for (let i = 0; i < 3; i++) { const x = ((i * 0.37 + 0.15) * cw - camx * rs * 0.05) % (cw * 1.2); g.beginPath(); g.moveTo(x, 0); g.lineTo(x + cw * 0.12, 0); g.lineTo(x + cw * 0.32, ch); g.lineTo(x + cw * 0.18, ch); g.fill(); } g.globalCompositeOperation = 'source-over'; }
     }
     mk && mk('bg');
-    const zk = this.zoomK || 0, z = 1 + 0.045 * zk * zk * (3 - 2 * zk), zr = rs * z, tox = -camx * zr + cw * 0.5 * (1 - z), toy = -camy * zr + ch * 0.5 * (1 - z); this.wt = [zr, tox, toy];
+    const zk = this.zoomK || 0, z = 1 + 0.045 * zk * zk * (3 - 2 * zk); let zr = rs * z, tox = -camx * zr + cw * 0.5 * (1 - z), toy = -camy * zr + ch * 0.5 * (1 - z);
+    const ck = BR.cineK(this); if (ck > 0) { const c = this.cine; zr = rs * z * (1 + (c.zoom - 1) * ck); const Sx = lerp((c.x - camx) * rs, cw * 0.5, 0.6 * ck), Sy = lerp((c.y - camy) * rs, ch * 0.48, 0.6 * ck); // v2.0 focus zoom, kept inside the camera view
+      tox = clamp(Sx - c.x * zr, cw - (camx + cw / rs) * zr, -camx * zr); toy = clamp(Sy - c.y * zr, ch - (camy + ch / rs) * zr, -camy * zr); }
+    this.wt = [zr, tox, toy];
     g.setTransform(zr, 0, 0, zr, tox, toy);
     const vx0 = camx - 40, vx1 = camx + VW + 40, vy0 = camy - 40, vy1 = camy + (this.viewH || VIEW_H) + 40;
     const vr = this.vr = [vx0 - 140, vx1 + 140, vy0 - 140, vy1 + 140]; const offV = (x, y, w = 0, h = 0) => x + w < vr[0] || x > vr[1] || y + h < vr[2] || y > vr[3]; this.offV = offV; // v1.4: cull off-screen props/anchors/markers/shots
@@ -429,13 +448,14 @@ export class World {
       const dir = (this.cam.vx || 0) >= 0 ? 1 : -1; outer: for (const cx of [dir > 0 ? c1 + 1 : c0 - 1, dir > 0 ? c0 - 1 : c1 + 1]) for (let cy = r0 - 1; cy <= r1 + 1; cy++) { if (cx < 0 || cy < 0 || cx * CHUNK_T >= this.map.w || cy * CHUNK_T >= this.map.h) continue; const k = cx + ',' + cy; if (!this.chunkCache.has(k)) { if (this.chunkCache.size >= CHUNK_KEEP) this.chunkCache.delete(this.chunkCache.keys().next().value); this.chunkCache.set(k, G.ready ? renderPaintedChunk(this.map, cx, cy, rs, B) : renderTileChunk(this.map, cx, cy, rs, B)); break outer; } }
     }
     this._cm0 = this.chunkMade;
-    mk && mk('tiles'); this.drawHazards(g, vx0, vx1, vy0, vy1); this.traps.draw(g, vx0, vx1, vy0, vy1);
+    mk && mk('tiles'); this.drawHazards(g, vx0, vx1, vy0, vy1); this.traps.draw(g, vx0, vx1, vy0, vy1); this.arenas.draw(g);
     drawGuidesFront(g, this); this.drawProps(g); for (const o of this.props) if (o.kind === 'door') drawGate(g, this, o); drawSeeds(g, this);
     drawGuidesBack(g, this); this.drawAnchors(g);
     this.drawMarkers(g);
     for (const s of this.sentries) this.drawSentry(g, s);
     CB.drawBack(g, this); if (this.special) CB.drawSpecialWorld(g, this);
-    mk && mk('props'); for (const e of this.enemies) if (e.x + e.w > vx0 && e.x < vx1 && e.y + e.h > vy0 && e.y < vy1) { if (e.spin) { g.save(); g.translate(e.cx, e.cy); g.rotate(e.spin); g.translate(-e.cx, -e.cy); e.draw(g, this); g.restore(); } else e.draw(g, this); } // v1.9 ragdoll spin
+    mk && mk('props'); for (const e of this.enemies) if (e.x + e.w > vx0 && e.x < vx1 && e.y + e.h > vy0 && e.y < vy1) { BR.drawFoeBack(g, this, e, lo); const rk = e.rkT ? Math.max(0, 1 - (this.t - e.rkT) / 0.16) : 0, rot = (e.spin || 0) + (e.boss ? 0 : rk * 0.2 * (e.rkD || 0)) + (e.flipT > this.t ? Math.PI : 0), sc = e.eScale || 1; // v1.9 ragdoll spin; v2.0 recoil lean, flipped shells, elite scale
+      if (rot || sc !== 1) { g.save(); g.translate(e.cx, e.y + e.h); g.scale(sc, sc); g.translate(0, -e.h / 2); g.rotate(rot); g.translate(-e.cx, -e.cy); e.draw(g, this); g.restore(); } else e.draw(g, this); BR.drawFoeFront(g, this, e); }
     mk && mk('enemies'); this.dbg = { px: this.player.x, camx }; drawCritters(g, this); this.player.draw(g, this); mk && mk('player');
     this.drawShots(g);
     for (const w of this.waves) { const k = Math.sin(this.t * 30) * 2; g.fillStyle = '#7d5cff'; g.strokeStyle = '#15131f'; g.lineWidth = 2; g.beginPath(); g.moveTo(w.x - 12, w.y); g.quadraticCurveTo(w.x - w.dir * 2, w.y - 26 - k, w.x + w.dir * 12, w.y); g.closePath(); g.fill(); g.stroke(); drawGlow(g, w.x, w.y - 10, 26, '#ff5a7a', 0.6); }

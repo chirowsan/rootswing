@@ -59,6 +59,16 @@ export function drawBack(g, W) { // ground decals (under entities)
   }
   g.globalAlpha = 1;
 }
+// v2.0 Vine Whip trail: a living vine that sweeps from the hand to a cracking tip
+function drawWhip(g, o, cx, cy, f, ph, pt, fadeK, lo) {
+  const [a0, a1] = o.arc, head = a0 + (a1 - a0) * ph, lag = head - (a1 - a0) * 0.42 * (1 - ph * 0.6), L = o.r, P = (a, r) => { const A = f > 0 ? a : Math.PI - a; return [cx + Math.cos(A) * r, cy + Math.sin(A) * r * (o.sq || 1)]; };
+  const [hx, hy] = P(a0 + (a1 - a0) * ph * 0.25, 10), [mx, my] = P(lag, L * 0.62), [tx, ty] = P(head, L);
+  const tail = a0 + (a1 - a0) * pt * 0.9; g.globalAlpha = 0.22 * fadeK; g.fillStyle = o.col; crescent(g, cx, cy, L * 0.97, 10, tail, head, f, o.sq || 1); // faint sweep ribbon
+  const seg = (w, col, al) => { g.globalAlpha = al * fadeK; g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(hx, hy); g.quadraticCurveTo(mx, my, tx, ty); g.stroke(); };
+  if (!lo) seg(11, o.col, 0.18); seg(5.5, o.col, 0.85); seg(1.8, o.core || '#fff', 0.95);
+  g.fillStyle = o.col; for (let i = 1; i < 6; i++) { const u = i / 6, x = (1 - u) * (1 - u) * hx + 2 * u * (1 - u) * mx + u * u * tx, y = (1 - u) * (1 - u) * hy + 2 * u * (1 - u) * my + u * u * ty; g.globalAlpha = 0.9 * fadeK; g.beginPath(); g.ellipse(x, y - 2, 3.2, 1.6, (head + i) * 0.7, 0, TAU); g.fill(); } // leaves along the vine
+  if (ph > 0.7) { const k = clamp01((ph - 0.7) / 0.3) * fadeK, s = 9 + 9 * k; g.globalAlpha = k; g.fillStyle = o.core || '#fff'; g.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 + 0.3, rr = i % 2 ? s * 0.2 : s; g.lineTo(tx + Math.cos(a) * rr, ty + Math.sin(a) * rr); } g.closePath(); g.fill(); } // the crack
+}
 export function drawFront(g, W, lo) { // trails, lashes, shockwaves, impact pops (additive)
   const c = W.cfx; if (!c) return; g.save(); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round'; g.lineJoin = 'round';
   for (const o of c.trails) {
@@ -66,18 +76,19 @@ export function drawFront(g, W, lo) { // trails, lashes, shockwaves, impact pops
     const ph = ease(clamp01(o.t / o.dur)), pt = ease(clamp01((o.t - o.dur * 0.35) / (o.dur * 0.65 + o.fade)));
     if (o.kind === 'thrust' || o.kind === 'dash') {
       const L = o.L * (o.kind === 'dash' ? 1 : 0.35 + 0.65 * ph), x0 = cx - f * (o.kind === 'dash' ? o.L * 0.85 : 4), y0 = cy + (o.kind === 'dash' ? 4 : 0);
-      for (const [wk, col, al] of [[1, o.col, 0.55], [0.4, '#ffffff', 0.9]]) { g.globalAlpha = al * fadeK; g.fillStyle = col; const h = o.h * wk * (1 - pt * 0.6); g.beginPath(); g.moveTo(x0 + f * L * pt * 0.8, y0 - h * 0.15); g.lineTo(x0 + f * L, y0 - h * 0.5 * 0.2); g.lineTo(x0 + f * (L + 10), y0); g.lineTo(x0 + f * L, y0 + h * 0.1); g.lineTo(x0 + f * L * pt * 0.8, y0 + h * 0.15); g.closePath(); g.fill(); }
+      for (const [wk, col, al] of [[1.5, o.col, 0.22], [1, o.col, 0.55], [0.4, o.core || '#ffffff', 0.9]]) { g.globalAlpha = al * fadeK; g.fillStyle = col; const h = o.h * wk * (1 - pt * 0.6); g.beginPath(); g.moveTo(x0 + f * L * pt * 0.8, y0 - h * 0.15); g.lineTo(x0 + f * L, y0 - h * 0.5 * 0.2); g.lineTo(x0 + f * (L + 10), y0); g.lineTo(x0 + f * L, y0 + h * 0.1); g.lineTo(x0 + f * L * pt * 0.8, y0 + h * 0.15); g.closePath(); g.fill(); }
       if (!lo) { g.globalAlpha = 0.5 * fadeK; g.strokeStyle = o.col; g.lineWidth = 1.5; for (let i = 0; i < 3; i++) { const yy = y0 + (i - 1) * 9, xa = x0 - f * (10 + i * 8) * (1 - pt); g.beginPath(); g.moveTo(xa, yy); g.lineTo(xa + f * L * 0.6, yy); g.stroke(); } }
       continue;
     }
     if (o.kind === 'spin') { // flattened disc that spins around the hero
       const turns = o.turns || 1, head = -Math.PI / 2 + ph * TAU * turns, tail = head - 2.2 * (1 - pt * 0.5);
-      for (const [wk, col, al] of [[1, o.col, 0.5], [0.38, '#ffffff', 0.85]]) { g.globalAlpha = al * fadeK; g.fillStyle = col; crescent(g, cx, cy + 2, o.r, o.th * wk, tail, head, 1, 0.42); }
+      for (const [wk, col, al] of [[1.5, o.col, 0.18], [1, o.col, 0.5], [0.38, o.core || '#ffffff', 0.85]]) { g.globalAlpha = al * fadeK; g.fillStyle = col; crescent(g, cx, cy + 2, o.r, o.th * wk * (o.heavy ? 1.3 : 1), tail, head, 1, 0.42); }
       continue;
     }
     if (o.kind === 'foot') { g.globalAlpha = 0.7 * fadeK; g.strokeStyle = o.col; g.lineWidth = 5 * (1 - pt); g.beginPath(); g.arc(cx + f * 10, cy + 12, 16, f > 0 ? -0.9 : Math.PI - 0.9 + 0.0, f > 0 ? 0.9 : Math.PI + 0.9); g.stroke(); continue; }
-    const [a0, a1] = o.arc, head = a0 + (a1 - a0) * ph, tail = a0 + (a1 - a0) * pt * 0.92;
-    for (const [wk, col, al] of [[1.25, o.col, 0.32], [1, o.col, 0.55], [0.36, '#ffffff', 0.95]]) { g.globalAlpha = al * fadeK; g.fillStyle = col; crescent(g, cx, cy, o.r * (wk > 1 ? 1.04 : 1), o.th * wk, tail, head, f, o.sq || 1); }
+    if (o.kind === 'whip') { drawWhip(g, o, cx, cy, f, ph, pt, fadeK, lo); continue; }
+    const [a0, a1] = o.arc, head = a0 + (a1 - a0) * ph, tail = a0 + (a1 - a0) * pt * 0.92, hk = o.heavy ? 1.35 : 1; // v2.0: 4 layers -- wide soft glow, body, rim, hot core (style palette)
+    for (const [wk, col, al] of lo ? [[1, o.col, 0.6], [0.36, o.core || '#ffffff', 0.95]] : [[1.7, o.col, 0.13], [1.25, o.col, 0.3], [1, o.col, 0.55], [0.36, o.core || '#ffffff', 0.95]]) { g.globalAlpha = al * fadeK; g.fillStyle = col; crescent(g, cx, cy, o.r * (wk > 1 ? 1 + (wk - 1) * 0.12 : 1), o.th * wk * hk, tail, head, f, o.sq || 1); }
   }
   for (const l of c.lashes) { // vine whip lash racing along the ground
     const k = l.t / l.life, grow = ease(clamp01(k * 2.2)), fade = 1 - clamp01((k - 0.55) / 0.45), L = l.L * grow;

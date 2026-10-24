@@ -13,7 +13,7 @@ function paintSprite(g, n, x, y, H, flip, flash, hotK, src = null) { // ink outl
   const ink = tinted(n, '#0c0a14'), rim = tinted(n, '#ff5a28'); for (const [dx, dy] of INK) spr(g, n, x + dx * 2.2, y + dy * 2.2, H, 0.5, 1, flip, ink); for (const [dx, dy] of INK) spr(g, n, x + dx * 1.1, y + dy * 1.1, H, 0.5, 1, flip, rim);
   spr(g, n, x, y, H, 0.5, 1, flip, src);
   if (hotK > 0) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, hotK); spr(g, n, x, y, H, 0.5, 1, flip, tinted(n, '#ff3040')); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; }
-  if (flash > 0) { g.globalAlpha = Math.min(1, flash * 7); spr(g, n, x, y, H, 0.5, 1, flip, tinted(n, '#ffffff')); g.globalAlpha = 1; }
+  if (flash > 0) { g.globalAlpha = Math.min(1, flash * 14); spr(g, n, x, y, H, 0.5, 1, flip, tinted(n, '#ffffff')); g.globalAlpha = 1; }
 }
 class BigFoe {
   constructor(x, y, w, h, hp) { this.w = w; this.h = h; this.x = x - w / 2; this.y = y - h; this.vx = 0; this.vy = 0; this.maxHp = this.hp = hp; this.maxPoise = this.poise = Math.max(30, Math.round(hp * 0.16)); this.poiseBroke = 0; this.face = -1; this.st = 'sleep'; this.t = 0; this.cd = 1; this.stun = 0; this.flash = 0; this.dead = false; this.light = false; this.boss = true; this.anim = 0; this.tele = 0; this.sq = 1; this.onGround = false; }
@@ -25,7 +25,7 @@ class BigFoe {
 export class Warden extends BigFoe {
   constructor(x, y, depth) { super(x, y, 42, 52, Math.round(230 * (1 + depth * 0.04))); this.type = 'warden'; this.info = ENEMY_INFO.warden; this.glim = 30; this.summoned = false; this.order = 0; }
   update(W, dt) {
-    const P = W.player, A = diff().aggro; this.t += dt; this.anim += dt; this.flash = Math.max(0, this.flash - dt); this.sq = approach(this.sq, 1, dt * 4);
+    const P = W.player, A = diff().aggro * (this.aggroK || 1); this.t += dt; this.anim += dt; this.flash = Math.max(0, this.flash - dt); this.sq = approach(this.sq, 1, dt * 4);
     const dx = P.cx - this.cx;
     if (this.st === 'sleep') { if (Math.abs(dx) < 300 && Math.abs(P.cy - this.cy) < 200) { this.go('wake'); W.startFight(this); sfx('roar'); W.fx.shake(0.3); } this.fall(W, dt); return; }
     if (this.poiseBroke > 0) this.poiseBroke -= dt;
@@ -88,7 +88,10 @@ export class Boss extends BigFoe {
     // pending delayed hazards (embers, pillars)
     for (const p of this.pending) { p.t -= dt; if (p.t <= 0 && !p.done) { p.done = true; p.fire(); } } this.pending = this.pending.filter((p) => !p.done);
     if (this.st === 'sleep') { this.fall(W, dt); return; }
-    if (this.st === 'dying') { this.vx = 0; if (Math.random() < dt * 10) W.fx.pop(this.x + rand.range(0, this.w), this.y + rand.range(0, this.h), 0.8); if (this.t > 2.2) { this.dead = true; W.fx.shatter(this._dr, 5, 1.4); W.onBossDefeated(this); } this.fall(W, dt); return; }
+    if (this.st === 'dying') { this.vx = 0; if (Math.random() < dt * (10 + this.t * 10)) W.fx.pop(this.x + rand.range(0, this.w), this.y + rand.range(0, this.h), 0.8 + this.t * 0.3);
+      const beats = [0.35, 0.85, 1.3, 1.7, 2.0]; this._dk = this._dk || 0; // v2.0: escalating death beats -- each one bigger, then the shatter
+      if (this._dk < beats.length && this.t > beats[this._dk]) { const k = ++this._dk; this.flash = 0.07; W.fx.flash = Math.max(W.fx.flash, 0.1 + k * 0.05); W.fx.flashColor = '#fff2d0'; W.fx.shake(0.15 + k * 0.06); W.fx.ring(this.cx, this.cy, 60 + k * 30, ['#ffb13b', '#ffe27a', '#ff7ac8'][k % 3], 0.5, 4 + k); W.fx.burst(this.cx, this.cy, 10 + k * 4, { color: ['#ffd0e0', '#ff9ab0', '#ffe27a', '#fff'], kind: 'leaf', min: 80, max: 260 + k * 40, life: 1.1, g: 160 }); sfx(k < beats.length ? 'hitHeavy' : 'finisher'); }
+      if (this.t > 2.2) { this.dead = true; W.fx.shatter(this._dr, 5, 1.4); W.fx.flash = Math.max(W.fx.flash, 0.5); W.fx.flashColor = '#fff6e0'; W.fx.shake(0.7); W.fx.ring(this.cx, this.cy, 260, '#ffe27a', 0.9, 10); W.fx.burst(this.cx, this.cy, 60, { color: ['#ffd0e0', '#ff9ab0', '#ffe27a', '#8ff6ff', '#fff'], kind: 'leaf', min: 120, max: 520, life: 1.8, g: 120, size: 7 }); W.hitstop && W.hitstop(0.12); W.onBossDefeated(this); } this.fall(W, dt); return; }
     if (this.poiseBroke > 0) this.poiseBroke -= dt;
     if (this.stun > 0) { this.stun -= dt; this.vx *= 0.9; this.fall(W, dt); return; }
     const want = this.hp > this.maxHp * 0.66 ? 1 : this.hp > this.maxHp * 0.33 ? 2 : 3;

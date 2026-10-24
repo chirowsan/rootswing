@@ -47,6 +47,11 @@ export function heroFlash(n) {
   const H = G.hero; if (!H.f[n]) n = 'idle0'; let c = H.cache.get(n); if (c) return c; const f = H.f[n]; c = document.createElement('canvas'); c.width = f[2]; c.height = f[3];
   const x = c.getContext('2d'); x.drawImage(H.img, f[0], f[1], f[2], f[3], 0, 0, f[2], f[3]); x.globalCompositeOperation = 'source-in'; x.fillStyle = '#fff'; x.fillRect(0, 0, f[2], f[3]); H.cache.set(n, c); return c;
 }
+// v2.0 tinted silhouette for style afterimages (cached per frame+colour)
+export function heroTint(n, col) {
+  const H = G.hero; if (!H.f[n]) n = 'idle0'; const k = n + col; let c = H.cache.get(k); if (c) return c; const f = H.f[n]; c = document.createElement('canvas'); c.width = f[2]; c.height = f[3];
+  const x = c.getContext('2d'); x.drawImage(H.img, f[0], f[1], f[2], f[3], 0, 0, f[2], f[3]); x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, f[2], f[3]); H.cache.set(k, c); return c;
+}
 // v1.4 enemy animation frames (enemies.webp): f[name] = [x, y, w, h, pivotX, hRel, pad]; ink border + rim are baked in
 export const hasE = (n) => !!(G.en && G.en.f[n]);
 // draw frame n of an enemy whose neutral pose is H world units tall, pivot (feet centre) at (x, y). Returns draw info for shattering.

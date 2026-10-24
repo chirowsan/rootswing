@@ -5,7 +5,7 @@ import { input, initInput, pollInput, endStep, pressed, held, computeLayout, dra
 import { World, VIEW_H, playerStats } from './world.js';
 import { Tutorial } from './tutorial.js';
 import { drawHUD, drawMap, mapInfo } from './hud.js';
-import { GADGETS } from './weapons.js';
+import { GADGETS, WEAPONS } from './weapons.js';
 import * as UI from './ui.js';
 import { TILE } from './util.js';
 import { scoreRun } from './objective.js';
@@ -14,8 +14,13 @@ import { loadGfx, G } from './gfx.js';
 import { drawGlow } from './art.js';
 import { Enemy } from './enemies.js';
 import { migrateSave, missions, dayKey, dailySeed, dailyMod, dailyScore, recordDaily, DAILY_MODS } from './missions.js';
-import { mEvent, drawMissionHUD } from './missionsWorld.js';
+import { mEvent, drawMissionHUD, toast } from './missionsWorld.js';
 import { Warden, TideGolem, Boss, DrownedBloom } from './boss.js';
+import * as BR from './brawl.js';
+import * as GA from './gauntlet.js';
+import * as T20 from './traps20.js';
+import { DIFF } from './save.js';
+import * as MS from './missions.js';
 const STEP = 1 / 60;
 const canvas = document.getElementById('c'); const g = canvas.getContext('2d', { alpha: false });
 const game = {
@@ -31,7 +36,7 @@ const game = {
   },
   onDeath(W, info) {
     if (this.world !== W) return;
-    const found = W.runGlim, kept = W.mode === 'run' || W.mode === 'boss' ? Math.round(found * diff().keep) : 0;
+    const found = W.runGlim, kept = W.mode === 'run' || W.mode === 'boss' ? Math.round(found * diff().keep * (diff().reward || 1)) : 0;
     save.progress.glimmers += kept; save.progress.totalGlimmers += kept; save.progress.bestDepth = Math.max(save.progress.bestDepth, W.visited.size); save.run = null; writeSave();
     const dly = this.finishDaily(W, false);
     this.paused = true; UI.showDeath(info, kept, found, { rooms: (save.lastRooms || 0) + W.visited.size, kills: W.player.stats.kills, daily: dly });
@@ -46,7 +51,7 @@ const game = {
     mEvent(W, 'areaDone', { flaskFree: !this.areaFlask }); const dly = this.finishDaily(W, true);
     const glim = W.runGlim; save.progress.glimmers += glim; save.progress.totalGlimmers += glim; save.progress.wins++; save.progress.bossBeaten++; save.run = null; writeSave();
     const t = Math.round(this.runTime()), fmt = (t) => Math.floor(t / 60) + 'm ' + String(t % 60).padStart(2, '0') + 's', sc = scoreRun(t, this.treasures || 0); this.lastScore = sc;
-    this.paused = true; UI.showVictory(glim, { final: (W.stage || 0) >= 1, kills: W.player.stats.kills, time: fmt(t), stars: sc.stars, best: sc.best, bestTime: fmt(sc.bestTime), newVine: sc.newVine, treasures: this.treasures || 0, daily: dly });
+    this.paused = true; UI.showVictory(glim, { final: (W.stage || 0) >= 1, kills: W.player.stats.kills, time: fmt(t), stars: sc.stars, bonus: sc.bonus, diffLabel: sc.diffLabel, best: sc.best, bestTime: fmt(sc.bestTime), newVine: sc.newVine, treasures: this.treasures || 0, daily: dly });
   },
   // v1.8 daily challenge: one seeded run per real day + a cosmetic/damage-only modifier; local best kept per day
   startDaily() { const key = dayKey(), mod = dailyMod(key); this.daily = { key, seed: dailySeed(key), mod }; this.areaFlask = false; this.carryRooms = 0; this.treasures = 0; save.progress.runs++; save.run = null; writeSave(); this.runStart = performance.now(); this.go('run', { seed: this.daily.seed }); },
@@ -166,7 +171,7 @@ boot(); initInput(canvas); resize(); UI.showTitle(); requestAnimationFrame(frame
 // --------- test API (used by automated tests; harmless for players) ---------
 addEventListener('rs-pausemap', () => game.drawPauseMap());
 window.__RS = {
-  foes: { Enemy, Warden, TideGolem, Boss, DrownedBloom }, trapPhase, TRAP_TIMING, TRAP_DMG,
+  foes: { Enemy, Warden, TideGolem, Boss, DrownedBloom }, BR, GA, T20, DIFF, MS, toast, WEAPONS, trapPhase, TRAP_TIMING, TRAP_DMG,
   game, save, input, TILE, gfx: G, writeSave, loadSave: boot, missions, continueRun: () => document.querySelector('[data-act="continueRun"]').click(), layout: () => input.layout,
   get W() { return game.world; }, supports() { return game.world ? game.world.auditSupports() : null; },
   drawMap, mapInfo, renderNow() { if (game.world) render(0); },

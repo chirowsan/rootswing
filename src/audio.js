@@ -35,6 +35,16 @@ function noise(dur, freq, vol, { q = 1, type = 'bandpass', f1 = 0, when = 0, a =
   const g = ctx.createGain(); env(g, t, a, vol, dur); s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
 }
 const SFX = {
+  // v2.0 fighting styles + style rank + set pieces (all synthesized, mixed to sit under music)
+  hamA: () => { noise(0.18, 300, 0.2, { type: 'lowpass', f1: 120 }); tone('sine', 140, 48, 0.28, 0.26); noise(0.05, 2200, 0.07, { q: 0.8, when: 0.02 }); },
+  hamB: () => { noise(0.14, 400, 0.16, { f1: 2200, q: 1.2 }); tone('triangle', 90, 260, 0.16, 0.14); tone('sine', 120, 50, 0.2, 0.16, { when: 0.04 }); },
+  hamFin: () => { tone('sine', 100, 30, 0.6, 0.4); noise(0.5, 600, 0.26, { type: 'lowpass', f1: 70 }); noise(0.1, 3000, 0.1, { q: 0.7 }); tone('square', 70, 40, 0.25, 0.06, { filter: 600, when: 0.03 }); },
+  whipCrack: () => { noise(0.05, 5000, 0.12, { f1: 1600, q: 1.5 }); noise(0.02, 9000, 0.14, { type: 'highpass', a: 0.001, when: 0.06 }); tone('square', 2400, 1200, 0.04, 0.03, { when: 0.06, filter: 5000 }); },
+  whipSnap: () => { noise(0.08, 4200, 0.14, { f1: 900, q: 1.4 }); noise(0.03, 10000, 0.18, { type: 'highpass', a: 0.001, when: 0.09 }); tone('sine', 900, 300, 0.15, 0.08, { when: 0.09 }); },
+  rankUp: () => { [784, 988, 1319].forEach((f, i) => tone('triangle', f, f, 0.14, 0.07, { when: i * 0.05 })); noise(0.2, 7000, 0.04, { type: 'highpass', when: 0.1 }); },
+  splat: () => { noise(0.12, 260, 0.26, { type: 'lowpass', f1: 90 }); tone('sine', 180, 60, 0.16, 0.2); noise(0.05, 1800, 0.1, { q: 0.9, when: 0.01 }); },
+  trapKO: () => { [523, 659, 784, 1047].forEach((f, i) => tone('square', f, f, 0.1, 0.05, { when: i * 0.045, filter: 3000 })); noise(0.18, 1200, 0.12, { q: 0.7 }); },
+  guardBreak: () => { noise(0.22, 3200, 0.22, { f1: 600, q: 0.8 }); [1175, 880, 659].forEach((f, i) => tone('triangle', f, f * 0.98, 0.18, 0.08, { when: i * 0.05 })); tone('sine', 220, 70, 0.25, 0.16); },
   // v1.9 combat set: each hit type has its own swish/body so a combo reads by ear
   slashA: () => { noise(0.11, 1400, 0.15, { f1: 4200, q: 1.6 }); tone('triangle', 520, 300, 0.06, 0.04); },
   slashB: () => { noise(0.12, 4000, 0.14, { f1: 1200, q: 1.6 }); tone('triangle', 400, 620, 0.06, 0.04); },
@@ -98,7 +108,7 @@ const SFX = {
   thump: () => { tone('sine', 90, 40, 0.3, 0.3); noise(0.2, 300, 0.15, { type: 'lowpass' }); },
   secret: () => { [659, 831, 988, 1319].forEach((f, i) => tone('sine', f, f, 0.4, 0.09, { when: i * 0.09 })); },
 };
-const VARY = { hit: 0.14, hitHeavy: 0.1, pop: 0.12, land: 0.16, step: 0.3, jump: 0.08, pickup: 0.1, swing: 0.12, enemyShoot: 0.1, hookAttach: 0.08, slashA: 0.1, slashB: 0.1, spin: 0.08, thrust: 0.08, kick: 0.12, crit: 0.06 }; // per-play pitch variation
+const VARY = { hit: 0.14, hitHeavy: 0.1, pop: 0.12, land: 0.16, step: 0.3, jump: 0.08, pickup: 0.1, swing: 0.12, enemyShoot: 0.1, hookAttach: 0.08, slashA: 0.1, slashB: 0.1, spin: 0.08, thrust: 0.08, kick: 0.12, crit: 0.06, whipCrack: 0.12, hamA: 0.08, splat: 0.1 }; // per-play pitch variation
 export function sfx(name, minGap = 0.035) {
   if (!ctx || !SFX[name] || save.settings.sfx <= 0) return;
   const now = ctx.currentTime; if (last[name] && now - last[name] < minGap) return; last[name] = now;

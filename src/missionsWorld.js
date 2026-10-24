@@ -11,15 +11,21 @@ export function drawMIcon(g, icon, x, y, size, color = '#fff') { // atlas sprite
   if (icon.startsWith('hatx:')) { drawHat(g, icon.slice(5), x, y + size * 0.18, size / 19, 1); return; }
   drawIcon(g, icon, x, y, size, color);
 }
-export function rewardIcon(r) { const [k, v] = r.split(':'); return k === 'pet' ? 'spr:cr_' + v : k === 'cape' ? 'cape' : k === 'hat' ? 'hatx:' + v : k === 'vine' ? 'hook' : k === 'badge' ? 'badge' : 'glimmer'; }
-export function rewardColor(r) { const [k, v] = r.split(':'); if (k === 'cape') return (CAPES.find((c) => c.id === v) || {}).b || '#fff'; if (k === 'vine') return { berry: '#d9a6ff', frost: '#e2f2ff', sunset: '#ffc46a', rainbow: '#ffa6d8' }[v] || '#9be070'; if (k === 'hat') return { flower: '#ffa6d8', acorn: '#c98a4a', leafcrown: '#9be070', mush: '#ff6a5a', crown: '#ffe27a' }[v] || '#fff'; return '#ffe27a'; }
+export function rewardIcon(r) { const [k, v] = r.split(':'); return k === 'wpn' ? 'spr:w_' + v : k === 'pet' ? 'spr:cr_' + v : k === 'cape' ? 'cape' : k === 'hat' ? 'hatx:' + v : k === 'vine' ? 'hook' : k === 'badge' ? 'badge' : 'glimmer'; }
+export function rewardColor(r) { const [k, v] = r.split(':'); if (k === 'wpn') return { hammer: '#ff8a2a', whip: '#9ae04a' }[v] || '#bff5c8'; if (k === 'cape') return (CAPES.find((c) => c.id === v) || {}).b || '#fff'; if (k === 'vine') return { berry: '#d9a6ff', frost: '#e2f2ff', sunset: '#ffc46a', rainbow: '#ffa6d8' }[v] || '#9be070'; if (k === 'hat') return { flower: '#ffa6d8', acorn: '#c98a4a', leafcrown: '#9be070', mush: '#ff6a5a', crown: '#ffe27a' }[v] || '#fff'; return '#ffe27a'; }
 // ---- toasts (game-level so they survive scene changes) ----
-export function toast(game, o) { if (!game) return; (game.toasts || (game.toasts = [])).push({ t: 0, life: o.done ? 3.4 : 2.0, ...o }); if (game.toasts.length > 3) game.toasts.shift(); }
+export function toast(game, o) { // v2.0: one toast per mission -- progress updates in place (no stacking), a completion replaces its progress toast
+  if (!game) return; const L = game.toasts || (game.toasts = []), key = o.key || o.icon + o.color;
+  const same = L.find((x) => x.key === key && !x.done);
+  if (same && !o.done) { same.prog = o.prog; same.target = o.target; same.t = Math.min(same.t, 0.25); same.life = 2.0; same.bump = 1; return; }
+  if (same) L.splice(L.indexOf(same), 1);
+  L.push({ t: 0, life: o.done ? 3.4 : 2.0, ...o, key, bump: 0 }); while (L.length > 3) { const i = L.findIndex((x) => !x.done); L.splice(i >= 0 ? i : 0, 1); }
+}
 function report(W, list) {
   const game = W.game, P = W.player;
   for (const r of list) {
     const T = TYPES[r.mi.type], done = r.kind === 'done';
-    toast(game, { icon: missionIcon(r.mi), color: T.color, prog: r.mi.prog, target: r.mi.target, done, reward: done ? r.reward[0] : null });
+    toast(game, { key: 'm' + (r.mi.id ?? r.mi.type), icon: missionIcon(r.mi), color: T.color, prog: r.mi.prog, target: r.mi.target, done, reward: done ? r.reward[0] : null });
     if (done) { sfx('unlock'); setTimeout(() => sfx('victory'), 180); W.fx.burst(P.cx, P.y, 34, { color: ['#ffe27a', '#fff', T.color, '#ffa6d8'], min: 80, max: 330, g: 200, kind: 'star', life: 1.1, size: 6 }); W.fx.ring(P.cx, P.cy, 70, T.color, 0.6, 6); }
     else sfx('pickup');
   }
@@ -46,7 +52,7 @@ export function attachMissions(W) {
   });
 }
 // ---- critters ----
-const CR_H = 28;
+const CR_H = 39; // v2.0: critters 1.4x bigger (was 28) so kids can read their faces
 function groundY(W, x, y) { for (let k = 0; k < 8; k++) { const ty = Math.floor((y - 1) / TILE) + k; if (W.map.solid(Math.floor(x / TILE), ty + 1) || W.map.get(Math.floor(x / TILE), ty + 1) === '=') return (ty + 1) * TILE; } return y; }
 export function updateMissions(W, dt) {
   const P = W.player, game = W.game;
@@ -55,7 +61,7 @@ export function updateMissions(W, dt) {
     c.t += dt;
     if (c.st === 'lost') { c.hop = Math.max(0, Math.sin(c.t * 2.2) * (Math.sin(c.t * 0.7) > 0.4 ? 1 : 0)); c.face = Math.sin(c.t * 0.45) > 0 ? 1 : -1;
       if (!P.dead && Math.abs(P.cx - c.px) < 22 && Math.abs(P.y + P.h - c.py) < 30) { c.st = 'happy'; c.t = 0; c.face = P.cx > c.px ? 1 : -1; W.opened.add(c.id); sfx('secret'); W.fx.burst(c.px, c.py - 14, 14, { color: ['#ff9ab0', '#ffd0e0', '#fff'], min: 40, max: 160, g: -60, kind: 'star', life: 0.9, size: 5 }); } }
-    else if (c.st === 'happy') { c.hop = Math.abs(Math.sin(c.t * 9)) * 1.6; if (c.t > 0.7) { c.st = 'follow'; c.t = 0; } }
+    else if (c.st === 'happy') { c.hop = Math.abs(Math.sin(c.t * 9)) * 1.6; if (c.t > 0.95) { c.st = 'follow'; c.t = 0; } }
     else if (c.st === 'follow') { const tx = P.cx - P.face * 20, ty = P.y + P.h; c.face = tx > c.px ? 1 : -1; c.px += (tx - c.px) * Math.min(1, dt * 5); c.py += (ty - c.py) * Math.min(1, dt * 7); c.hop = Math.abs(Math.sin(c.t * 8)) * (Math.abs(tx - c.px) > 3 ? 1 : 0.3);
       if (c.t > 2.4) { c.st = 'home'; c.t = 0; sfx('chest'); W.fx.burst(c.px, c.py - 10, 26, { color: ['#ffe27a', '#bff2ff', '#fff', '#ffa6d8'], min: 60, max: 240, g: -40, kind: 'star', life: 1, size: 5, glow: 1 }); W.fx.ring(c.px, c.py - 10, 36, '#ffe27a', 0.5, 4); } }
     else if (c.st === 'home') { if (c.t > 0.45 && !c.gone) { c.gone = true; W.emit('critter', c.kind); } }
@@ -67,25 +73,30 @@ export function updateMissions(W, dt) {
     else if (board) { const hx = board.x + board.w / 2 + (f.home - 1.2) * 26 + Math.sin(f.t * 0.6 + f.home) * 14; f.face = Math.cos(f.t * 0.6 + f.home) > 0 ? 1 : -1; f.px = hx; f.py = board.y + board.h; f.hop = Math.max(0, Math.sin(f.t * 3 + f.home)) * 0.8; }
   }
 }
-function drawCritter(g, W, kind, x, y, hop, face, t, a = 1, k = 1) {
-  const n = 'cr_' + kind, h = CR_H * k, jy = -hop * 7, sq = 1 + (hop < 0.15 ? 0.06 : -0.04);
-  g.save(); g.globalAlpha *= a; g.fillStyle = 'rgba(10,8,18,0.35)'; g.beginPath(); g.ellipse(x, y, 11 * k * (1 - hop * 0.25), 2.2 * k, 0, 0, 7); g.fill();
-  if (has(n)) { g.translate(x, y + jy); g.scale(face * (2 - sq), sq); for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) spr(g, n, dx, dy, h, 0.5, 1, false, tinted(n, '#15131f')); spr(g, n, 0, 0, h, 0.5, 1);
-    if (Math.sin(t * 1.7 + x) > 0.96) { g.fillStyle = '#3a2a1a'; g.globalAlpha *= 0.7; g.fillRect(0.5, -h * 0.62, h * 0.3, h * 0.08); } } // quick blink
-  else { g.fillStyle = '#9be070'; g.beginPath(); g.arc(x, y - 8 + jy, 8, 0, 7); g.fill(); }
+function drawCritter(g, W, kind, x, y, hop, face, t, a = 1, k = 1, st = 'idle', ct = 0) { // v2.0: breathing idle, trembling when lost, stretch-hop + spin when happy
+  const n = 'cr_' + kind, h = CR_H * k, ph = x * 0.37; let jy = -hop * 9, sx = 1, sy = 1, rot = 0, ox = 0;
+  const br = Math.sin(t * 2.6 + ph); sy = 1 + br * 0.035; sx = 1 - br * 0.025; rot = Math.sin(t * 1.3 + ph) * 0.05; // breathe + gentle sway
+  if (hop > 0) { const land = hop < 0.15; sy = land ? 0.9 : 1.08; sx = land ? 1.1 : 0.94; }
+  if (st === 'lost') { ox = Math.sin(t * 38) * 0.9; rot = Math.sin(t * 2.1 + ph) * 0.12; sy *= 0.95; } // shivering, peeking around
+  let spin = 1; if (st === 'happy') { const u = (ct % 0.9) / 0.9; jy = -Math.sin(u * Math.PI) * 18; sy = u < 0.12 ? 0.84 : u > 0.88 ? 0.9 : 1.12; sx = 2 - sy; if (ct < 0.9) spin = Math.cos(u * Math.PI * 2); }
+  g.save(); g.globalAlpha *= a; g.fillStyle = 'rgba(10,8,18,0.35)'; g.beginPath(); g.ellipse(x, y, 14 * k * (1 + jy / 60), 3 * k, 0, 0, 7); g.fill();
+  if (has(n)) { g.translate(x + ox, y + jy); g.rotate(rot); g.scale(face * sx * (Math.abs(spin) < 0.15 ? 0.15 * Math.sign(spin || 1) : spin), sy); for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) spr(g, n, dx, dy, h, 0.5, 1, false, tinted(n, '#15131f')); spr(g, n, 0, 0, h, 0.5, 1);
+    if (st !== 'happy' && Math.sin(t * 1.7 + x) > 0.96) { g.fillStyle = '#3a2a1a'; g.globalAlpha *= 0.7; g.fillRect(0.5, -h * 0.62, h * 0.3, h * 0.08); } } // quick blink
+  else { g.fillStyle = '#9be070'; g.beginPath(); g.arc(x, y - 11 + jy, 11, 0, 7); g.fill(); }
   g.restore();
+  if (st === 'happy' && W.fx && Math.random() < 0.25) W.fx.burst(x + (Math.random() - 0.5) * 30, y - h * 0.6 + jy, 1, { color: ['#ffe27a', '#ffa6d8', '#8ff6ff'], kind: 'star', min: 10, max: 50, g: -40, life: 0.6, size: 4 });
 }
 export function drawCritters(g, W) {
   const t = W.t;
   for (const c of W.critters) {
     if (c.st === 'lost') { g.globalCompositeOperation = 'lighter'; drawGlow(g, c.px, c.py - 10, 26, '#ffd0e0', 0.22 + Math.sin(t * 3) * 0.06); g.globalCompositeOperation = 'source-over';
-      const by = c.py - 46 + Math.sin(t * 3 + c.px) * 2; g.fillStyle = 'rgba(255,250,240,0.92)'; g.strokeStyle = '#15131f'; g.lineWidth = 1.5; g.beginPath(); g.arc(c.px, by, 8, 0, 7); g.fill(); g.stroke(); g.beginPath(); g.moveTo(c.px - 3, by + 7); g.lineTo(c.px, by + 12); g.lineTo(c.px + 3, by + 7); g.fill();
+      const by = c.py - 60 + Math.sin(t * 3 + c.px) * 2; g.fillStyle = 'rgba(255,250,240,0.92)'; g.strokeStyle = '#15131f'; g.lineWidth = 1.5; g.beginPath(); g.arc(c.px, by, 8, 0, 7); g.fill(); g.stroke(); g.beginPath(); g.moveTo(c.px - 3, by + 7); g.lineTo(c.px, by + 12); g.lineTo(c.px + 3, by + 7); g.fill();
       drawIcon(g, 'heart', c.px, by, 10 * (1 + Math.sin(t * 6) * 0.08), '#ff6a8a'); }
     const a = c.st === 'home' ? Math.max(0, 1 - c.t / 0.45) : 1, k = c.st === 'home' ? 1 + c.t * 0.8 : 1;
-    if (c.st === 'happy' || c.st === 'follow') { const hy = c.py - 40 - (c.t * 18) % 14; g.globalAlpha = 0.8; drawIcon(g, 'heart', c.px + Math.sin(c.t * 5) * 5, hy, 7, '#ff8aa0'); g.globalAlpha = 1; }
-    if (a > 0) drawCritter(g, W, c.kind, c.px, c.py, c.hop, c.face, t, a, k);
+    if (c.st === 'happy' || c.st === 'follow') { const hy = c.py - 54 - (c.t * 18) % 14; g.globalAlpha = 0.8; drawIcon(g, 'heart', c.px + Math.sin(c.t * 5) * 5, hy, 7, '#ff8aa0'); g.globalAlpha = 1; }
+    if (a > 0) drawCritter(g, W, c.kind, c.px, c.py, c.hop, c.face, t, a, k, c.st, c.t);
   }
-  for (const f of W.friends) if (f.px) drawCritter(g, W, f.kind, f.px, f.py, f.hop, f.face, t);
+  for (const f of W.friends) if (f.px) drawCritter(g, W, f.kind, f.px, f.py, f.hop, f.face, t, 1, 1, 'idle');
 }
 // ---- the painted Mission Board in the hub (station 4) ----
 export function drawBoard(g, W, o) {
@@ -146,8 +157,9 @@ export function drawMissionHUD(g, W, w, h, s) {
     g.restore();
   }
   const L = (game && game.toasts) || []; const S = s * 1.3; L.forEach((o, i) => {
-    const k = Math.min(1, o.t / 0.25), out = Math.max(0, (o.t - (o.life - 0.3)) / 0.3), e = 1 - Math.pow(1 - k, 3), y = (40 + i * 46) * S - (1 - e) * 30 * S - out * 20 * S, cx = w / 2;
-    const bw = (o.done ? 150 : 110) * S, bh = 38 * S; g.save(); g.globalAlpha = (1 - out) * e;
+    o.sy = o.sy === undefined ? i : o.sy + (i - o.sy) * 0.22; if (o.bump) o.bump = Math.max(0, o.bump - 0.06); // v2.0: slots glide instead of jumping
+    const k = Math.min(1, o.t / 0.25), out = Math.max(0, (o.t - (o.life - 0.3)) / 0.3), e = 1 - Math.pow(1 - k, 3), y = (40 + o.sy * 46) * S - (1 - e) * 30 * S - out * 20 * S, cx = w / 2;
+    const bw = (o.done ? 150 : 110) * S, bh = 38 * S; g.save(); g.globalAlpha = (1 - out) * e; if (o.bump) { const bs = 1 + o.bump * 0.12; g.translate(cx, y + bh / 2); g.scale(bs, bs); g.translate(-cx, -(y + bh / 2)); }
     if (o.done) { g.globalCompositeOperation = 'lighter'; drawGlow(g, cx, y + bh / 2, 90 * S, o.color, 0.35); g.globalCompositeOperation = 'source-over'; }
     g.fillStyle = 'rgba(16,12,26,0.88)'; g.strokeStyle = o.done ? '#ffe27a' : o.color; g.lineWidth = 2 * S; g.beginPath(); g.roundRect(cx - bw / 2, y, bw, bh, 14 * S); g.fill(); g.stroke();
     drawMIcon(g, o.icon, cx - bw / 2 + 20 * S, y + bh / 2, 22 * S, o.color);

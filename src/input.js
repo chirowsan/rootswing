@@ -3,7 +3,7 @@ import { save } from './save.js';
 import { clamp } from './util.js';
 import { drawIcon } from './art.js';
 
-const BTN = ['jump', 'attack', 'dash', 'hook', 'parry', 'skill1', 'skill2', 'flask', 'pause', 'up', 'down', 'confirm'];
+const BTN = ['jump', 'attack', 'dash', 'hook', 'parry', 'skill1', 'skill2', 'flask', 'pause', 'up', 'down', 'confirm', 'swap'];
 export const input = {
   mx: 0, my: 0, // move axes -1..1
   held: {}, queued: {}, rel: {},
@@ -23,7 +23,7 @@ function release(b) { if (input.held[b]) input.rel[b] = true; input.held[b] = fa
 export function clearAll() { for (const b of BTN) { input.held[b] = false; input.queued[b] = false; input.rel[b] = false; } keyAxes.clear(); input.stick.active = false; touchMap.clear(); }
 
 // ---------- keyboard ----------
-const KEYMAP = { Space: 'jump', KeyZ: 'jump', KeyK: 'jump', KeyX: 'attack', KeyJ: 'attack', ShiftLeft: 'dash', ShiftRight: 'dash', KeyC: 'dash', KeyL: 'dash', KeyV: 'hook', KeyI: 'hook', KeyF: 'parry', KeyU: 'parry', KeyQ: 'skill1', Digit1: 'skill1', KeyR: 'skill2', Digit2: 'skill2', KeyH: 'flask', Digit3: 'flask', Escape: 'pause', KeyP: 'pause', Enter: 'confirm' };
+const KEYMAP = { Space: 'jump', KeyZ: 'jump', KeyK: 'jump', KeyX: 'attack', KeyJ: 'attack', ShiftLeft: 'dash', ShiftRight: 'dash', KeyC: 'dash', KeyL: 'dash', KeyV: 'hook', KeyI: 'hook', KeyF: 'parry', KeyU: 'parry', KeyQ: 'skill1', Digit1: 'skill1', KeyR: 'skill2', Digit2: 'skill2', KeyH: 'flask', Digit3: 'flask', Escape: 'pause', KeyP: 'pause', Enter: 'confirm', KeyT: 'swap', Digit4: 'swap', Tab: 'swap' };
 const keyAxes = new Set();
 const AXES = { ArrowLeft: 'L', KeyA: 'L', ArrowRight: 'R', KeyD: 'R', ArrowUp: 'U', KeyW: 'U', ArrowDown: 'D', KeyS: 'D' };
 function onKey(e, down) {
@@ -33,7 +33,7 @@ function onKey(e, down) {
   if (KEYMAP[c]) { if (e.repeat) { e.preventDefault(); return; } (down ? press : release)(KEYMAP[c]); e.preventDefault(); }
 }
 // ---------- gamepad ----------
-const PADMAP = { 0: 'jump', 2: 'attack', 1: 'dash', 5: 'hook', 4: 'parry', 6: 'skill1', 7: 'skill2', 3: 'flask', 9: 'pause', 12: 'up', 13: 'down' };
+const PADMAP = { 0: 'jump', 2: 'attack', 1: 'dash', 5: 'hook', 4: 'parry', 6: 'skill1', 7: 'skill2', 3: 'flask', 9: 'pause', 12: 'up', 13: 'down', 8: 'swap' };
 let padPrev = {};
 function pollPad() {
   const pads = navigator.getGamepads ? navigator.getGamepads() : []; let gp = null;
@@ -84,6 +84,7 @@ function onTouch(e, type) {
   for (const t of e.changedTouches) {
     const x = t.clientX, y = t.clientY;
     if (type === 'start') {
+      const sz = input.swapZone; if (sz && performance.now() - sz.t < 400 && Math.hypot(x - sz.x, y - sz.y) < sz.r) { touchMap.set(t.identifier, 'swap'); press('swap'); vibrate(8); continue; } // v2.0: tap the weapon badge to quick-swap style
       const b = hitButton(x, y);
       if (b) { touchMap.set(t.identifier, b); press(b); vibrate(8); continue; }
       if (x < input.w * 0.45) {

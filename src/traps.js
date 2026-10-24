@@ -4,6 +4,7 @@ import { TILE, rectsOverlap } from './util.js';
 import { drawGlow } from './art.js';
 import { kitDraw } from './paint.js';
 import { sfx } from './audio.js';
+import { init20, box20, update20, DRAW20, KINDS20 } from './traps20.js';
 export const HAZ = '#ff3d6e', HAZ_DK = '#5a1420';
 export const TRAP_TIMING = {
   spike: { idle: 1.6, warn: 0.6, up: 0.9, down: 0.25 }, // spikes peek + glint for 0.6 s before popping up
@@ -35,6 +36,7 @@ export class Traps {
       if (t.k === 'crusher') { o.off = (t.x % 3) * 1.1; let gy = t.y + 1; while (gy < W.map.h && !W.map.solid(t.x, gy) && W.map.get(t.x, gy) !== '=') gy++; o.ground = gy * TILE; }
       if (t.k === 'saw') { o.px = t.start * TILE + 12; o.dir = 1; }
       if (t.k === 'shooter') { o.off = (t.y % 2) * 1.1; o.fired = -1; }
+      if (KINDS20.includes(t.k)) init20(W, o); // v2.0 trap pack
       this.list.push(o);
     }
     for (const c of crumbles) { const g = this.list.find((o) => o.k === 'crumble' && o.y === c.y && o.x + o.n === c.x); if (g) g.n++; else this.list.push({ k: 'crumble', x: c.x, y: c.y, n: 1, st: 'solid', t: 0, cell: c.cell }); }
@@ -44,6 +46,7 @@ export class Traps {
     if (o.k === 'vent') { const p = trapPhase('vent', t + o.off); return p.st === 'on' ? { x: o.x * TILE + 2, y: (o.y + 1) * TILE - 104, w: 20, h: 100 } : null; }
     if (o.k === 'crusher') { const y = this.crusherY(o, t), p = trapPhase('crusher', t + o.off); return p.st === 'fall' || (p.st === 'on' && p.k < 0.25) ? { x: o.x * TILE + 12 - 20, y, w: 40, h: 30 } : null; }
     if (o.k === 'saw') return { x: o.px - 12, y: o.y * TILE + 12 - 12, w: 24, h: 24 };
+    if (KINDS20.includes(o.k)) return box20(o, t);
     return null;
   }
   crusherY(o, t) {
@@ -58,6 +61,7 @@ export class Traps {
       if (o.k === 'saw') { const x0 = o.x * TILE + 12, x1 = o.x2 * TILE + 12; o.px += o.dir * TRAP_TIMING.saw.speed * dt; if (o.px > x1) { o.px = x1; o.dir = -1; } if (o.px < x0) { o.px = x0; o.dir = 1; } }
       if (o.k === 'crumble') { this.updateCrumble(o, dt); continue; }
       if (o.k === 'shooter') { this.updateShooter(o, t); continue; }
+      if (KINDS20.includes(o.k)) { update20(this, o, dt, t); continue; }
       const p = o.k === 'saw' ? null : trapPhase(o.k, t + o.off);
       if (p && p.st === 'warn' && o.lastSt !== 'warn' && Math.abs(ox - P.cx) < 420) sfx('telegraph', 0.05);
       if (o.k === 'crusher' && p.st === 'on' && o.lastSt === 'fall') { W.fx.shake(Math.abs(ox - P.cx) < 300 ? 0.18 : 0.05); W.fx.burst(ox + 12, o.ground, 10, { color: ['#c8b8a8', '#8a7a70'], max: 160, g: 300, size: 4 }); sfx('thump', 0.12); }
@@ -165,3 +169,4 @@ export class Traps {
     if (p.st === 'warn') drawGlow(g, mx + o.dir * 4, my, 18 + 12 * p.k, HAZ, 0.4 + 0.4 * p.k);
   }
 }
+Object.assign(Traps.prototype, DRAW20);

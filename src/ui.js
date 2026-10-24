@@ -75,7 +75,7 @@ export function showSettings(back) {
   const s = save.settings;
   show('settings', `<div class="card wide"><h2>Settings</h2><div class="scroll">
   ${row('Game speed', seg('speed', [[0.7, 'Very calm'], [0.8, 'Calm'], [0.9, 'Steady'], [1, 'Full']]), 'Slower = easier to control')}
-  ${row('Difficulty', seg('difficulty', [['relaxed', 'Relaxed'], ['normal', 'Normal'], ['tough', 'Tough']]), 'Relaxed: less damage, keep all glimmers')}
+  ${row('Difficulty', seg('difficulty', [['relaxed', 'Relaxed'], ['normal', 'Normal'], ['hard', 'Hard'], ['nightmare', 'Nightmare']]), 'Harder = more traps + foes, more stars')}
   ${row('Hook aim help', seg('hookAssist', [['true', 'On'], ['false', 'Off']]))}
   ${row('Screen shake', seg('shake', [['off', 'Off'], ['reduced', 'Low'], ['full', 'Full']]))}
   ${row('Left thumb', seg('leftStyle', [['stick', 'Stick'], ['pads', '◀ ▶ Buttons']]))}
@@ -148,7 +148,7 @@ export function showVictory(glim, stats) {
   const star = (on, i) => `<span class="star${on ? ' on' : ''}" style="animation-delay:${0.4 + i * 0.35}s"><svg viewBox="0 0 24 24" width="54" height="54"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.2l7.1-.6z" fill="${on ? '#ffe27a' : '#3a3450'}" stroke="#15131f" stroke-width="1.6" stroke-linejoin="round"/></svg></span>`;
   show('victory', `<div class="res-art win-art"></div><div class="res win"><h2>${stats.final ? 'The Great Root is restored!' : 'The furnace is calm!'}</h2>
   <div class="root-restored">${['#a6f05a', '#8ff6ff', '#ffa6d8', '#ffe27a'].map((c, i) => `<i style="background:${c};animation-delay:${i * 0.15}s"></i>`).join('')}</div>
-  <div class="stars">${[0, 1, 2].map((i) => star(i < st, i)).join('')}</div>${first ? '<b class="first">First victory!</b>' : ''}
+  <div class="stars">${[0, 1, 2].map((i) => star(i < st, i)).join('')}</div>${stats.bonus ? `<b class="first">${stats.diffLabel} bonus: +${stats.bonus} ★</b>` : ''}${first ? '<b class="first">First victory!</b>' : ''}
   <div class="res-glim">${ic('glimmer', '#ffe27a', 30)}<b data-count="${glim}">0</b></div>
   <div class="stats"><div><b>${stats.time}</b>⏱${stats.best ? ' <b class="first">BEST!</b>' : ''}</div><div><b>${stats.bestTime || stats.time}</b>🏆</div><div><b data-count="${stats.kills}">0</b>${ic('attack', '#fff', 16)}</div><div><b>${stats.treasures || 0}</b>${ic('glimmer', '#ffe27a', 16)}</div></div>
   ${stats.newVine ? `<div class="new-vine"><span style="background:linear-gradient(90deg,${stats.newVine.dark},${stats.newVine.light},${stats.newVine.dark})"></span>${ic('hook', stats.newVine.light, 22)} NEW!</div>` : ''}
@@ -185,9 +185,10 @@ export function showWardrobe() {
   const hats = HATS.map((h) => item('hat', h.id, (h.id === 'none' ? ic('hat', '#555', 30) : ic('hatx:' + h.id, '#fff', 40)), '', w.hat === h.id, h.id === 'none' || owns(m, 'hat:' + h.id))).join('');
   const vns = VINES.map((v) => item('vine', v.id, `<i class="sw vine" style="background:${v.rainbow ? 'linear-gradient(90deg,#ff5a5a,#ffd34a,#5ae07a,#5ab4ff,#b45aff)' : `linear-gradient(90deg,${v.dark},${v.light},${v.dark})`}"></i>`, '', (save.progress.vine || 'green') === v.id, vines.includes(v.id))).join('');
   const pets = ['none', ...CRITTERS].map((c) => item('pet', c, c === 'none' ? ic('pet', '#555', 30) : ic('spr:cr_' + c, '#fff', 40), '', w.pet === c, c === 'none' || owns(m, 'pet:' + c))).join('');
+  const wpns = ['blade', 'hammer', 'whip'].map((id) => item('wpn', id, ic('spr:w_' + id, '#fff', 40), '', (save.progress.weapon || 'blade') === id, id === 'blade' || !!save.progress.unlocks[id])).join(''); // v2.0 fighting styles
   const badges = BADGES.map((b) => `<span class="bd ${m.badges.includes(b.id) ? 'on' : ''}">${ic(b.icon, m.badges.includes(b.id) ? b.color : '#4a4462', 26)}${b.n ? `<small>${b.n}</small>` : ''}</span>`).join('');
   show('wardrobe', `<div class="card wide wardrobe"><div class="wr-main"><div class="hero-prev">${ic('hero:' + w.cape + ',' + w.hat, '#fff', 150)}</div>
-  <div class="scroll wr-rows"><div class="wr">${ic('cape', '#ffe27a', 24)}${capes}</div><div class="wr">${ic('hat', '#ffe27a', 24)}${hats}</div><div class="wr">${ic('hook', '#9be070', 24)}${vns}</div><div class="wr">${ic('pet', '#ff9ab0', 24)}${pets}</div>
+  <div class="scroll wr-rows"><div class="wr">${ic('blade', '#bff5c8', 24)}${wpns}</div><div class="wr">${ic('cape', '#ffe27a', 24)}${capes}</div><div class="wr">${ic('hat', '#ffe27a', 24)}${hats}</div><div class="wr">${ic('hook', '#9be070', 24)}${vns}</div><div class="wr">${ic('pet', '#ff9ab0', 24)}${pets}</div>
   <div class="wr badges">${badges}</div></div></div>
   <div class="col"><button class="big primary" data-act="board">${ic('board', '#15131f', 22)}</button></div></div>`, 'boardwrap');
   { const b = buttons(), j = b.findIndex((x) => x.dataset.v === lastWear), k = j >= 0 ? j : b.findIndex((x) => x.classList.contains('on')); if (k >= 0) { focusIdx = k; markFocus(); } }

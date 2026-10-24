@@ -151,7 +151,7 @@ export function drawRig(g, e, typ, P, H, hotK, opts = {}) {
   opts.under && opts.under(g);
   const k = drawE(g, fr, 0, 0, H, flip);
   if (hotK > 0) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, hotK); drawE(g, fr, 0, 0, H, flip, eTint(fr, '#ff3040')); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; }
-  if (e.flash > 0) { g.globalAlpha = Math.min(1, e.flash * 7); drawE(g, fr, 0, 0, H, flip, eTint(fr, '#ffffff')); g.globalAlpha = 1; }
+  if (e.flash > 0) { g.globalAlpha = Math.min(1, e.flash * 14); drawE(g, fr, 0, 0, H, flip, eTint(fr, '#ffffff')); g.globalAlpha = 1; }
   opts.over && opts.over(g);
   if (P.smear === 'arc' || P.smear === 'puff' || P.smear === 'zap') smear(g, P.smear, H, f, P.sk);
   g.restore();

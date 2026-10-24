@@ -55,6 +55,8 @@ export function computeSupports(map, anchors = [], traps = []) {
     else if (t.k === 'spike' || t.k === 'vent') { const f = down(t.x, t.y + 1, null); p.sup = f.d === 0 ? { type: 'floor', ends: [f] } : { type: 'trunk', ends: [f], cols: [t.x] }; }
     else if (t.k === 'crusher') p.sup = { type: 'rope', ends: [up(t.x, t.y - 1)] };
     else if (t.k === 'saw') p.sup = runSupport(t.x, t.x2, t.y, null, true);
+    else if (t.k === 'pendulum' || t.k === 'stalactite') p.sup = { type: 'rope', ends: [up(t.x, t.y - 1)] }; // v2.0 trap pack
+    else if (t.k === 'vine' || t.k === 'spore' || t.k === 'roller' || t.k === 'gate') { const f = down(t.x, t.y + 1, null); p.sup = f.d === 0 ? { type: 'floor', ends: [f] } : { type: 'trunk', ends: [f], cols: [t.x] }; }
     pieces.push(p);
   }
   const byId = new Map(pieces.map((p) => [p.id, p]));

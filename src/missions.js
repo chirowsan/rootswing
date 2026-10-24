@@ -27,7 +27,7 @@ export const CAPES = [
 ];
 export const HATS = [{ id: 'none' }, { id: 'flower' }, { id: 'acorn' }, { id: 'leafcrown' }, { id: 'mush' }, { id: 'crown' }];
 export const REWARDS = [ // earn order (each new mission shows the next reward it will give)
-  'cape:leaf', 'vine:berry', 'pet:bunny', 'hat:flower', 'cape:sky', 'pet:squirrel', 'vine:frost', 'hat:acorn', 'cape:berry',
+  'cape:leaf', 'wpn:hammer', 'vine:berry', 'pet:bunny', 'wpn:whip', 'hat:flower', 'cape:sky', 'pet:squirrel', 'vine:frost', 'hat:acorn', 'cape:berry',
   'pet:beetle', 'hat:leafcrown', 'vine:sunset', 'cape:gold', 'pet:hog', 'hat:mush', 'cape:night', 'hat:crown', 'vine:rainbow',
 ];
 export const BADGES = [...TYPE_IDS.map((t) => ({ id: 'b_' + t, icon: TYPES[t].icon, color: TYPES[t].color })),
@@ -48,13 +48,14 @@ export function migrateSave(p) {
   const fresh = !p.missions; const m = Object.assign(defaultMissions(), p.missions || {});
   m.wardrobe = Object.assign(defaultMissions().wardrobe, m.wardrobe || {}); m.daily = Object.assign(defaultMissions().daily, m.daily || {});
   for (const k of ['active', 'badges', 'owned']) if (!Array.isArray(m[k])) m[k] = [];
-  m.ver = MVER; p.missions = m; p.saveVer = 18;
+  m.ver = MVER; p.missions = m; p.saveVer = 20; // v2.0: fighting styles live in progress.unlocks (blade/hammer/whip); old saves keep their weapon
+  p.unlocks = Object.assign({ blade: true }, p.unlocks || {}); if (!p.weapon) p.weapon = 'blade';
   if (!m.active.length) fillMissions(m);
   return fresh;
 }
-const M = () => { if (!save.progress.missions) migrateSave(save.progress); return save.progress.missions; };
+const M = () => { if (!save.progress.missions || (save.progress.saveVer || 0) < 20) migrateSave(save.progress); return save.progress.missions; };
 export const missions = M;
-export const owns = (m, r) => m.owned.includes(r);
+export const owns = (m, r) => m.owned.includes(r) || (r.startsWith('wpn:') && !!(save.progress.unlocks || {})[r.slice(4)]);
 export function nextReward(m) { const used = new Set(m.active.map((a) => a.reward)); return REWARDS.find((r) => !owns(m, r) && !used.has(r)) || 'glim:25'; }
 export function makeMission(m, rng = makeRng((0x51ed + m.made * 7919) >>> 0)) {
   const busy = new Set(m.active.map((a) => a.type)), today = dayKey();
@@ -89,7 +90,8 @@ export function missionEvent(name, data, m = M()) {
 export function grant(m, r) {
   if (r.startsWith('glim:')) { save.progress.glimmers += +r.slice(5); save.progress.totalGlimmers += +r.slice(5); return r; }
   if (!owns(m, r)) m.owned.push(r);
-  const [k, v] = r.split(':'); if (k === 'cape' || k === 'hat' || k === 'pet') m.wardrobe[k] = v; else if (k === 'vine') save.progress.vine = v; // wear it right away
+  const [k, v] = r.split(':'); if (k === 'wpn') { save.progress.unlocks[v] = true; save.progress.weapon = v; return r; } // v2.0: a new fighting style, equipped right away
+  if (k === 'cape' || k === 'hat' || k === 'pet') m.wardrobe[k] = v; else if (k === 'vine') save.progress.vine = v; // wear it right away
   return r;
 }
 export function completeMission(m, mi) {
@@ -102,7 +104,7 @@ export function completeMission(m, mi) {
 }
 // ---- wardrobe ----
 export function unlockedVines() { const st = save.progress.totalStars || 0, m = M(); return VINES.filter((v) => v.mission ? owns(m, 'vine:' + v.id) : st >= v.stars); }
-export function wear(kind, id) { const m = M(); if (kind === 'vine') { if (unlockedVines().some((v) => v.id === id)) save.progress.vine = id; }
+export function wear(kind, id) { const m = M(); if (kind === 'wpn') { if (id === 'blade' || (save.progress.unlocks || {})[id]) save.progress.weapon = id; writeSave(); return; } if (kind === 'vine') { if (unlockedVines().some((v) => v.id === id)) save.progress.vine = id; }
   else if (id === 'none' || owns(m, kind + ':' + id)) m.wardrobe[kind] = id; writeSave(); }
 // ---- Daily Challenge: one seeded run per real (local) day, with one cosmetic/damage modifier ----
 export function dayKey(d = new Date()) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }

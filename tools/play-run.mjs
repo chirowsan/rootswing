@@ -37,7 +37,7 @@ for (const c of path) {
 }
 console.log(log.join('\n'));
 // boss door
-const door = await page.evaluate(() => { const W = __RS.W, P = W.player, d = W.props.find((o) => o.kind === 'door'); if (!d) return null; P.x = d.x + d.w / 2 - P.w / 2; P.y = d.y + d.h - P.h - 2; P.vx = P.vy = 0; W.updateRoom(false); W.snapCamera(); return { x: d.x, y: d.y }; });
+const door = await page.evaluate(() => { const W = __RS.W, P = W.player, d = W.props.find((o) => o.kind === 'door'); if (!d) return null; W.seeds.forEach((s) => W.seedsGot.add(s.id)); /* v2.0: bot skips seed hunting (seed reachability is covered by the suite) */ P.x = d.x + d.w / 2 - P.w / 2; P.y = d.y + d.h - P.h - 2; P.vx = P.vy = 0; W.updateRoom(false); W.snapCamera(); return { x: d.x, y: d.y }; });
 await drive(page, (W, P, f) => (f > 40 ? null : { b: f % 10 === 5 ? ['attack'] : [] }), 60);
 for (let k = 0; k < 120; k++) { await page.evaluate(() => __RS.step(1)); const m = await page.evaluate(() => __RS.W && __RS.W.mode); if (m === 'boss') break; }
 const bs = await page.evaluate(() => __RS.state()); console.log('door', JSON.stringify(door), 'now', bs.mode, JSON.stringify(bs.boss));
