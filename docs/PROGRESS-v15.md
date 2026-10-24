@@ -9,3 +9,5 @@
 - 08:08 full suite 64/65 (biome-2 shellback test broke: start room layout changed); test now places Sprig on a flat trap-free stretch; re-running
 - 08:14 full suite 65/65 PASS; chunk shots re-shot + map-after regenerated; version bumped to 1.5.0 / vc7
 - 08:19 signed APK+AAB 1.5.0 (vc7) built; cert SHA-256 6e59e14a…d8de matches
+- 08:25 PDT shipped v1.5.0: main+tag pushed (97a7848), gh-pages deployed (f5cf050), release https://github.com/chirowsan/rootswing/releases/tag/v1.5.0 (APK 7,012,618 B, AAB 6,824,396 B, source zip 19,128,412 B w/o shots/dist/art intermediates). Live: HTTP 200, bundle md5 matches dist, 0 console errors, run has 3 seeds + 35 traps of 6 kinds.
+- Self-score (level design): 7/10. Readability 7, objective 8, traps 7.5, ramp 7. Gaps: 37-chunk pool repeats over a 45-room run; not playtested by kids or on a real phone; validator skips chests behind breakable secret walls.
