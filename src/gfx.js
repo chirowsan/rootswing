@@ -44,7 +44,7 @@ export function pattern(g, n, scale) {
 }
 // v1.3 painted hero frame: [x, y, w, h, faceX, faceY] in hero.webp; white silhouette cached for hurt flashes
 export function heroFlash(n) {
-  const H = G.hero; let c = H.cache.get(n); if (c) return c; const f = H.f[n]; c = document.createElement('canvas'); c.width = f[2]; c.height = f[3];
+  const H = G.hero; if (!H.f[n]) n = 'idle0'; let c = H.cache.get(n); if (c) return c; const f = H.f[n]; c = document.createElement('canvas'); c.width = f[2]; c.height = f[3];
   const x = c.getContext('2d'); x.drawImage(H.img, f[0], f[1], f[2], f[3], 0, 0, f[2], f[3]); x.globalCompositeOperation = 'source-in'; x.fillStyle = '#fff'; x.fillRect(0, 0, f[2], f[3]); H.cache.set(n, c); return c;
 }
 // v1.4 enemy animation frames (enemies.webp): f[name] = [x, y, w, h, pivotX, hRel, pad]; ink border + rim are baked in

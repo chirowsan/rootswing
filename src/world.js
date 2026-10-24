@@ -14,6 +14,9 @@ import { save, diff, writeSave } from './save.js';
 import { lineClear, moveBody } from './physics.js';
 import { WEAPONS } from './weapons.js';
 import { vibrate, input } from './input.js';
+import { Traps } from './traps.js';
+import { buildGuides, drawGuidesBack, drawGuidesFront } from './guides.js';
+import { initSeeds, spawnSeed, updateSeeds, drawSeeds, drawGate, bumpGate } from './objective.js';
 
 export const ANCHOR_GLOW = '#5ff2e8'; // v1.2: every hook anchor glows the same cyan
 export const VIEW_H = 340; // v1.0/v1.1 view height (title world)
@@ -39,6 +42,7 @@ export class World {
     this.fullRoom = { x: TILE, y: 0, w: (this.map.w - 2) * TILE, h: this.map.h * TILE };
     const stats = { ...playerStats(), ...(opts.player || {}) };
     let start = L.spawns.find((s) => s.c === 'P');
+    initSeeds(this, opts.seeds);
     this.spawnRng = makeRng((this.seed ^ 0x9e3779b9) >>> 0);
     for (const s of L.spawns) this.spawnEntity(s);
     let px = start ? start.x * TILE + 12 : 100, py = start ? (start.y + 1) * TILE : 100;
@@ -46,7 +50,7 @@ export class World {
     this.player = new Player(px - 9, py - 34, stats);
     if (opts.cellIndex !== undefined && this.cells[opts.cellIndex]) { const c = this.cells[opts.cellIndex]; this.lastCheckpoint = opts.cellIndex; for (const o of this.props) if (o.kind === 'shrine' && this.cellAt(o.x + o.w / 2, o.y + o.h - 4) === c) o.lit = true; }
     this.room = this.fullRoom; this.cam = { x: px - 300, y: py - 200 }; this.updateRoom(true); this.snapCamera();
-    this.chunkCache = new Map(); this.rs = 0; this.bg = null; this.hazTiles = [];
+    this.chunkCache = new Map(); this.rs = 0; this.bg = null; this.hazTiles = []; this.traps = new Traps(this, L.traps || []); this.guides = buildGuides(this);
     for (let y = 0; y < this.map.h; y++) for (let x = 0; x < this.map.w; x++) { const c = this.map.get(x, y); if (c === '^' || c === 'v' || c === '~') this.hazTiles.push({ x, y, c }); }
     this.viewH = viewHFor(mode); this.heroK = heroKFor(mode); this.bossIntro = mode === 'boss'; this.countdown = mode === 'run' || mode === 'boss' ? 1.6 : 0; this.fade = 1;
     playSong(mode === 'hub' ? 'hub' : mode === 'boss' ? 'boss' : mode === 'tutorial' ? 'calm' : this.stage ? 'caverns' : 'biome');
@@ -69,6 +73,7 @@ export class World {
       case 'g': for (let i = 0; i < 5; i++) this.pickups.push({ kind: 'glim', x: wx + (i - 2) * 9, y: wy - 16 - Math.abs(i - 2) * 4, vx: 0, vy: 0, t: 1, float: true }); break;
       case 'F': this.props.push({ kind: 'fountain', x: wx - 18, y: wy - 40, w: 36, h: 40, id: 'F' + s.x + '_' + s.y, open: this.opened.has('F' + s.x + '_' + s.y) }); break;
       case 'W': this.props.push({ kind: 'pedestal', x: wx - 14, y: wy - 30, w: 28, h: 30, id: 'W' + s.x + '_' + s.y, open: this.opened.has('W' + s.x + '_' + s.y), weapon: this.pickWeapon() }); break;
+      case 'Q': spawnSeed(this, s); break;
       case 'L': this.lights.push({ x: wx, y: s.y * TILE + 12, lantern: true }); break;
       case 'D': this.props.push({ kind: 'door', x: wx - 20, y: wy - 60, w: 40, h: 60 }); break;
       case '1': case '2': case '3': case '4': case '5': case '6': case '7':
@@ -137,7 +142,7 @@ export class World {
     const ax = P.cx, ay = P.cy;
     for (const e of this.enemies) { if (e.dead) continue; const near = Math.abs(e.cx - ax) < 640 && Math.abs(e.cy - ay) < 420; if (near || e.boss && e.st !== 'sleep') e.update(this, dt); }
     this.enemies = this.enemies.filter((e) => !e.dead);
-    this.updateShots(dt); this.updateBombs(dt); this.updateWaves(dt); this.updatePillars(dt); this.updateSentries(dt); this.updatePickups(dt);
+    this.updateShots(dt); this.updateBombs(dt); this.updateWaves(dt); this.updatePillars(dt); this.updateSentries(dt); this.updatePickups(dt); this.traps.update(dt); updateSeeds(this, dt);
     for (const m of this.markers) m.t += dt; this.markers = this.markers.filter((m) => m.t < m.life);
     for (const p of this.props) if (p.kind === 'trigger' && !p.fired && Math.abs(P.cx - p.x) < 20 && Math.abs(P.cy - p.y) < 120) { p.fired = true; this.emit('trigger', p.n); }
     this.fx.update(dt); this.updateCamera(dt);
@@ -169,11 +174,12 @@ export class World {
   }
   tryInteract(p) {
     const o = this.interactable(p); if (!o || !p.onGround) return false;
+    if (o.kind === 'chest' || o.kind === 'fountain' || o.kind === 'pedestal') this.game.treasures = (this.game.treasures || 0) + 1;
     if (o.kind === 'chest') { o.open = true; this.opened.add(o.id); sfx('chest'); this.fx.burst(o.x + 14, o.y + 4, 20, { color: ['#ffe27a', '#fff'], max: 200, kind: 'star', g: 200 }); this.dropGlims(o.x + 14, o.y, rand.int(10, 16)); if (rand.chance(0.5)) this.pickups.push({ kind: 'heart', x: o.x + 14, y: o.y - 10, vx: rand.range(-60, 60), vy: -200, t: 0 }); this.emit('chest'); return true; }
     if (o.kind === 'fountain') { o.open = true; this.opened.add(o.id); p.flasks = p.maxFlasks; p.healLeft += p.maxHp * 0.3; sfx('flask'); this.fx.burst(o.x + 18, o.y + 10, 30, { color: ['#9ff0ff', '#e8ffff'], g: -60, max: 160, kind: 'star', life: 1 }); this.fx.text(o.x + 18, o.y - 10, 'Flasks refilled!', '#bff', 13); return true; }
     if (o.kind === 'pedestal') { o.open = true; this.opened.add(o.id); p.weapon = o.weapon; sfx('unlock'); this.fx.ring(o.x + 14, o.y, 50, WEAPONS[o.weapon].color, 0.5, 5); this.fx.text(o.x + 14, o.y - 16, WEAPONS[o.weapon].name + '!', WEAPONS[o.weapon].color, 14); this.emit('weapon'); return true; }
     if (o.kind === 'station') { this.game.openStation(o.n); return true; }
-    if (o.kind === 'door') { sfx('door'); this.game.useDoor(this); return true; }
+    if (o.kind === 'door') { if (this.mode === 'run' && bumpGate(this, o)) return true; sfx('door'); this.game.useDoor(this); return true; }
     return false;
   }
   // ---------------- combat plumbing ----------------
@@ -397,9 +403,9 @@ export class World {
       const dir = (this.cam.vx || 0) >= 0 ? 1 : -1; outer: for (const cx of [dir > 0 ? c1 + 1 : c0 - 1, dir > 0 ? c0 - 1 : c1 + 1]) for (let cy = r0 - 1; cy <= r1 + 1; cy++) { if (cx < 0 || cy < 0 || cx * CHUNK_T >= this.map.w || cy * CHUNK_T >= this.map.h) continue; const k = cx + ',' + cy; if (!this.chunkCache.has(k)) { if (this.chunkCache.size >= CHUNK_KEEP) this.chunkCache.delete(this.chunkCache.keys().next().value); this.chunkCache.set(k, G.ready ? renderPaintedChunk(this.map, cx, cy, rs, B) : renderTileChunk(this.map, cx, cy, rs, B)); break outer; } }
     }
     this._cm0 = this.chunkMade;
-    mk && mk('tiles'); this.drawHazards(g, vx0, vx1, vy0, vy1);
-    this.drawProps(g);
-    this.drawAnchors(g);
+    mk && mk('tiles'); this.drawHazards(g, vx0, vx1, vy0, vy1); this.traps.draw(g, vx0, vx1, vy0, vy1);
+    drawGuidesFront(g, this); this.drawProps(g); for (const o of this.props) if (o.kind === 'door') drawGate(g, this, o); drawSeeds(g, this);
+    drawGuidesBack(g, this); this.drawAnchors(g);
     this.drawMarkers(g);
     for (const s of this.sentries) this.drawSentry(g, s);
     mk && mk('props'); for (const e of this.enemies) if (e.x + e.w > vx0 && e.x < vx1 && e.y + e.h > vy0 && e.y < vy1) e.draw(g, this);

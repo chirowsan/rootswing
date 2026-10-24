@@ -1,6 +1,7 @@
+import { vineColors } from './objective.js';
 // Sprig, the hero: movement, grappling vine, combat, drawing.
 import { TILE, clamp, approach, sign, lerp } from './util.js';
-import { moveBody, groundBelow, touchingWall, hazardAt } from './physics.js';
+import { moveBody, groundBelow, touchingWall, hazardAt, HERO, isPlank } from './physics.js';
 import { input, pressed, held, released, vibrate } from './input.js';
 import { sfx } from './audio.js';
 import { WEAPONS, GADGETS } from './weapons.js';
@@ -8,7 +9,7 @@ import { diff, save } from './save.js';
 import { PAL, drawGlow } from './art.js';
 import { G, has, spr, sprAspect, shaded, heroFlash } from './gfx.js';
 
-const C = { RUN: 182, ACC_G: 1750, DEC_G: 2100, ACC_A: 1200, GRAV: 1480, GRAV_FALL: 1720, JUMP: 515, CUT: 0.45, MAXFALL: 600, SLIDE: 115, WJX: 235, WJY: 470, DASH: 470, DASH_T: 0.17, DASH_CD: 0.38 };
+const C = HERO; // unchanged values (moved to physics.js in v1.5 so the validator shares them)
 export const HERO_K = 1.22; // v1.2 visual scale of the hero rig around the feet (hitbox unchanged)
 export const HERO_PX = 47 / 223; // v1.3 world units per painted-frame pixel (idle frame = 44 units tall before HERO_K)
 // front-fist anchor in frame pixels per painted pose (weapon grip); measured from the annotated sheets
@@ -87,7 +88,7 @@ export class Player {
       }
       if (released('jump') && this.vy < 0 && !this.wallJumping) this.vy *= C.CUT;
       if (this.vy >= 0) this.wallJumping = false;
-      if (pressed('down') && this.onGround && W.map.get(Math.floor(this.cx / TILE), Math.floor((this.y + this.h + 2) / TILE)) === '=') { this.drop = 0.25; this.y += 2; }
+      if (pressed('down') && this.onGround && isPlank(W.map.get(Math.floor(this.cx / TILE), Math.floor((this.y + this.h + 2) / TILE)))) { this.drop = 0.25; this.y += 2; }
     }
     this.postMove(W, dt);
   }
@@ -467,9 +468,9 @@ export class Player {
     const mx = (x0 + h.hx) / 2 - (h.hy - y0) / L0 * twang, my = (y0 + h.hy) / 2 + sag + (h.hx - x0) / L0 * twang;
     const pt = (k) => { const u = 1 - k; return [u * u * x0 + 2 * u * k * mx + k * k * h.hx, u * u * y0 + 2 * u * k * my + k * k * h.hy]; };
     g.lineCap = 'round'; g.strokeStyle = PAL.ink; g.lineWidth = 4.6; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(mx, my, h.hx, h.hy); g.stroke();
-    g.strokeStyle = '#3f7a32'; g.lineWidth = 3; g.stroke();
+    const VC = vineColors(); g.strokeStyle = VC.dark; g.lineWidth = 3; g.stroke();
     const L = Math.hypot(h.hx - x0, h.hy - y0), n = Math.max(4, Math.floor(L / 7)), dx = (h.hx - x0) / (L || 1), dy = (h.hy - y0) / (L || 1);
-    g.strokeStyle = '#9be070'; g.lineWidth = 1.1; g.beginPath(); // twisting highlight strand
+    g.strokeStyle = VC.light; g.lineWidth = 1.1; g.beginPath(); // twisting highlight strand
     for (let i = 0; i <= n; i++) { const k = i / n, [px, py] = pt(k), o = Math.sin(k * L * 0.35 + t * 6) * 1.1; i ? g.lineTo(px - dy * o, py + dx * o) : g.moveTo(px - dy * o, py + dx * o); } g.stroke();
     if (has('leaf')) for (let i = 1; i < n; i += 3) { const k = i / n, [px, py] = pt(k), side = (i % 2 ? 1 : -1); g.save(); g.translate(px, py); g.rotate(Math.atan2(dy, dx) + side * 1.1 + Math.sin(t * 5 + i) * 0.2); spr(g, 'leaf', 0, 0, 6, 0.1, 0.9); g.restore(); }
   }

@@ -134,10 +134,14 @@ export function showDeath(info, kept, found, stats) {
   countUp();
 }
 export function showVictory(glim, stats) {
-  const first = save.progress.wins === 1;
-  show('victory', `<div class="res-art win-art"></div><div class="res win"><h2>${stats.final ? 'The Drowned Bloom rests!' : 'The furnace is calm!'}</h2><p class="big-t">${stats.final ? 'Light returns to the Glowroots and the Overpass.' : 'Flowers bloom across Rustvine Overpass.'}${first ? ' <b class="first">First victory!</b>' : ''}</p>
-  <div class="res-glim">${ic('glimmer', '#ffe27a', 30)}<b data-count="${glim}">0</b><span>glimmers banked</span></div>
-  <div class="stats"><div><b data-count="${stats.kills}">0</b>baddies popped</div><div><b>${stats.time}</b>run time</div><div><b>${save.progress.wins}</b>total wins</div></div>
+  const first = save.progress.wins === 1, st = stats.stars || 1;
+  const star = (on, i) => `<span class="star${on ? ' on' : ''}" style="animation-delay:${0.4 + i * 0.35}s"><svg viewBox="0 0 24 24" width="54" height="54"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.2l7.1-.6z" fill="${on ? '#ffe27a' : '#3a3450'}" stroke="#15131f" stroke-width="1.6" stroke-linejoin="round"/></svg></span>`;
+  show('victory', `<div class="res-art win-art"></div><div class="res win"><h2>${stats.final ? 'The Great Root is restored!' : 'The furnace is calm!'}</h2>
+  <div class="root-restored">${['#a6f05a', '#8ff6ff', '#ffa6d8', '#ffe27a'].map((c, i) => `<i style="background:${c};animation-delay:${i * 0.15}s"></i>`).join('')}</div>
+  <div class="stars">${[0, 1, 2].map((i) => star(i < st, i)).join('')}</div>${first ? '<b class="first">First victory!</b>' : ''}
+  <div class="res-glim">${ic('glimmer', '#ffe27a', 30)}<b data-count="${glim}">0</b></div>
+  <div class="stats"><div><b>${stats.time}</b>⏱${stats.best ? ' <b class="first">BEST!</b>' : ''}</div><div><b>${stats.bestTime || stats.time}</b>🏆</div><div><b data-count="${stats.kills}">0</b>${ic('attack', '#fff', 16)}</div><div><b>${stats.treasures || 0}</b>${ic('glimmer', '#ffe27a', 16)}</div></div>
+  ${stats.newVine ? `<div class="new-vine"><span style="background:linear-gradient(90deg,${stats.newVine.dark},${stats.newVine.light},${stats.newVine.dark})"></span>${ic('hook', stats.newVine.light, 22)} NEW!</div>` : ''}
   ${unlockHtml()}
   <div class="col"><button class="big primary" data-act="toHub">${ic('door', '#15131f', 22)} Home to the Seedhouse</button></div></div>`, 'results');
   countUp();

@@ -25,7 +25,7 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
   const z = await E(page, () => { const W = __RS.W, P = W.player; const a = W.anchors.find((a) => a.kind === 'zip'); if (!a) return { none: 1 };
     P.x = a.x - 90; P.y = a.y + 60; P.vx = P.vy = 0; __RS.step(30); const d0 = Math.hypot(P.cx - a.x, P.cy - a.y); __RS.press('hook'); __RS.step(2); __RS.release('hook'); __RS.step(25); const d1 = Math.hypot(P.cx - a.x, P.cy - a.y); return { d0, d1 }; });
   ok('hook: zip pulls toward anchor', z.d1 < z.d0 * 0.6, JSON.stringify(z));
-  const c = await E(page, () => { __RS.start('run', { seed: 4242 }); __RS.god(true); __RS.manual(true); __RS.step(250); const W = __RS.W, P = W.player; let kills = 0, hits = 0; W.on((n) => { if (n === 'kill') kills++; if (n === 'attack') hits++; });
+  const c = await E(page, () => { __RS.start('run', { seed: 4242 }); __RS.god(true); __RS.manual(true); __RS.step(250); const W = __RS.W, P = W.player; { const c = W.cells.find((c) => !c.branch && W.enemies.some((e) => !e.dead && e.cell === c.index && !e.boss)); const p = W.findFloorIn(c); P.x = p.x; P.y = p.y - P.h; P.vx = P.vy = 0; __RS.step(30); } /* v1.5: the start room is a calm intro */ let kills = 0, hits = 0; W.on((n) => { if (n === 'kill') kills++; if (n === 'attack') hits++; });
     for (let f = 0; f < 1500 && !kills; f++) { const live = W.enemies.filter((e) => !e.dead && e.cell === W.curCell.index); const e = live[0]; if (!e) break; const dx = e.x + e.w / 2 - P.cx;
       __RS.axes(Math.abs(dx) > 26 ? Math.sign(dx) : 0, 0); if (f % 9 === 0) __RS.press('attack'); if (f % 9 === 3) __RS.release('attack'); if (e.y + e.h < P.y - 30 && P.onGround && f % 30 === 0) { __RS.press('jump'); } if (f % 30 === 8) __RS.release('jump'); __RS.step(1); }
     __RS.axes(0, 0); return { kills, hits, glim: W.runGlim }; });
@@ -36,6 +36,7 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
   const r = await E(page, () => { __RS.start('run', { seed: 2026 }); __RS.god(true); __RS.manual(true); __RS.step(200); const W = __RS.W, P = W.player, T = __RS.TILE;
     const path = W.cells.filter((c) => !c.branch); let entered = 0;
     for (const c of path) { const p = W.findFloorIn(c); P.x = p.x; P.y = p.y - P.h; P.vx = P.vy = 0; __RS.step(20); if (W.curCell === c) entered++; }
+    for (const s of W.seeds) { P.x = s.x - P.w / 2; P.y = s.y - P.h / 2; P.vx = P.vy = 0; __RS.step(15); } // v1.5: the boss gate needs 3 Root Seeds
     const d = W.props.find((o) => o.kind === 'door'); P.x = d.x + d.w / 2 - P.w / 2; P.y = d.y + d.h - P.h - 2; __RS.step(30); __RS.press('attack'); __RS.step(1); __RS.release('attack'); __RS.step(5);
     return { cells: path.length, entered, mode: __RS.W.mode, saved: !!(__RS.save.run && __RS.save.run.boss) }; });
   ok('run: every main-path cell enterable', r.entered === r.cells, `${r.entered}/${r.cells}`);
@@ -48,6 +49,7 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
   const r2 = await E(page, () => { __RS.god(true); __RS.manual(true); __RS.step(120); const W = __RS.W, P = W.player;
     const path = W.cells.filter((c) => !c.branch); let entered = 0, cps = 0; W.on((n) => { if (n === 'checkpoint') cps++; });
     for (const c of path) { const p = W.findFloorIn(c); P.x = p.x; P.y = p.y - P.h; P.vx = P.vy = 0; __RS.step(20); if (W.curCell === c) entered++; }
+    for (const s of W.seeds) { P.x = s.x - P.w / 2; P.y = s.y - P.h / 2; P.vx = P.vy = 0; __RS.step(15); } // v1.5: the boss gate needs 3 Root Seeds
     const d = W.props.find((o) => o.kind === 'door'); P.x = d.x + d.w / 2 - P.w / 2; P.y = d.y + d.h - P.h - 2; __RS.step(30); __RS.press('attack'); __RS.step(1); __RS.release('attack'); __RS.step(5);
     return { cells: path.length, entered, cps, mode: __RS.W.mode, stage: __RS.W.stage, boss: __RS.W.boss && __RS.W.boss.type }; });
   ok('biome 2: every main-path cell enterable, checkpoints fire, door -> final boss', r2.entered === r2.cells && r2.cps >= 2 && r2.mode === 'boss' && r2.stage === 1 && r2.boss === 'drowned', JSON.stringify(r2));
@@ -91,11 +93,17 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
       const path = r.R.cells.filter((c) => !c.branch); let last = 0; path.forEach((c, i) => { if (c.kind === 'checkpoint' || c.kind === 'exit') { maxGap = Math.max(maxGap, i - last); last = i; } }); }
     ok(`long map (${biome}): 40-60 rooms per biome over ${n} seeds`, lo >= 40 && hi <= 60, `min ${lo} max ${hi} avg ${(total / n).toFixed(1)}`);
     ok(`long map (${biome}): checkpoint every <= 12 rooms`, maxGap <= 12, `largest main-path gap ${maxGap}`);
-    ok(`reachability (${biome}): every door/chest/weapon/boss door reachable, ${n} seeds`, bad === 0, `${bad} seeds with problems`); }
+  }
+  // v1.5: the old tile heuristic (tools/reach.mjs) is replaced by the physics-model validator (src/reach.js) — see the v1.5 block below
   const a = generateRun(4242, 'caverns'), b = generateRun(4242, 'caverns'); ok('generator deterministic per seed', JSON.stringify(a.map.t.slice(0, 4000)) === JSON.stringify(b.map.t.slice(0, 4000))); }
 // 7c. v1.3 biome 2: new enemies spawn, telegraph, hurt and die; mini-boss; new weapons; Ember Heart; minimap / pause map; streaming
 { const { browser, page, errors } = await fresh();
   const en = await E(page, () => { __RS.start('run', { seed: 77, stage: 1 }); __RS.god(true); __RS.manual(true); __RS.skipCountdown(); __RS.step(150); const W = __RS.W, P = W.player, out = {};
+    { // v1.5: chunk layouts changed, so put Sprig on a flat, trap-free floor stretch of 12 tiles first
+      const M = W.map, T = __RS.TILE, trapAt = (x, y) => W.traps && W.traps.list.some((o) => Math.abs(o.x - x) <= 1 && Math.abs(o.y - y) <= 2);
+      let spot = null; for (let y = 3; y < M.h - 1 && !spot; y++) for (let x = 2; x < M.w - 14 && !spot; x++) { let good = true; for (let i = 0; i < 12 && good; i++) { const c = M.get(x + i, y + 1); good = c === '#' && !M.solid(x + i, y) && !M.solid(x + i, y - 1) && !M.solid(x + i, y - 2) && M.get(x + i, y) === '.' && !trapAt(x + i, y); } if (good) spot = { x, y }; }
+      if (spot) { P.x = (spot.x + 2) * T; P.y = (spot.y + 1) * T - P.h; P.vx = P.vy = 0; __RS.step(30); }
+    }
     for (const type of ['lurefish', 'jelly', 'shellback']) { for (const e of W.enemies) if (e.type !== 'tidegolem') e.dead = true; let hits = 0; const hp0 = 1e9; W.spawnEnemy(type, P.cx + 110, P.y - 10); const e = W.enemies[W.enemies.length - 1]; const st = new Set(); const php = P.hp; let dmg = 0;
       __RS.god(false); P.hp = P.maxHp = 9999; for (let f = 0; f < 600; f++) { st.add(e.st); __RS.step(1); } dmg = 9999 - P.hp; __RS.god(true);
       let f = 0; for (; f < 3000 && !e.dead; f++) { const dx = e.cx - P.cx; P.x += Math.sign(dx) * Math.min(3, Math.max(0, Math.abs(dx) - 26)); P.y = e.y + e.h - P.h; P.vy = 0; if (f % 8 === 0) __RS.press('attack'); if (f % 8 === 3) __RS.release('attack'); __RS.step(1); }
@@ -177,5 +185,41 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
   ok('hero gait: feet alternate (both feet plant in walk and run)', g.walk.near > 0 && g.walk.far > 0 && g.run.near > 0 && g.run.far > 0, JSON.stringify(g));
   ok('hero gait: planted foot slides < 1 frame step (walk < 2u, run < 3.5u)', g.walk.slideMax < 2 && g.run.slideMax < 3.5 && g.walk.noPv + g.run.noPv === 0, `walk ${g.walk.slideMax} run ${g.run.slideMax}`);
   ok('no page errors (hero gait)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
+// ===== v1.5 level-design overhaul =====
+{ const { CHUNKS15, lintChunk } = await import('../src/chunks15.js'); const { validateAllChunks, validateRun } = await import('../src/validate.js'); const { generateRun } = await import('../src/level.js');
+  const lint = CHUNKS15.flatMap((c) => lintChunk(c)); ok(`v1.5 chunks: ${CHUNKS15.length} hand-made rooms on the grid (platform bands, hook rows, even hook chains, no trap at a blind landing)`, lint.length === 0, lint.slice(0, 4).join(' | '));
+  let t0 = Date.now(); const cp = validateAllChunks(); ok(`v1.5 reachability: every chunk (both mirrors), every entry -> every exit, seed + loot reachable, no soft-lock dead ends`, cp.length === 0, cp.slice(0, 4).join(' | ') + ` ${Date.now() - t0}ms`);
+  { const tr = [0, 0, 0], ti = [[0, 0], [0, 0], [0, 0]]; let early = 0; for (const b of ['overpass', 'caverns']) for (let sd = 1; sd <= 40; sd++) { const R = generateRun(sd * 31, b), m = R.cells.filter((c) => !c.branch);
+      m.forEach((c, i) => { const k = Math.min(2, Math.floor(3 * i / m.length)); if (c.variant.ch.tags.includes('trap')) tr[k]++; if (c.kind === 'normal' && !c.pair) { ti[k][0] += c.variant.ch.tier; ti[k][1]++; } if (i < m.length * 0.12 && c.kind === 'normal' && c.variant.ch.tier > 1) early++; }); }
+    const avg = ti.map(([s, n]) => +(s / n).toFixed(2)), per = tr.map((x) => +(x / 80).toFixed(1));
+    ok('v1.5 difficulty ramp: first rooms only teach, trap rooms and room tiers rise third by third (80 runs)', early === 0 && per[0] < per[1] && per[1] < per[2] && avg[0] < avg[2], `trap rooms/run ${per.join(' -> ')}; avg tier ${avg.join(' -> ')}; early hard rooms ${early}`); }
+  for (const biome of ['overpass', 'caverns']) { const bad = []; t0 = Date.now(); for (let s = 1; s <= 3; s++) { const v = validateRun(generateRun(s * 7919 + 13 + (biome === 'caverns' ? 1 : 0), biome)); if (!v.ok) bad.push(s + ': ' + v.problems.join(' / ')); }
+    ok(`v1.5 run completable (${biome}): 3 whole runs - all main rooms, 3 seeds and the gate reachable, no soft-locks`, bad.length === 0, bad.join(' | ') + ` ${Date.now() - t0}ms`); } }
+{ const { browser, page, errors } = await fresh();
+  const tt = await E(page, () => { const out = {}; for (const k of ['spike', 'vent', 'crusher']) { let prev = null, warnStart = 0, minWarn = 1e9, n = 0; for (let t = 0; t < 20; t += 1 / 120) { const st = __RS.trapPhase(k, t).st; if (st === 'warn' && prev !== 'warn') warnStart = t; const dmg = k === 'crusher' ? st === 'fall' : st === 'on'; if (dmg && prev !== st && prev !== null) { n++; minWarn = Math.min(minWarn, prev === 'warn' ? t - warnStart : 0); } prev = st; } out[k] = { minWarn: +minWarn.toFixed(2), n }; }
+    out.shooterWarn = __RS.TRAP_TIMING.shooter.warn; out.crumble = __RS.TRAP_TIMING.crumble.shake; out.dmg = __RS.TRAP_DMG; return out; });
+  const warnOk = ['spike', 'vent', 'crusher'].every((k) => tt[k].n > 0 && tt[k].minWarn >= 0.5) && tt.crumble >= 0.5 && tt.shooterWarn >= 0.5 && Object.values(tt.dmg).every((d) => d <= 15);
+  ok('v1.5 traps: every strike is telegraphed >= 0.5s (spike/vent/crusher/crumble/shooter), damage is kid-sized (<= 15 of 100 hp)', warnOk, JSON.stringify(tt));
+  const tr = await E(page, () => { const kinds = new Set(), seeds = []; for (const sd of [101, 202, 303, 404]) { __RS.start('run', { seed: sd }); for (const t of __RS.W.traps.list) kinds.add(t.k); seeds.push(__RS.W.seeds.length); } return { kinds: [...kinds].sort(), seeds }; });
+  ok('v1.5 traps: >= 5 trap types appear in runs (spike, vent, crusher, saw, crumble, thorn shooter)', tr.kinds.length >= 5, JSON.stringify(tr));
+  const hurt = await E(page, () => { __RS.start('run', { seed: 101 }); __RS.manual(true); __RS.skipCountdown(); __RS.step(30); const W = __RS.W, P = W.player, T = __RS.TILE; const o = W.traps.list.find((t) => t.k === 'spike'); const hp0 = P.hp; let f = 0;
+    for (; f < 400 && P.hp === hp0; f++) { P.x = o.x * T + 12 - P.w / 2; P.y = (o.y + 1) * T - P.h; P.vx = P.vy = 0; __RS.step(1); } return { hp0, hp: P.hp, dead: P.hp <= 0, f }; });
+  ok('v1.5 traps: a spike strike hurts the player a little (not instant death)', hurt.hp < hurt.hp0 && hurt.hp0 - hurt.hp <= 15 && !hurt.dead, JSON.stringify(hurt));
+  const eh = await E(page, () => { for (const sd of [101, 202, 303]) { __RS.start('run', { seed: sd }); __RS.god(true); __RS.manual(true); __RS.skipCountdown(); __RS.step(10); const W = __RS.W, P = W.player; let hits = 0, kind = ''; W.on((n) => { if (n === 'trapHitEnemy') hits++; });
+      const e = W.enemies.find((e) => !e.boss && !e.dead); if (!e) continue;
+      for (let f = 0; f < 600 && !hits; f++) { for (const o of W.traps.list) { const b = W.traps.box(o, W.t); if (!b) continue; P.x = b.x - 150; P.y = b.y - 40; P.vx = P.vy = 0; e.x = b.x + b.w / 2 - e.w / 2; e.y = b.y + b.h / 2 - e.h / 2; e.vx = e.vy = 0; kind = o.k; break; } __RS.step(1); }
+      if (hits) return { hits, kind }; } return { hits: 0 }; });
+  ok('v1.5 traps: traps also hurt monsters', eh.hits > 0, JSON.stringify(eh));
+  const ob = await E(page, () => { __RS.save.progress.bestTime = 0; __RS.save.progress.totalStars = 0; __RS.start('run', { seed: 4242, stage: 1 }); __RS.god(true); __RS.manual(true); __RS.skipCountdown(); __RS.step(30); const W = __RS.W, P = W.player, out = { seeds: W.seeds.length };
+    const d = W.props.find((o) => o.kind === 'door'); const atDoor = () => { P.x = d.x + d.w / 2 - P.w / 2; P.y = d.y + d.h - P.h - 2; P.vx = P.vy = 0; __RS.step(30); __RS.press('attack'); __RS.step(1); __RS.release('attack'); __RS.step(5); };
+    atDoor(); out.locked = W.mode === 'run' && __RS.W === W; out.got = []; let opened = 0; W.on((n) => { if (n === 'gateOpen') opened++; });
+    for (const s of W.seeds) { P.x = s.x - P.w / 2; P.y = s.y - P.h / 2; P.vx = P.vy = 0; __RS.step(15); out.got.push(W.seedsGot.size); } out.opened = opened; atDoor(); out.mode = __RS.W.mode; return out; });
+  await sleep(300);
+  const v = await E(page, () => { const W = __RS.W, B = W.boss; if (!B) return { noBoss: 1 }; __RS.step(300); B.sleep = false; B.intro = 0; for (let i = 0; i < 400 && B.hp > 0; i++) { W.hitEnemy(B, { dmg: 200, kb: 0, stun: 0 }, null); __RS.step(4); } __RS.step(600); return { hp: B.hp }; });
+  await sleep(3800); const vs = await E(page, () => ({ ui: __RS.state().ui, bestStars: __RS.save.progress.bestStars, best: __RS.save.progress.bestTime, stars: __RS.save.progress.totalStars, html: (document.querySelector('.stars') || {}).outerHTML ? document.querySelectorAll('.star').length : 0 }));
+  await page.screenshot({ path: 'shots/v15/victory.png' });
+  ok('v1.5 objective: gate locked with 0 seeds -> 3 seeds collected (1,2,3) -> gate opens -> boss', ob.seeds === 3 && ob.locked && ob.got.join() === '1,2,3' && ob.opened === 1 && ob.mode === 'boss', JSON.stringify(ob));
+  ok('v1.5 objective: boss beaten -> victory screen with stars, best time saved, stars banked', v.hp <= 0 && vs.ui === 'victory' && vs.html === 3 && vs.best > 0 && vs.stars >= 1, JSON.stringify({ v, ...vs }));
+  ok('no page errors (v1.5)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
 server.close(); const fail = results.filter((r) => !r.pass);
 console.log(`\n${results.length - fail.length}/${results.length} passed`); process.exit(fail.length ? 1 : 0);

@@ -1,6 +1,9 @@
 // Axis-separated AABB vs tile collision with one-way planks.
 import { TILE } from './util.js';
 const EPS = 0.001;
+// v1.5: hero movement constants live here so the reachability validator (src/reach.js) simulates the exact same numbers.
+export const HERO = { RUN: 182, ACC_G: 1750, DEC_G: 2100, ACC_A: 1200, GRAV: 1480, GRAV_FALL: 1720, JUMP: 515, CUT: 0.45, MAXFALL: 600, SLIDE: 115, WJX: 235, WJY: 470, DASH: 470, DASH_T: 0.17, DASH_CD: 0.38 };
+export const isPlank = (c) => c === '=' || c === 'u'; // 'u' = crumbling plank (v1.5 trap)
 export function moveBody(map, b, dt, opts = {}) {
   const res = { ground: false, wallL: false, wallR: false, ceil: false, oneway: false };
   // X
@@ -21,7 +24,7 @@ export function moveBody(map, b, dt, opts = {}) {
     for (let x = tx0; x <= tx1; x++) {
       const c = map.get(x, ty);
       const solid = c === '#' || c === 'B' || c === 'G';
-      const plank = c === '=' && !opts.drop && prevBottom <= ty * TILE + 2;
+      const plank = isPlank(c) && !opts.drop && prevBottom <= ty * TILE + 2;
       if (solid || plank) { ny = ty * TILE - b.h; b.vy = 0; res.ground = true; res.oneway = plank && !solid; break; }
     }
   } else if (b.vy < 0) {
@@ -40,7 +43,7 @@ export function moveBody(map, b, dt, opts = {}) {
 // Is there ground directly under the body (for coyote / grounded checks while vy==0)?
 export function groundBelow(map, b) {
   const ty = Math.floor((b.y + b.h + 1) / TILE), tx0 = Math.floor(b.x / TILE), tx1 = Math.floor((b.x + b.w - EPS) / TILE);
-  for (let x = tx0; x <= tx1; x++) { const c = map.get(x, ty); if (c === '#' || c === 'B' || c === 'G' || (c === '=' && Math.abs(b.y + b.h - ty * TILE) < 2)) return c; }
+  for (let x = tx0; x <= tx1; x++) { const c = map.get(x, ty); if (c === '#' || c === 'B' || c === 'G' || (isPlank(c) && Math.abs(b.y + b.h - ty * TILE) < 2)) return c; }
   return null;
 }
 export function touchingWall(map, b, dir) {

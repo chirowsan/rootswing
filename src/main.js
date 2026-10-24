@@ -8,6 +8,8 @@ import { drawHUD, drawMap, mapInfo } from './hud.js';
 import { GADGETS } from './weapons.js';
 import * as UI from './ui.js';
 import { TILE } from './util.js';
+import { scoreRun } from './objective.js';
+import { trapPhase, TRAP_TIMING, TRAP_DMG } from './traps.js';
 import { loadGfx, G } from './gfx.js';
 import { drawGlow } from './art.js';
 import { Enemy } from './enemies.js';
@@ -17,13 +19,13 @@ const canvas = document.getElementById('c'); const g = canvas.getContext('2d', {
 const game = {
   state: 'title', world: null, tut: null, bossShown: null, paused: false, dpr: 1, cssW: 0, cssH: 0, perf: { frames: 0, slow: 0, ms: [] }, runStart: 0, god: false,
   bossBar(e) { this.bossShown = e; },
-  saveRunState(W, cellIndex) { save.run = { seed: W.seed, stage: W.stage || 0, cellIndex, hp: W.player.hp, flasks: W.player.flasks, weapon: W.player.weapon, glim: W.runGlim, cleared: [...W.cleared], visited: [...W.visited], opened: [...W.opened], boss: false, kills: W.player.stats.kills, t: this.runTime() }; this.runStart = performance.now(); writeSave(); },
+  saveRunState(W, cellIndex) { save.run = { seed: W.seed, stage: W.stage || 0, cellIndex, hp: W.player.hp, flasks: W.player.flasks, weapon: W.player.weapon, glim: W.runGlim, cleared: [...W.cleared], visited: [...W.visited], opened: [...W.opened], seeds: [...(W.seedsGot || [])], treasures: this.treasures || 0, boss: false, kills: W.player.stats.kills, t: this.runTime() }; this.runStart = performance.now(); writeSave(); },
   runTime() { return (save.run && save.run.t || 0) + (performance.now() - this.runStart) / 1000; },
   openStation(n) { this.paused = true; clearAll(); if (n === 1) UI.showShop(); else if (n === 2) UI.showLoadout(); else UI.showJournal(); UI.ui.back = 'game'; },
   useDoor(W) {
     if (W.mode === 'tutorial') { save.progress.tutorialDone = true; writeSave(); this.go('hub'); }
-    else if (W.mode === 'hub') { save.progress.runs++; save.run = null; writeSave(); this.runStart = performance.now(); this.go('run', {}); }
-    else if (W.mode === 'run') { const P = W.player; save.run = { seed: W.seed, stage: W.stage || 0, hp: P.hp, flasks: P.flasks, weapon: P.weapon, glim: W.runGlim, boss: true, kills: P.stats.kills, rooms: W.visited.size, t: this.runTime() }; this.runStart = performance.now(); save.progress.bossSeen = true; writeSave(); this.go('boss', { seed: W.seed, stage: W.stage || 0, player: { hp: P.hp, flasks: P.flasks, weapon: P.weapon }, glim: W.runGlim, kills: P.stats.kills }); }
+    else if (W.mode === 'hub') { this.treasures = 0; save.progress.runs++; save.run = null; writeSave(); this.runStart = performance.now(); this.go('run', {}); }
+    else if (W.mode === 'run') { const P = W.player; save.run = { seed: W.seed, stage: W.stage || 0, hp: P.hp, flasks: P.flasks, weapon: P.weapon, glim: W.runGlim, boss: true, kills: P.stats.kills, rooms: W.visited.size, treasures: this.treasures || 0, t: this.runTime() }; this.runStart = performance.now(); save.progress.bossSeen = true; writeSave(); this.go('boss', { seed: W.seed, stage: W.stage || 0, player: { hp: P.hp, flasks: P.flasks, weapon: P.weapon }, glim: W.runGlim, kills: P.stats.kills }); }
   },
   onDeath(W, info) {
     if (this.world !== W) return;
@@ -38,7 +40,8 @@ const game = {
       this.go('run', { seed: W.seed, stage: 1, player: { hp: P.maxHp, flasks: P.maxFlasks, weapon: P.weapon }, glim: W.runGlim, kills: P.stats.kills }); save.run.t = t; writeSave(); this.world.fx.text(this.world.player.cx, this.world.player.y - 40, 'Biome 2: Drowned Glowroots', '#bffcff', 18); return;
     }
     const glim = W.runGlim; save.progress.glimmers += glim; save.progress.totalGlimmers += glim; save.progress.wins++; save.progress.bossBeaten++; save.run = null; writeSave();
-    const t = Math.round(this.runTime()); this.paused = true; UI.showVictory(glim, { final: (W.stage || 0) >= 1, kills: W.player.stats.kills, time: Math.floor(t / 60) + 'm ' + String(t % 60).padStart(2, '0') + 's' });
+    const t = Math.round(this.runTime()), fmt = (t) => Math.floor(t / 60) + 'm ' + String(t % 60).padStart(2, '0') + 's', sc = scoreRun(t, this.treasures || 0); this.lastScore = sc;
+    this.paused = true; UI.showVictory(glim, { final: (W.stage || 0) >= 1, kills: W.player.stats.kills, time: fmt(t), stars: sc.stars, best: sc.best, bestTime: fmt(sc.bestTime), newVine: sc.newVine, treasures: this.treasures || 0 });
   },
   go(mode, opts = {}) {
     UI.close(); this.paused = false; this.bossShown = null; clearAll(); this.state = 'play';
@@ -56,7 +59,7 @@ const game = {
 };
 UI.initUI({
   play() { initAudio(); if (!save.progress.tutorialDone) game.go('tutorial'); else game.go('hub'); },
-  continueRun() { initAudio(); const r = save.run; if (!r) return; game.runStart = performance.now(); if (r.boss) game.go('boss', { seed: r.seed, stage: r.stage || 0, player: { hp: r.hp, flasks: r.flasks, weapon: r.weapon }, glim: r.glim, kills: r.kills }); else game.go('run', { seed: r.seed, stage: r.stage || 0, cellIndex: r.cellIndex, player: { hp: r.hp, flasks: r.flasks, weapon: r.weapon }, glim: r.glim, cleared: r.cleared, visited: r.visited, opened: r.opened, kills: r.kills }); },
+  continueRun() { initAudio(); const r = save.run; if (!r) return; game.runStart = performance.now(); game.treasures = r.treasures || 0; if (r.boss) game.go('boss', { seed: r.seed, stage: r.stage || 0, player: { hp: r.hp, flasks: r.flasks, weapon: r.weapon }, glim: r.glim, kills: r.kills }); else game.go('run', { seed: r.seed, stage: r.stage || 0, cellIndex: r.cellIndex, player: { hp: r.hp, flasks: r.flasks, weapon: r.weapon }, glim: r.glim, cleared: r.cleared, visited: r.visited, opened: r.opened, seeds: r.seeds, kills: r.kills }); },
   resume() { UI.close(); game.paused = false; clearAll(); },
   toHub() { game.go('hub'); }, toTitle() { game.state = 'title'; game.world = null; UI.showTitle(); playSong('hub'); },
   leaveRun() { const W = game.world; game.onDeath(W, { name: 'giving up', tip: 'No worries! Your kept glimmers are safe in the Seedhouse.' }); },
@@ -150,7 +153,7 @@ loadSave(); initInput(canvas); resize(); UI.showTitle(); requestAnimationFrame(f
 // --------- test API (used by automated tests; harmless for players) ---------
 addEventListener('rs-pausemap', () => game.drawPauseMap());
 window.__RS = {
-  foes: { Enemy, Warden, TideGolem, Boss, DrownedBloom },
+  foes: { Enemy, Warden, TideGolem, Boss, DrownedBloom }, trapPhase, TRAP_TIMING, TRAP_DMG,
   game, save, input, TILE, gfx: G, writeSave, loadSave, continueRun: () => document.querySelector('[data-act="continueRun"]').click(), layout: () => input.layout,
   get W() { return game.world; },
   drawMap, mapInfo, renderNow() { if (game.world) render(0); },

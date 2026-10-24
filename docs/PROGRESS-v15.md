@@ -1,0 +1,11 @@
+- 07:15 PDT v1.5 start: read docs; baseline build+tests running
+- 07:19 PDT baseline 55/55; before map shots/v15/map-before.png (tools/mapdump.mjs + maprender.py). Plan: chunks15 builder, reach.js sim validator, traps.js, seeds+gate objective
+- 07:24 PDT chunks15.js (37 grid chunks + lintChunk) + level.js uses them: tiers ramp, 3 seeds/run (Q), trap extraction, exitDir metadata; physics HERO consts + 'u' crumble plank
+- 07:33 PDT src/reach.js (movement-sim BFS: walk/jump/dash/drop/mantle/zip/swing) + src/validate.js + tools/reach15.mjs: all 37 chunks x2 flips pass (20s); negative controls fail as expected
+- traps.js (spike/vent/crusher/crumble/saw/shooter, telegraphs, enemy hits) + world.js integration; smoke ok, no errors
+- objective.js: Root Seeds (Q), HUD tracker, locked vine gate w/ 3 sockets, unlock celebration + edge arrow, map seed/gate marks, victory stars/best time, vine-colour rewards; e2e smoke ok
+- 07:42 wayfinding: src/guides.js (gold exit chevrons on main path, violet side-room wash + treasure signs, dotted hook guide arcs + anchor frame discs); chunk/map before-after shots in shots/v15
+- Validator: raised hook-search budget (6000→20000) — the 'soft-lock' in treasure side-rooms was a search-budget artifact; door blooms now clear planks above floor holes.
+- 08:08 full suite 64/65 (biome-2 shellback test broke: start room layout changed); test now places Sprig on a flat trap-free stretch; re-running
+- 08:14 full suite 65/65 PASS; chunk shots re-shot + map-after regenerated; version bumped to 1.5.0 / vc7
+- 08:19 signed APK+AAB 1.5.0 (vc7) built; cert SHA-256 6e59e14a…d8de matches

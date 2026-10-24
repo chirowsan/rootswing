@@ -1,8 +1,7 @@
 // Tile map + run generator that stitches handmade chunks into one connected biome.
 import { TILE, makeRng } from './util.js';
-import { CHUNKS as BASE } from './chunks.js';
-import { CHUNKS2 } from './chunks2.js';
-const CHUNKS = [...BASE, ...CHUNKS2];
+import { CHUNKS15 } from './chunks15.js';
+const CHUNKS = CHUNKS15; // v1.5: hand-authored grid chunks (the v1.0-1.4 pools in chunks.js / chunks2.js are no longer stitched)
 export const CW = 34, CH = 20;
 export class TileMap {
   constructor(w, h, fill = '#') { this.w = w; this.h = h; this.t = new Array(w * h).fill(fill); this.version = 0; }
@@ -12,10 +11,11 @@ export class TileMap {
   solidPx(px, py) { return this.solid(Math.floor(px / TILE), Math.floor(py / TILE)); }
   hazard(x, y) { const c = this.get(x, y); return c === '^' || c === 'v' || c === '~'; }
 }
-const ENTITY_CHARS = 'ozefthkbjcgFWLPDMdq1234567XwysS';
+const ENTITY_CHARS = 'ozefthkbjcgFWLPDMdq1234567XwysSQ';
+const TRAP_CHARS = 'KVCYA-'; // v1.5 traps (crumbling planks 'u' stay in the map as a plank type)
 function flipRows(rows) { return rows.map((r) => r.split('').reverse().join('')); }
 function flipExits(ex) { return ex.replace(/L/g, 'x').replace(/R/g, 'L').replace(/x/g, 'R'); }
-function variants(ch) { const v = [{ ch, rows: ch.rows, exits: ch.exits, flip: false }]; v.push({ ch, rows: flipRows(ch.rows), exits: flipExits(ch.exits), flip: true }); return v; }
+export function variants(ch) { const v = [{ ch, rows: ch.rows, exits: ch.exits, flip: false }]; v.push({ ch, rows: flipRows(ch.rows), exits: flipExits(ch.exits), flip: true }); return v; }
 
 // Build a fixed layout (tutorial, hub, boss room) into a map + spawn list.
 export function buildFixed(rows) {
@@ -62,6 +62,7 @@ function tryGenerate(rng, biome) {
     const cell = { x, y, need: new Set([into]), kind: 'normal', depth: i }; grid.set(key(x, y), cell); path.push({ x, y });
   }
   const cells = path.map((p) => grid.get(key(p.x, p.y)));
+  for (let i = 0; i < cells.length - 1; i++) { const a = cells[i], b = cells[i + 1]; a.exitDir = b.x > a.x ? 'R' : b.x < a.x ? 'L' : 'D'; b.entryDir = BACK[a.exitDir]; }
   const last = cells[cells.length - 1]; if (last.need.has('R')) return null; last.kind = 'exit';
   const mb = cells[mbIndex]; if (!(mb.need.size === 2 && !mb.need.has('U') && !mb.need.has('D'))) return null; mb.kind = 'miniboss';
   for (const i of cps) { const c = cells[i]; if (c.need.has('U') || c.need.has('D')) return null; c.kind = 'checkpoint'; }
@@ -70,6 +71,7 @@ function tryGenerate(rng, biome) {
   let wides = 0;
   for (const i of rng.shuffle([...Array(cells.length - 3).keys()].map((k) => k + 2))) {
     if (wides >= 2) break; const a = cells[i], b = cells[i + 1];
+    if (i < cells.length * 0.3) continue; // v1.5 ramp: the big swing halls (tier 3) never come early
     if (!free(a) || !free(b) || a.y !== b.y || [...a.need, ...b.need].some((e) => e === 'U' || e === 'D') || a.need.size !== 2 || b.need.size !== 2) continue;
     const flip = b.x < a.x, pair = rng.pick(CHUNKS.filter((c) => c.tags.includes('wideA'))), B = CHUNKS.find((c) => c.id === pair.id.replace('A', 'B'));
     a.pair = b; b.pair = a; a.forced = flip ? { ch: pair, rows: flipRows(pair.rows), exits: 'LR', flip: true } : { ch: pair, rows: pair.rows, exits: 'LR', flip: false };
@@ -78,6 +80,7 @@ function tryGenerate(rng, biome) {
   let talls = 0;
   for (const i of rng.shuffle([...Array(cells.length - 2).keys()].map((k) => k + 1))) {
     if (talls >= 2) break; const a = cells[i], b = cells[i + 1];
+    if (i < cells.length * 0.15) continue; // v1.5 ramp: the shaft isn't one of the teaching rooms
     if (!free(a) || !free(b) || b.y !== a.y + 1 || a.need.size !== 2 || b.need.size !== 2) continue;
     const side = a.need.has('L') ? 'L' : 'R'; if (!b.need.has(side)) continue;
     const A = CHUNKS.find((c) => c.id === 'tallA'), B = CHUNKS.find((c) => c.id === 'tallB'), fl = side === 'R';
@@ -131,28 +134,42 @@ function tryGenerate(rng, biome) {
   for (const c of all) {
     if (c.kind === 'dead') continue;
     if (c.forced) { c.variant = c.forced; continue; }
-    const v = pickChunk(rng, c.need, c.kind, used, false, biome); if (!v) return null; c.variant = v; used.set(v.ch.id, (used.get(v.ch.id) || 0) + 1);
+    const v = pickChunk(rng, c.need, c.kind, used, false, biome, c.branch ? 0.5 : c.depth / target); if (!v) return null; c.variant = v; used.set(v.ch.id, (used.get(v.ch.id) || 0) + 1);
+  }
+  // v1.5 objective: 3 Root Seeds per area, on the main path, one in each third of the run, in a challenge room that has a Q spot
+  const seedCells = [];
+  for (const [a, b] of [[0.12, 0.4], [0.4, 0.7], [0.7, 0.95]]) {
+    const cand = cells.filter((c) => !c.branch && c.kind === 'normal' && c.depth >= a * target && c.depth < b * target && c.variant.rows.some((r) => r.includes('Q')) && !seedCells.includes(c));
+    if (!cand.length) return null;
+    const pref = cand.filter((c) => c.variant.ch.tier >= 2); const pick = rng.pick(pref.length ? pref : cand); pick.seed = true; seedCells.push(pick);
   }
   const res = assemble(all, rng);
+  res.seeds = res.spawns.filter((s) => s.c === 'Q').length;
   res.path = cells.length; res.checkpoints = cps; res.mbIndex = mbIndex; return res;
 }
-function pickChunk(rng, need, kind, used, dry = false, biome = 'overpass') {
+// v1.5 difficulty ramp: intro (tier 1) chunks first, single-idea tier 2 in the middle, combos (tier 3) late. Caverns ramp sooner.
+export function tierWeight(tier, f, biome) {
+  const ff = f + (biome === 'caverns' ? 0.2 : 0), want = ff < 0.3 ? 1 : ff < 0.62 ? 2 : 3;
+  if (f < 0.12) return tier === 1 ? 1 : 0; // the first rooms of an area only teach
+  return tier === want ? 3 : tier < want ? (want - tier === 1 ? 0.35 : 0.12) : tier - want === 1 ? 0.12 : 0;
+}
+function pickChunk(rng, need, kind, used, dry = false, biome = 'overpass', f = 0.5) {
   const tag = { start: 'start', miniboss: 'miniboss', exit: 'exit', checkpoint: 'checkpoint' }[kind];
   const opts = [];
   for (const c of CHUNKS) {
     if (!allowed(c, biome)) continue;
-    if (tag ? !c.tags.includes(tag) : !(c.tags.includes('combat') || c.tags.includes('platform'))) continue;
+    if (tag ? !c.tags.includes(tag) : !(c.tags.includes('combat') || c.tags.includes('platform') || c.tags.includes('trap'))) continue;
     if (!tag && c.exits.length < 2) continue;
-    if (kind === 'miniboss' && biome === 'caverns' && !c.tags.includes('cav')) continue;
     for (const v of variants(c)) {
       if (kind === 'start' && v.flip) continue;
-      if ([...need].every((e) => v.exits.includes(e))) { const extra = v.exits.length - need.size; opts.push({ v, w: (1 / (1 + (used.get(c.id) || 0) * 3)) * (extra === 0 ? 2 : 1) * (biome === 'caverns' && c.tags.includes('cav') ? 2.5 : 1) }); }
+      if ([...need].every((e) => v.exits.includes(e))) { const extra = v.exits.length - need.size; opts.push({ v, w: (1 / (1 + (used.get(c.id) || 0) * 3)) * (extra === 0 ? 4 : 1), t: tag ? 1 : tierWeight(c.tier, f, biome) * (c.tags.includes('trap') ? 0.5 + 2.5 * f : 1) }); }
     }
   }
   if (!opts.length) return null; if (dry) return true;
+  if (opts.some((o) => o.t > 0)) { for (const o of opts) o.w *= o.t; } // fall back to any fitting chunk only if the ramp has none
   let tot = opts.reduce((s, o) => s + o.w, 0), r = rng() * tot; for (const o of opts) { r -= o.w; if (r <= 0) return o.v; } return opts[opts.length - 1].v;
 }
-function assemble(cells, rng) {
+export function assemble(cells, rng) {
   const map = new TileMap(GW * CW, GH * CH, '#'); const spawns = [];
   for (const c of cells) {
     const ox = c.x * CW, oy = c.y * CH, rows = c.variant.rows;
@@ -169,22 +186,41 @@ function assemble(cells, rng) {
     c.id = c.variant.ch.id + (c.variant.flip ? '~f' : '');
   }
   // vertical door helpers: a hook bloom just under the top hole and one just above the floor hole, so U doors are climbable
-  const at = (x, y) => map.t[y * map.w + x], put = (x, y) => { map.t[y * map.w + x] = 'z'; };
+  const at = (x, y) => (map.t[y * map.w + x] === '.' || 'gcF'.includes(map.t[y * map.w + x]) ? '.' : map.t[y * map.w + x]), put = (x, y) => { map.t[y * map.w + x] = 'z'; };
   for (const c of cells) if (c.need.has('U')) {
     const ox = c.x * CW, oy = c.y * CH, ly = [3, 2, 4, 5].find((y) => at(ox + 16, oy + y) === '.' && at(ox + 17, oy + y) === '.');
     if (ly !== undefined) put(ox + 16, oy + ly);
-    const uy = oy - CH; const ry = [CH - 5, CH - 6, CH - 4, CH - 7].find((y) => at(ox + 17, uy + y) === '.' && at(ox + 16, uy + y) === '.');
-    if (ry !== undefined) put(ox + 17, uy + ry);
+    const uy = oy - CH; const ry = [CH - 7, CH - 6, CH - 8, CH - 5].find((y) => at(ox + 17, uy + y) === '.' && at(ox + 16, uy + y) === '.');
+    if (ry !== undefined) { put(ox + 16, uy + ry); for (let y = ry - 3; y < ry; y++) for (let x = 14; x <= 19; x++) if (map.t[(uy + y) * map.w + ox + x] === '=') map.t[(uy + y) * map.w + ox + x] = '.'; } // v1.5: both door blooms sit on the same column, in the zip bands
   }
   for (const c of cells) if (c.pair) { const a = c.room, b = c.pair.room, x = Math.min(a.x, b.x), y = Math.min(a.y, b.y); c.room = { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y }; }
+  const traps = [];
   for (const c of cells) {
     const ox = c.x * CW, oy = c.y * CH;
     for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
-      const i = (oy + y) * map.w + ox + x, ch = map.t[i];
+      const i = (oy + y) * map.w + ox + x; let ch = map.t[i];
+      if (ch === 'Q' && !c.seed) ch = 'g';
       if (ENTITY_CHARS.includes(ch)) { map.t[i] = '.'; spawns.push({ c: ch, x: ox + x, y: oy + y, cell: c }); }
+      else if (TRAP_CHARS.includes(ch) || ch === 'u') extractTrap(map, traps, ch, ox + x, oy + y, c);
     }
   }
+  for (let i = 0; i < map.t.length; i++) if (map.t[i] === '-') map.t[i] = '.';
+  for (const c of cells) { let g = 0, last = -9; for (const t of traps) if (t.cell === c && t.k === 'spike') { if (t.x - last > 1) g++; last = t.x; t.group = g; } } // spike groups alternate
   // order: main path first (index = path position), then side rooms
   const main = cells.filter((c) => !c.branch).sort((a, b) => a.depth - b.depth), side = cells.filter((c) => c.branch);
-  return { map, spawns, cells: [...main, ...side], gw: GW, gh: GH };
+  return { map, spawns, traps, cells: [...main, ...side], gw: GW, gh: GH };
+}
+function extractTrap(map, traps, ch, x, y, cell) {
+  const i = y * map.w + x;
+  if (ch === 'u') { traps.push({ k: 'crumble', x, y, cell }); return; }
+  if (ch === '-') return; // rails are cleared after every saw has measured its rail
+  if (ch === 'A') { map.t[i] = '#'; const dir = map.get(x - 1, y) === '#' ? 1 : -1; traps.push({ k: 'shooter', x, y, dir, cell }); return; }
+  map.t[i] = '.';
+  if (ch === 'K') traps.push({ k: 'spike', x, y, cell });
+  else if (ch === 'V') traps.push({ k: 'vent', x, y, cell });
+  else if (ch === 'C') traps.push({ k: 'crusher', x, y, cell });
+  else if (ch === 'Y') { // saw: the rail is the run of '-' on either side
+    let x0 = x, x1 = x; while (map.get(x1 + 1, y) === '-') x1++; while (map.get(x0 - 1, y) === '-') x0--;
+    traps.push({ k: 'saw', x: x0, x2: x1, y, start: x, cell });
+  }
 }

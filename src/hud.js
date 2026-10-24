@@ -3,6 +3,7 @@ import { has, spr, tinted } from './gfx.js';
 import { drawIcon, drawGlow, PAL } from './art.js';
 import { input } from './input.js';
 import { save } from './save.js';
+import { drawTracker, drawSeedIcon, gateOpen, SEED_COL } from './objective.js';
 import { WEAPONS, GADGETS } from './weapons.js';
 import { CW, CH } from './level.js';
 function badge(g, x, y, r, s) { g.fillStyle = 'rgba(12,10,20,0.72)'; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.strokeStyle = '#c99a4a'; g.lineWidth = 1.6 * s; g.stroke(); g.strokeStyle = 'rgba(255,230,170,0.25)'; g.lineWidth = 1 * s; g.beginPath(); g.arc(x, y, r - 2.5 * s, 3.6, 5.6); g.stroke(); }
@@ -59,6 +60,7 @@ export function drawHUD(g, W, w, h, s) {
     P.gadgets.forEach((gd, i) => { const cx = wx + (26 + i * 24) * s; g.fillStyle = 'rgba(14,12,24,0.6)'; g.beginPath(); g.arc(cx, yy, 11 * s, 0, 7); g.fill(); drawIcon(g, GADGETS[gd].icon, cx, yy, 14 * s, '#fff'); const cd = P.gcd[i] / GADGETS[gd].cd; if (cd > 0) { g.fillStyle = 'rgba(0,0,0,0.6)'; g.beginPath(); g.moveTo(cx, yy); g.arc(cx, yy, 11 * s, -Math.PI / 2, -Math.PI / 2 + cd * Math.PI * 2); g.fill(); } });
   }
   }
+  drawTracker(g, W, w, h, s); // v1.5 Root Seed tracker
   // minimap (runs)
   if (W.mode === 'run' && W.cells.length) {
     const cs = 9 * s, chh = 6 * s, mx = w - (W.gw * cs) - (input.touchActive || input.forceTouch ? 64 : 14) * s, my = 12 * s;
@@ -103,6 +105,11 @@ export function drawMap(g, W, x0, y0, cs, chh, big) {
     if (big && c.cut === 'D') { g.strokeStyle = '#7ff6ff'; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(x + cs / 2, y + chh * 0.7); g.lineTo(x + cs / 2, y + chh * 1.3); g.stroke(); g.setLineDash([]); }
     if (big && (c.kind === 'checkpoint' || c.kind === 'miniboss' || c.kind === 'dead' || c.kind === 'exit')) { const icon = c.kind === 'checkpoint' ? 'heart' : c.kind === 'miniboss' ? 'attack' : c.kind === 'exit' ? 'door' : 'glimmer'; try { drawIcon(g, icon, x + cs / 2, y + chh / 2, chh * 0.55, '#15131f'); } catch (e) {} }
   }
+  // v1.5: Root Seeds (always shown so the goal is never a mystery) and the gate state on the exit room
+  for (const sd of W.seeds || []) { if (sd.got) continue; const c = W.cells[sd.cell]; if (!c) continue; const x = x0 + (c.x + ((sd.x / 24) % CW) / CW) * cs, y = y0 + (c.y + ((sd.y / 24) % CH) / CH) * chh;
+    drawGlow(g, x, y, (big ? 16 : 7), SEED_COL, 0.7 + Math.sin(t * 4) * 0.2); drawSeedIcon(g, x, y, big ? Math.max(10, chh * 0.5) : Math.max(5, chh * 0.9), true); }
+  const ex = W.cells.find((c) => c.kind === 'exit'); if (ex && W.seeds && W.seeds.length) { const open = gateOpen(W), x = x0 + ex.x * cs, y = y0 + ex.y * chh; g.strokeStyle = open ? SEED_COL : '#ff3d6e'; g.lineWidth = big ? 3 : 1.5; g.strokeRect(x - 1, y - 1, cs + 2, chh + 2);
+    if (big) { g.fillStyle = 'rgba(14,12,24,0.8)'; g.beginPath(); g.arc(x + cs - 4, y + 4, 9, 0, 7); g.fill(); drawSeedIcon(g, x + cs - 4, y + 4, 11, open); } }
   const cur = W.curCell; if (cur) { const x = x0 + cur.x * cs, y = y0 + cur.y * chh, k = 0.6 + Math.sin(t * 5) * 0.4; g.fillStyle = '#ffe27a'; g.fillRect(x + pad, y + pad, cs - pad * 2, chh - pad * 2); g.strokeStyle = 'rgba(255,255,255,' + k + ')'; g.lineWidth = big ? 2.5 : 1.2; g.strokeRect(x, y, cs, chh);
     if (big) { const P = W.player, px = x + ((P.cx / 24) % CW) / CW * cs, py = y + ((P.cy / 24) % CH) / CH * chh; g.fillStyle = '#15131f'; g.beginPath(); g.arc(px, py, 4, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(px, py, 2.5, 0, 7); g.fill(); } }
 }
