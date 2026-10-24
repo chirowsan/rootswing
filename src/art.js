@@ -1,5 +1,6 @@
 // Procedural art: palette, glow sprites, icons, tile chunk renderer, parallax backgrounds.
 import { TILE, hash2, makeRng } from './util.js';
+import { drawSupport, supportBox } from './supportsDraw.js';
 export const PAL = {
   ink: '#15131f', stone: '#2c2a3a', stone2: '#37344a', stoneHi: '#4a4560', moss: '#5fb556', mossHi: '#9ee06f', mossDk: '#2f7a3f',
   plank: '#9a6a42', plankDk: '#5c3a24', hazard: '#ff3d6e', hazardDk: '#8a1240', hazardGlow: '#ff5a7a',
@@ -62,6 +63,9 @@ export function renderTileChunk(map, cx, cy, rs, biome) {
   const x0 = cx * CHUNK_T, y0 = cy * CHUNK_T;
   const at = (x, y) => (map.get(x, y));
   const S = (x, y) => isSolidCh(at(x, y));
+  // v1.7: the fallback renderer paints the same organic supports (nothing floats, even without the art pack)
+  if (map.sup) { const l = x0 * TILE, t = y0 * TILE, r = l + W, b = t + W;
+    for (const p of map.sup.pieces) { const bx = p.box || (p.box = supportBox(p, map)); if (bx[2] < l || bx[0] > r || bx[3] < t || bx[1] > b) continue; g.save(); drawSupport(g, p, map, biome && biome.key); g.restore(); map.sup.drawn.add(p.id); } }
   // pass 1: solid fills with rounded exposed corners
   for (let ty = y0 - 1; ty < y0 + CHUNK_T + 1; ty++) for (let tx = x0 - 1; tx < x0 + CHUNK_T + 1; tx++) {
     const ch = at(tx, ty); if (!isSolidCh(ch)) continue;

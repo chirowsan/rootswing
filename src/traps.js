@@ -2,6 +2,7 @@
 // knocks Sprig back, and also hurts enemies that wander into it. Timings are exported so tests can check the warning window.
 import { TILE, rectsOverlap } from './util.js';
 import { drawGlow } from './art.js';
+import { kitDraw } from './paint.js';
 import { sfx } from './audio.js';
 export const HAZ = '#ff3d6e', HAZ_DK = '#5a1420';
 export const TRAP_TIMING = {
@@ -129,18 +130,19 @@ export class Traps {
     g.globalAlpha = 0.25 + 0.55 * sk; g.fillStyle = sk > 0.2 ? HAZ : '#15131f'; g.beginPath(); g.ellipse(cx, o.ground - 2, 10 + 12 * sk, 3 + 2 * sk, 0, 0, 7); g.fill(); g.globalAlpha = 1;
     if (p.st === 'warn') drawGlow(g, cx, o.ground - 4, 30, HAZ, 0.5 * p.k);
     // the log: bark body, cut ring ends, red thorn teeth underneath
-    g.fillStyle = '#6a4428'; g.strokeStyle = '#15131f'; g.lineWidth = 2.5; g.beginPath(); g.roundRect(cx - 20 + sh, y, 40, 30, 9); g.fill(); g.stroke();
-    g.strokeStyle = '#3c2416'; g.lineWidth = 1.2; for (const yy of [8, 15, 22]) { g.beginPath(); g.moveTo(cx - 16 + sh, y + yy); g.bezierCurveTo(cx - 6 + sh, y + yy - 2, cx + 6 + sh, y + yy + 2, cx + 16 + sh, y + yy); g.stroke(); }
-    for (const ex of [-20, 20]) { g.fillStyle = '#15131f'; g.beginPath(); g.ellipse(cx + ex + sh, y + 15, 5, 14, 0, 0, 7); g.fill(); g.fillStyle = '#d8a868'; g.beginPath(); g.ellipse(cx + ex + sh, y + 15, 3.6, 12.4, 0, 0, 7); g.fill(); g.strokeStyle = '#8a5a30'; g.lineWidth = 0.8; g.beginPath(); g.ellipse(cx + ex + sh, y + 15, 1.8, 7, 0, 0, 7); g.stroke(); }
-    g.fillStyle = '#5fae4a'; g.beginPath(); g.ellipse(cx - 4 + sh, y + 1, 10, 3, 0, 0, 7); g.fill(); // moss on top
+    if (!kitDraw(g, 'glog', cx - 23 + sh, cx + 23 + sh, y - 1, 32, (o.x & 1) === 1, 'brightness(0.9)', 'rgba(255,220,160,0.6)')) { g.fillStyle = '#6a4428'; g.strokeStyle = '#15131f'; g.lineWidth = 2.5; g.beginPath(); g.roundRect(cx - 20 + sh, y, 40, 30, 9); g.fill(); g.stroke(); }
     g.fillStyle = p.st === 'warn' || p.st === 'fall' ? HAZ : '#8a3048'; g.strokeStyle = '#15131f'; g.lineWidth = 1;
     for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(cx - 18 + i * 10 + sh, y + 30); g.lineTo(cx - 13 + i * 10 + sh, y + 37); g.lineTo(cx - 8 + i * 10 + sh, y + 30); g.fill(); g.stroke(); }
     g.fillStyle = p.st === 'warn' ? '#ffe0e8' : '#2a1a14'; g.beginPath(); g.ellipse(cx - 6.5 + sh, y + 12, 3, 3.4, 0, 0, 7); g.ellipse(cx + 6.5 + sh, y + 12, 3, 3.4, 0, 0, 7); g.fill(); // knot-hole eyes light up before the slam
   }
   draw_saw(g, o, X, Y, t) { // spinning seed-pod on a branch rail (rail ends sit on trunk posts painted with the tiles)
     const y = Y + 12, x0 = o.x * TILE + 12, x1 = o.x2 * TILE + 12;
-    g.strokeStyle = '#15131f'; g.lineWidth = 6; g.lineCap = 'round'; g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.strokeStyle = '#8a5e36'; g.lineWidth = 3; g.stroke(); g.strokeStyle = '#c09060'; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, y - 1); g.lineTo(x1, y - 1); g.stroke();
-    for (const x of [x0, x1]) { g.fillStyle = '#15131f'; g.beginPath(); g.arc(x, y, 5.5, 0, 7); g.fill(); g.fillStyle = HAZ; g.beginPath(); g.arc(x, y, 4, 0, 7); g.fill(); }
+    // v1.7: the pod runs in a carved groove along a fallen log (groove sits at 54% of the painted log height)
+    const LH = 22, okLog = kitDraw(g, 'glog', x0 - 18, x1 + 18, y - LH * 0.54, LH, (o.x & 1) === 1, 'brightness(0.78) saturate(0.9)', 'rgba(255,220,160,0.55)');
+    if (!okLog) { g.strokeStyle = '#15131f'; g.lineWidth = 12; g.lineCap = 'round'; g.beginPath(); g.moveTo(x0 - 10, y); g.lineTo(x1 + 10, y); g.stroke(); g.strokeStyle = '#6a4428'; g.lineWidth = 9; g.stroke(); }
+    g.strokeStyle = 'rgba(10,6,4,0.85)'; g.lineWidth = 3.2; g.lineCap = 'round'; g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); // groove
+    g.strokeStyle = 'rgba(255,61,110,0.35)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, y + 0.5); g.lineTo(x1, y + 0.5); g.stroke();
+    for (const x of [x0, x1]) { g.fillStyle = '#15131f'; g.beginPath(); g.arc(x, y, 4, 0, 7); g.fill(); g.fillStyle = HAZ; g.beginPath(); g.arc(x, y, 2.6, 0, 7); g.fill(); }
     g.save(); g.translate(o.px, y); g.rotate(t * 12 * o.dir); g.fillStyle = '#e8d8b0'; g.strokeStyle = '#15131f'; g.lineWidth = 2; g.beginPath();
     for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2, r = i % 2 ? 9 : 13; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); g.fill(); g.stroke();
     g.fillStyle = '#7a5030'; g.beginPath(); g.arc(0, 0, 7, 0, 7); g.fill(); g.fillStyle = HAZ; g.beginPath(); g.arc(0, 0, 4, 0, 7); g.fill(); g.restore(); drawGlow(g, o.px, y, 26, HAZ, 0.3);
@@ -148,10 +150,11 @@ export class Traps {
   draw_crumble(g, o, X, Y, t) { // rotten branch: grey-green wood with cracks and fungus, shakes red before it snaps
     if (o.st === 'gone') { const k = o.t / TRAP_TIMING.crumble.gone; if (k > 0.6) { g.globalAlpha = (k - 0.6) * 1.2; g.strokeStyle = '#a6e47a'; g.setLineDash([3, 3]); g.strokeRect(X + 1, Y + 1, o.n * TILE - 2, 8); g.setLineDash([]); g.globalAlpha = 1; } return; }
     const sh = o.st === 'shake' ? Math.sin(t * 70) * 1.6 : 0;
-    g.fillStyle = '#15131f'; g.beginPath(); g.roundRect(X - 1 + sh, Y - 1.5, o.n * TILE + 2, 11, 5); g.fill();
-    for (let i = 0; i < o.n; i++) { const x = X + i * TILE + sh; g.fillStyle = i % 2 ? '#7a6a52' : '#84745a'; g.fillRect(x, Y, TILE, 8); g.fillStyle = 'rgba(200,220,170,0.35)'; g.fillRect(x, Y, TILE, 1.4);
-      g.strokeStyle = o.st === 'shake' ? HAZ : '#3a2e22'; g.lineWidth = 1.3; g.beginPath(); g.moveTo(x + 6, Y + 1); g.lineTo(x + 10, Y + 5); g.lineTo(x + 8, Y + 8); g.moveTo(x + 16, Y + 1); g.lineTo(x + 14, Y + 6); g.stroke();
-      if ((i + o.x) % 2 === 0) { g.fillStyle = '#e0c890'; g.beginPath(); g.ellipse(x + 18, Y + 9, 3.2, 1.6, 0, 0, Math.PI); g.fill(); } } // bracket fungus underneath
+    const okB = kitDraw(g, 'br' + (o.x % 3), X - 5 + sh, X + o.n * TILE + 5 + sh, Y - 5, 19, (o.x & 1) === 1, 'saturate(0.35) brightness(0.85) sepia(0.25)', 'rgba(220,235,190,0.6)');
+    if (!okB) { g.fillStyle = '#15131f'; g.beginPath(); g.roundRect(X - 1 + sh, Y - 1.5, o.n * TILE + 2, 11, 5); g.fill(); }
+    for (let i = 0; i < o.n; i++) { const x = X + i * TILE + sh; if (!okB) { g.fillStyle = i % 2 ? '#7a6a52' : '#84745a'; g.fillRect(x, Y, TILE, 8); }
+      g.strokeStyle = o.st === 'shake' ? HAZ : 'rgba(30,22,16,0.85)'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(x + 6, Y); g.lineTo(x + 10, Y + 5); g.lineTo(x + 8, Y + 9); g.moveTo(x + 16, Y); g.lineTo(x + 14, Y + 7); g.stroke();
+      if ((i + o.x) % 2 === 0) { g.fillStyle = '#e0c890'; g.strokeStyle = '#15131f'; g.lineWidth = 1; g.beginPath(); g.ellipse(x + 18, Y + 10, 4, 2, 0, 0, Math.PI); g.fill(); g.stroke(); } }
     if (o.st === 'shake') drawGlow(g, X + o.n * 12, Y + 4, 24 + o.n * 6, HAZ, 0.4);
   }
   draw_shooter(g, o, X, Y, t) { // knot-hole in the bark that spits thorns

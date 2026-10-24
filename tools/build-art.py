@@ -23,19 +23,30 @@ def depth(im, blur, sat, bri, fog, mix):
     pm = bl(np.concatenate([rgb * al], -1)); ab = bl(al[..., 0])[..., None]
     rgb = np.where(ab > 1e-3, pm / np.maximum(ab, 1e-3), 0)
     return Image.fromarray((np.clip(np.concatenate([rgb, ab], -1), 0, 1) * 255).astype(np.uint8), 'RGBA')
-# ---- parallax layers: [file, green, opaque]
-for n, g, opaque in [('ov_sky', 0, 1), ('ov_far', 0, 0), ('ov_mid', 0, 0), ('ov_near', 0, 0), ('fg_vines', 0, 0),
-                     ('hub_sky', 0, 1), ('hub_mid', 0, 0), ('hub_near', 0, 0), ('boss_sky', 0, 1), ('boss_mid', 0, 0), ('boss_near', 0, 0), ('title_key', 0, 1),
-                     ('cv_sky', 0, 1), ('cv_mid', 0, 0), ('cv_near', 0, 0)]:
-    im = Image.open(S + n + '.jpg').convert('RGB') if opaque else key(n, g)
+# ---- v1.7 parallax: per-area painted sky (opaque) + full-height trunk cutout midground + dark fg framing silhouettes
+# POST: [blur, saturation, brightness, fog rgb, fog mix] -> trunks sit darker/softer than the play layer
+POST = {'g_trunks': (1.2, 0.8, 0.62, (60, 70, 40), 0.18), 'm_trunks': (1.2, 0.85, 0.6, (20, 60, 60), 0.2),
+        'd_trunks': (1.2, 0.85, 0.58, (60, 30, 60), 0.2), 'c_trunks': (1.2, 0.9, 0.62, (10, 30, 60), 0.18)}
+SKYPOST = {'g_sky': (1.0, 0.96), 'm_sky': (1.0, 0.86), 'd_sky': (1.05, 0.9), 'c_sky': (1.0, 0.9)}  # sat, bri
+for n, src, g, opaque in [('g_sky', 'v7_glade_sky', 0, 1), ('g_trunks', 'v7_glade_trunks', 0, 0), ('m_sky', 'v7_moss_sky', 0, 1), ('m_trunks', 'v7_moss_trunks', 0, 0),
+                          ('d_sky', 'v7_dusk_sky', 0, 1), ('d_trunks', 'v7_dusk_trunks', 1, 0), ('c_sky', 'v7_cave_sky', 0, 1), ('c_trunks', 'v7_cave_trunks', 0, 0),
+                          ('fg_bottom', 'v7_fg_bottom', 0, 0), ('fg_top', 'v7_fg_top', 0, 0), ('title_key', 'title_key', 0, 1)]:
+    if opaque:
+        im = Image.open(S + src + '.jpg').convert('RGB')
+        if n in SKYPOST:
+            sat, bri = SKYPOST[n]; a = np.asarray(im).astype(np.float32) / 255; l = (a * [0.299, 0.587, 0.114]).sum(-1, keepdims=True)
+            im = Image.fromarray((np.clip((l + (a - l) * sat) * bri, 0, 1) * 255).astype(np.uint8))
+    else: im = key(src, g)
+    if im.width > 1280: im = im.resize((1280, round(im.height * 1280 / im.width)), Image.LANCZOS)
     W, H = im.size; top = 0
     if not opaque:
         bb = im.getchannel('A').point(lambda v: 255 if v > 6 else 0).getbbox(); top, bot = (bb[1], bb[3]) if bb else (0, H)
-        if n.startswith('fg'): top, bot = 0, bot
+        if n == 'fg_top': top = 0
+        if n == 'fg_bottom': bot = H
+        if n.endswith('trunks'): top, bot = 0, min(H, bot)
         im = im.crop((0, top, W, bot))
-    sc = 1 if n == 'title_key' else 1
     if n in POST: im = depth(im, *POST[n])
-    im.save(O + n + '.webp', quality=80 if opaque else 84, method=6)
+    im.save(O + n + '.webp', quality=78 if opaque else 82, method=6)
     meta['bg'][n] = {'w': W, 'h': H, 'top': top, 'ih': im.height}
 # ---- v1.2 results-screen key art (DOM backgrounds, lazy-loaded by CSS, not part of the boot set)
 for n in ['victory_key', 'death_key']:
@@ -48,8 +59,8 @@ def seamless(im, size=512):
     # m=1 near edges of the original -> use shifted copy (whose centre is the seam-free original edge)
     out = a * (1 - m) + sh * m
     return Image.fromarray(out.astype(np.uint8))
-for n in ['tex_stone', 'tex_metal', 'tex_root', 'tex_rock', 'tex_cave', 'tex_earth', 'tex_rootcave', 'tex_dusk']:
-    seamless(Image.open(S + n + '.jpg'), 384).save(O + n + '.webp', quality=82, method=6)
+for n, src in [('tex_root', 'tex_root'), ('tex_earth', 'tex_earth'), ('tex_rootcave', 'tex_rootcave'), ('tex_dusk', 'tex_dusk'), ('tex_bark', 'v7_bark')]:
+    seamless(Image.open(S + src + '.jpg'), 384).save(O + n + '.webp', quality=82, method=6)
 # ---- sprite sheets split by empty-column gaps
 def split(im, names, gap=None, ds=4):
     # connected components on a downsampled alpha mask; keep the N largest, ordered left to right
@@ -117,6 +128,18 @@ def strip(name, extra=()):
 add({'lip': strip('lip_strip')}, 0.5)
 add({'hang': strip('hang_strip')}, 0.42)
 add(split(key('props_c'), ['d_mush', 'd_fern', 'd_rubble', 'd_pillar', 'd_lamp', 'd_grass', 'd_crys', 'd_stump']), 0.32)
+# ---- v1.7 environment kit: branch beams, bracket fungi + mushroom caps, mossy boulders, grooved log, ground decor, grass lip
+def rows(im, k):  # split a sheet into k horizontal bands first (split() orders by x)
+    H = im.height; return [im.crop((0, H * i // k, im.width, H * (i + 1) // k)) for i in range(k)]
+br = key('v7_branches'); out = {}
+for i, b in enumerate(rows(br, 3)): out['br%d' % i] = single(b)
+add(out, 0.42)
+fu = rows(key('v7_fungi'), 2)
+add(split(fu[0], ['fb0', 'fb1', 'fb2']), 0.32); add(split(fu[1], ['mc0', 'mc1', 'mc2']), 0.3)
+add(split(key('v7_boulders'), ['bo0', 'bo1', 'bo2']), 0.34)
+add({'glog': single(key('v7_log'))}, 0.4)
+add(split(key('v7_decor'), ['dc_fern', 'dc_grass', 'dc_flower', 'dc_rock', 'dc_pebble', 'dc_root', 'dc_mush', 'dc_bush']), 0.42)
+add({'lip2': strip('v7_lip')}, 0.42)
 # shelf-pack
 items = sorted(sprites.items(), key=lambda kv: -kv[1].height); AW = 2048; x = y = sh = 0; pos = {}
 for k, im in items:

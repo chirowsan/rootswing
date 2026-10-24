@@ -535,6 +535,11 @@ export class Player {
     if (this.iframes > 0 && !this.dead && this.flash <= 0 && Math.sin(t * 38) > 0) g.globalAlpha = 0.5;
     if (!lo) drawGlow(g, X, this.cy - 8, 36, '#0a0814', 0.4); // dark backing halo so the hero always separates
     g.save(); g.translate(X, Y); g.scale(HK, HK); g.translate(-X, -Y);
+    if (!lo) { // v1.7 hero pop: a thin warm light halo outside the ink outline so Sprig never melts into the forest
+      const t2 = this._tmp2 || (this._tmp2 = document.createElement('canvas')); if (t2.width !== Sz) { t2.width = Sz; t2.height = Sz; }
+      const q2 = t2.getContext('2d'); q2.globalCompositeOperation = 'source-over'; q2.clearRect(0, 0, Sz, Sz); q2.drawImage(off, 0, 0); q2.globalCompositeOperation = 'source-in';
+      q2.fillStyle = W.biome.key === 'caverns' ? '#c8f4ff' : W.biome.key === 'boss' ? '#ffd0a0' : '#fff2c8'; q2.fillRect(0, 0, Sz, Sz); q2.globalCompositeOperation = 'source-over';
+      const e2 = e * 2.3; g.globalAlpha *= 0.55; for (const [dx, dy] of [[-e2, 0], [e2, 0], [0, -e2], [0, e2], [-e2 * 0.7, -e2 * 0.7], [e2 * 0.7, -e2 * 0.7]]) g.drawImage(t2, x0 + dx, y0 + dy, U, U); g.globalAlpha /= 0.55; }
     for (const [dx, dy] of [[-e, 0], [e, 0], [0, -e], [0, e]]) g.drawImage(tmp, x0 + dx, y0 + dy, U, U);
     g.drawImage(off, x0, y0, U, U); g.restore();
     g.globalAlpha = 1; void G;
