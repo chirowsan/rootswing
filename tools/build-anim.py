@@ -5,8 +5,7 @@ import subprocess, json, os, sys, numpy as np
 from PIL import Image
 R = os.path.dirname(os.path.abspath(__file__)) + '/../'; S = R + 'art/src/anim/'; O = R + 'assets/gfx/'
 SHEETS = {
-  'run_a': ['run0', 'run1', 'run2', 'run3'], 'run_b': ['run4', 'run5', 'run6', 'run7'],
-  'idle_dash': ['idle0', 'idle1', 'wall', 'dash'], 'hook_hurt': ['throw', 'swing', 'hurt', 'dead'],
+  'idle_dash': ['_oldidle', None, 'wall', 'dash'],  # v1.4.1: idle/walk/run/start/stop/turn come from the rig (tools/hero-rig.py) 'hook_hurt': ['throw', 'swing', 'hurt', 'dead'],
   'attack_a': ['slash1', 'slash2', 'thrust', 'hwind'], 'attack_b': ['slam', 'parry', 'airatk', 'land'],
   'air': ['jump', 'apex', 'fall', None],
 }
@@ -40,6 +39,23 @@ for sheet, names in SHEETS.items():
     fr = fr.resize((max(1, round(fr.width * SC)), max(1, round(fr.height * SC))), Image.LANCZOS)
     fx, fy = face_x(np.asarray(fr)); ims[n] = fr
     out[n] = {'w': fr.width, 'h': fr.height, 'fx': round(fx, 1), 'fy': round(fy, 1)}
+# v1.4.1 rig frames: scaled to the painted frames' height, colour-matched to the old idle frame, explicit pivot (hip x, sole y)
+RIG = R + 'art/src/anim2/rig/'; rmeta = json.load(open(RIG + 'rig.json')); RS = 1.06; pivots = {}
+old = np.asarray(ims.pop('_oldidle')).astype(np.float32); out.pop('_oldidle')
+def stats(a): m = a[..., 3] > 200; return a[m][:, :3].mean(0), a[m][:, :3].std(0)
+r0 = np.asarray(Image.open(RIG + 'idle0.png').convert('RGBA')).astype(np.float32); (om, osd), (rm, rsd) = stats(old), stats(r0)
+CT = 0.65  # blend of the colour transfer
+for n, m in rmeta.items():
+  if n.startswith('_'): continue
+  fr = Image.open(RIG + n + '.png').convert('RGBA'); fr = fr.resize((round(fr.width * RS), round(fr.height * RS)), Image.LANCZOS)
+  a = np.asarray(fr).astype(np.float32).copy(); c = (a[..., :3] - rm) / np.maximum(rsd, 1) * osd + om; a[..., :3] = a[..., :3] * (1 - CT) + c * CT
+  fr = Image.fromarray(a.clip(0, 255).astype(np.uint8)); fx, fy = face_x(np.asarray(fr)); ims[n] = fr
+  out[n] = {'w': fr.width, 'h': fr.height, 'fx': round(fx, 1), 'fy': round(fy, 1)}; pivots[n] = [round(m['pv'][0] * RS, 1), round(m['pv'][1] * RS, 1)] + [(None if c is None else round(c * RS, 1)) for c in m.get('contact', [None, None])]
+# keep the rig's pivot continuous with the painted frames (they pivot at face_x - 22): one constant shift for every rig frame
+OFF = round(out['idle0']['fx'] - 22 - pivots['idle0'][0], 1)
+for n in pivots:
+  pv = pivots[n]; pv[0] = round(pv[0] + OFF, 1)  # contact x (cols 8, 9: near / far planted-foot x relative to the hip, null = airborne)
+print('rig pivot offset', OFF)
 # pack in rows
 names = list(out); AW = 2048; x = y = rh = 0; pos = {}
 for n in sorted(names, key=lambda n: -ims[n].height):
@@ -49,8 +65,9 @@ for n in sorted(names, key=lambda n: -ims[n].height):
 AH = y + rh; at = Image.new('RGBA', (AW, AH))
 for n, p in pos.items(): at.paste(ims[n], tuple(p))
 at.save(O + 'hero.webp', quality=86, method=6, alpha_quality=88)
-meta = {n: [pos[n][0], pos[n][1], out[n]['w'], out[n]['h'], out[n]['fx'], out[n]['fy']] for n in names}
-json.dump({'scale': SC, 'f': meta}, open(O + 'hero.json', 'w'), separators=(',', ':'))
+meta = {n: [pos[n][0], pos[n][1], out[n]['w'], out[n]['h'], out[n]['fx'], out[n]['fy']] + pivots.get(n, []) for n in names}
+gait = {k[1:]: dict(v, cycle_px=round(v['cycle_px'] * RS, 2)) for k, v in rmeta.items() if k.startswith('_')}
+json.dump({'scale': SC, 'gait': gait, 'f': meta}, open(O + 'hero.json', 'w'), separators=(',', ':'))
 print('hero atlas', AW, AH, os.path.getsize(O + 'hero.webp'))
 for n in names: print(n, meta[n][2:])
 if '--preview' in sys.argv:  # labelled grid with face markers for annotation

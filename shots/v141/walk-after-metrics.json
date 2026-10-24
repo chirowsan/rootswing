@@ -1,0 +1,62 @@
+{
+ "walk": {
+  "slide_mean": 0.42,
+  "slide_p95": 0.76,
+  "contact_pairs": 119,
+  "body_x_std": 0.04,
+  "body_x_jump_max": 0.11,
+  "body_y_jump_max": 0.29,
+  "height_range": 0.26,
+  "frame_changes": 118,
+  "distinct": 10,
+  "seq": "walk1 walk3 walk5 walk7 walk9 walk11 walk13 walk15 walk1 walk3 walk5 walk7 walk9 walk11 walk13 walk15 walk1 walk3 walk5 walk7 walk9 walk11 walk13 walk15"
+ },
+ "run": {
+  "slide_mean": 1.45,
+  "slide_p95": 2.7,
+  "contact_pairs": 42,
+  "body_x_std": 0.08,
+  "body_x_jump_max": 0.21,
+  "body_y_jump_max": 1.81,
+  "height_range": 1.03,
+  "frame_changes": 118,
+  "distinct": 22,
+  "seq": "run9 run12 run14 run17 run0 run2 run5 run8 run10 run13 run16 run18 run1 run4 run6 run9 run12 run15 run17 run0 run3 run5 run8 run11"
+ },
+ "ramp": {
+  "slide_mean": 0.74,
+  "slide_p95": 1.98,
+  "contact_pairs": 65,
+  "body_x_std": 1.36,
+  "body_x_jump_max": 2.82,
+  "body_y_jump_max": 1.92,
+  "height_range": 2.31,
+  "frame_changes": 111,
+  "distinct": 38,
+  "seq": "walk15 walk1 walk3 walk6 walk9 walk11 walk14 walk1 walk3 walk6 walk9 walk12 walk15 walk2 walk5 walk9 walk12 walk15 walk3 run5 run7 run9 run10 run12"
+ },
+ "startstop": {
+  "slide_mean": 1.69,
+  "slide_p95": 5.35,
+  "contact_pairs": 19,
+  "body_x_std": 2.99,
+  "body_x_jump_max": 9.35,
+  "body_y_jump_max": 1.73,
+  "height_range": 1.29,
+  "frame_changes": 48,
+  "distinct": 21,
+  "seq": "run9 run12 run14 run17 run0 stop0 stop0 stop0 stop1 stop1 idle0 idle0 idle0 idle0 idle0 idle1 idle1 idle1 idle1 idle1 idle1 idle1 idle1 idle1"
+ },
+ "turn": {
+  "slide_mean": 1.75,
+  "slide_p95": 5.32,
+  "contact_pairs": 33,
+  "body_x_std": 5.2,
+  "body_x_jump_max": 6.43,
+  "body_y_jump_max": 1.73,
+  "height_range": 2.06,
+  "frame_changes": 75,
+  "distinct": 18,
+  "seq": "turn0 turn0 start0 start0 start1 start1 run10 run13 run16 run18 run1 run4 run6 run9 run12 run14 run17 run0 run2 run5 run8 run10 run13 run16"
+ }
+}

@@ -12,7 +12,7 @@ const C = { RUN: 182, ACC_G: 1750, DEC_G: 2100, ACC_A: 1200, GRAV: 1480, GRAV_FA
 export const HERO_K = 1.22; // v1.2 visual scale of the hero rig around the feet (hitbox unchanged)
 export const HERO_PX = 47 / 223; // v1.3 world units per painted-frame pixel (idle frame = 44 units tall before HERO_K)
 // front-fist anchor in frame pixels per painted pose (weapon grip); measured from the annotated sheets
-const RUN_BOB = { run3: 16, run7: 16, run2: 5, run6: 5, jump: 0 }; // frame px the body floats above the feet line
+const GAIT = { MOVE: 14, RUN_UP: 118, RUN_DN: 92, START_T: 0.09, STOP_T: 0.16, TURN_T: 0.08 }; // v1.4.1 (was RUN_BOB: per-frame y jumps of up to 16 px)
 const FIST = { slash1: [170, 73], slash2: [124, 23], thrust: [169, 70], hwind: [123, 29], slam: [141, 139], parry: [120, 50], airatk: [150, 60], throw: [161, 45], swing: [81, 11] };
 export class Player {
   constructor(x, y, stats) {
@@ -110,7 +110,8 @@ export class Player {
       if (ok) { this.safe.x = this.x; this.safe.y = this.y; }
     }
     // run anim + footsteps
-    if (this.onGround && Math.abs(this.vx) > 20) { this.runPh += dt * Math.abs(this.vx) * 0.075; this.stepT -= dt; if (this.stepT <= 0) { this.stepT = 0.28; sfx('step'); if (Math.abs(this.vx) > 120) W.fx.dust(this.cx - sign(this.vx) * 4, this.y + this.h, 2, { dir: -sign(this.vx), speed: 40, size: 3.2, life: 0.4 }); } }
+    if (this.onGround && Math.abs(this.vx) > 20) this.runPh += dt * Math.abs(this.vx) * 0.075;
+    this.gaitStep(W, dt);
     const hz = hazardAt(W.map, this); if (hz && this.respawnT <= 0) W.hazardHit(this, hz);
   }
   tryMantle(W, dir) {
@@ -373,6 +374,28 @@ export class Player {
   }
 
   // ---- v1.3 painted frame-by-frame hero ----
+  // v1.4.1 locomotion (render-only): the gait phase advances by distance travelled / cycle length, so planted feet never slide.
+  // walk <-> run switches with hysteresis and keeps the phase (both cycles plant the near foot at phase 0), start/stop/turn frames bracket it.
+  gaitStep(W, dt) {
+    const g = this.gait || (this.gait = { ph: 0, mode: 'walk', start: 0, stop: 0, turn: 0, face: this.face, moving: false });
+    const v = Math.abs(this.vx), cyc = G.hero && G.hero.gait;
+    g.start = Math.max(0, g.start - dt); g.stop = Math.max(0, g.stop - dt); g.turn = Math.max(0, g.turn - dt);
+    if (!this.onGround) { g.moving = false; g.start = g.stop = g.turn = 0; g.face = this.face; return; }
+    if (g.face !== this.face) { g.turn = GAIT.TURN_T; g.start = 0; g.stop = 0; g.face = this.face; }
+    if (g.mode === 'walk' && v > GAIT.RUN_UP) g.mode = 'run'; else if (g.mode === 'run' && v < GAIT.RUN_DN) g.mode = 'walk';
+    const pushing = Math.abs(input.mx) > 0.05 && Math.sign(input.mx) === Math.sign(this.vx || input.mx);
+    const moving = v > GAIT.MOVE;
+    if (moving && !g.moving && g.turn <= 0) { g.start = GAIT.START_T; g.ph = 0; }
+    if (!pushing && g.moving && v > GAIT.RUN_DN && g.turn <= 0) g.stop = GAIT.STOP_T;
+    if (pushing) g.stop = 0;
+    g.moving = moving;
+    if (moving && cyc) {
+      const D = (cyc[g.mode] ? cyc[g.mode].cycle_px : 120) * HERO_PX * (W.heroK || HERO_K), p0 = g.ph;
+      g.ph = (g.ph + v * dt / D) % 1;
+      // footfalls at phase 0 (near foot) and 0.5 (far foot): step sound + dust on the beat
+      if (g.start <= 0 && g.stop <= 0 && ((p0 < 0.5 && g.ph >= 0.5) || g.ph < p0)) { sfx('step'); if (v > GAIT.RUN_UP) W.fx.dust(this.cx - sign(this.vx) * 4, this.y + this.h, 2, { dir: -sign(this.vx), speed: 40, size: 3.2, life: 0.4 }); }
+    }
+  }
   heroPose(W) {
     const t = this.t, h = this.hook, atk = this.atk, wpn = this.weapon, air = !this.onGround;
     const run = this.onGround && Math.abs(this.vx) > 20, dash = this.dashT > 0;
@@ -399,14 +422,19 @@ export class Player {
     else if (wall) { n = 'wall'; face = this.wallDir; }
     else if (air) n = this.vy < -160 ? 'jump' : this.vy < 160 ? 'apex' : 'fall';
     else if ((this.sy < 0.86 && this.sx > 1.1) || this.mantleT > 0) n = 'land';
+    else if (this.gait && this.gait.turn > 0) n = 'turn0';
+    else if (this.gait && this.gait.stop > 0) n = this.gait.stop > GAIT.STOP_T * 0.45 ? 'stop0' : 'stop1';
+    else if (this.gait && this.gait.start > 0 && G.hero.f.start0) n = this.gait.start > GAIT.START_T * 0.5 ? 'start0' : 'start1';
+    else if (this.gait && this.gait.moving && G.hero.f.walk0) { const m = this.gait.mode, N = (G.hero.gait && G.hero.gait[m] && G.hero.gait[m].frames) || 12; n = m + (Math.floor(this.gait.ph * N + 0.5) % N); }
     else if (run) n = 'run' + (((Math.floor(this.runPh / (Math.PI * 2) * 8) % 8) + 8) % 8);
+    else if (G.hero.f.start0 && Math.abs(input.mx) > 0.05) n = 'start0'; // pushing off but not moving yet (e.g. right after a standing turn): lean in, no idle flicker
     else n = (t % 2.6) > 1.9 ? 'idle1' : 'idle0';
     if (this.dead) rot = 0;
-    const F = G.hero.f[n] || G.hero.f.idle0, K = HERO_PX * (W.heroK || HERO_K), pvx = F[4] - 22, pvy = F[5] + 0, X = this.cx, Y = this.y + this.h;
+    const F = G.hero.f[n] || G.hero.f.idle0, K = HERO_PX * (W.heroK || HERO_K), pvx = F.length > 6 ? F[6] : F[4] - 22, X = this.cx, Y = this.y + this.h;
     const sx = (1 + (this.sx - 1) * 0.45) * face, sy = 1 + (this.sy - 1) * 0.45 + (n.startsWith('idle') ? Math.sin(t * 2.4) * 0.012 : 0);
-    const pose = { n, F, K, pvx, pvy: F[3] + (RUN_BOB[n] || 0), X, Y, sx, sy, rot, face, wa, shake: shake ? Math.sin(t * 50) * shake : 0, hand: null };
+    const pose = { n, F, K, pvx, pvy: F.length > 7 ? F[7] : F[3], X, Y, sx, sy, rot, face, wa, shake: shake ? Math.sin(t * 50) * shake : 0, hand: null };
     const fi = FIST[n]; if (fi) pose.hand = this.framePt(pose, fi[0], fi[1]);
-    void pvy; return pose;
+    return pose;
   }
   framePt(p, fx, fy) { // frame pixel -> world point
     const lx = (fx - p.pvx) * p.K * p.sx, ly = (fy - p.pvy) * p.K * p.sy, c = Math.cos(p.rot), s = Math.sin(p.rot);

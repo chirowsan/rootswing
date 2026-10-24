@@ -134,9 +134,10 @@ export function pollInput() {
   if (st.active && input.layout) {
     const dx = st.x - st.bx, dy = st.y - st.by, R = input.layout.stickR;
     let sx = clamp(dx / R, -1, 1), sy = clamp(dy / R, -1, 1);
-    // v1.4: small radial dead zone, analog walk -> run (full speed at ~65% throw); up/down only on steep angles so running never ducks
+    // v1.4.1: small radial dead zone, a short walk band near the centre, full run from ~38% throw (was ~65%: most drags sat in a half-speed shuffle);
+    // up/down only on steep angles so running never ducks
     const d = Math.hypot(dx, dy) / R, ang = Math.abs(dy) / Math.max(1e-6, Math.hypot(dx, dy));
-    if (d < 0.12) { sx = 0; sy = 0; } else { sx = Math.sign(dx) * Math.min(1, Math.max(0, (Math.abs(dx) / R - 0.08) / 0.57)); sy = d > 0.42 && ang > 0.74 ? Math.sign(dy) : 0; if (ang > 0.92) sx *= 0.5; }
+    if (d < 0.12) { sx = 0; sy = 0; } else { sx = Math.sign(dx) * Math.min(1, Math.max(0, (Math.abs(dx) / R - 0.08) / 0.30)); sy = d > 0.42 && ang > 0.74 ? Math.sign(dy) : 0; if (ang > 0.92) sx *= 0.5; }
     x = sx; y = sy;
     if (sy > 0) press('down'); else release('down'); if (sy < 0) press('up'); else release('up');
   } else if (save.settings.leftStyle === 'pads') {

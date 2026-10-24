@@ -7,7 +7,7 @@ export async function loadGfx(base = 'gfx/') {
     const names = [...Object.keys(meta.bg), 'tex_stone', 'tex_metal', 'tex_root', 'tex_rock'];
     const imgs = await Promise.all([loadImg(base + 'atlas.webp'), ...names.map((n) => loadImg(base + n + '.webp'))]);
     if (!imgs[0]) return false;
-    try { const [hm, hi] = await Promise.all([fetch(base + 'hero.json').then((r) => r.json()), loadImg(base + 'hero.webp')]); if (hi && hm) G.hero = { img: hi, f: hm.f, cache: new Map() }; } catch (e) { G.hero = null; }
+    try { const [hm, hi] = await Promise.all([fetch(base + 'hero.json').then((r) => r.json()), loadImg(base + 'hero.webp')]); if (hi && hm) G.hero = { img: hi, f: hm.f, gait: hm.gait || {}, cache: new Map() }; } catch (e) { G.hero = null; }
     try { const [em, ei] = await Promise.all([fetch(base + 'enemies.json').then((r) => r.json()), loadImg(base + 'enemies.webp')]); if (ei && em) G.en = { img: ei, f: em.f, cache: new Map() }; } catch (e) { G.en = null; }
     G.atlas = imgs[0]; names.forEach((n, i) => { if (imgs[i + 1]) G.img[n] = imgs[i + 1]; }); G.spr = meta.spr; G.ready = true; G.ver++;
     return true;

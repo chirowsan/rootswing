@@ -153,5 +153,29 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
   ok('enemy anim: painted frame swaps while moving', still.length === 0, still.join(','));
   ok('enemy anim: >=3 painted poses per foe', few.length === 0, few.join(','));
   ok('no page errors (enemy anim)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
+// v1.4.1 hero locomotion: painted walk + run cycles, distance-driven cadence (planted feet don't slide), shared pivot, alternating feet
+{ const { browser, page, errors } = await fresh();
+  await page.waitForFunction(() => __RS.gfx.ready && __RS.gfx.hero, { timeout: 20000 });
+  const g = await E(page, () => {
+    __RS.save.progress.tutorialDone = true; __RS.start('hub'); __RS.manual(true); __RS.step(60);
+    const W = __RS.W, P = W.player, M = W.map, T = __RS.TILE, Hf = __RS.gfx.hero.f; let best = null;
+    const sol = (x, y) => M.solid(x, y) || M.hazard(x, y);
+    for (let ty = 3; ty < M.h - 1; ty++) { let run = 0; for (let tx = 1; tx < M.w - 1; tx++) { const ok = M.solid(tx, ty + 1) && !sol(tx, ty) && !sol(tx, ty - 1) && !sol(tx, ty - 2) && !M.hazard(tx, ty + 1); run = ok ? run + 1 : 0; if (!best || run > best.n) best = { n: run, tx: tx - run + 1, ty }; } }
+    const out = {};
+    for (const [k, ax] of [['walk', 0.38], ['run', 1]]) {
+      P.x = (best.tx + 2) * T; P.y = (best.ty + 1) * T - P.h - 0.5; P.vx = P.vy = 0; P.face = 1; __RS.axes(0, 0); __RS.step(40); __RS.axes(ax, 0); __RS.step(40);
+      const names = new Set(), slides = []; let cur = null, near = 0, far = 0, noPv = 0;
+      for (let f = 0; f < 240; f++) { __RS.step(1); const p = P.heroPose(W), F = Hf[p.n]; names.add(p.n); if (!F || F.length < 10) { noPv++; if (cur) slides.push(cur.hi - cur.lo); cur = null; continue; }
+        const foot = F[8] != null ? 0 : F[9] != null ? 1 : -1; if (foot < 0) { if (cur) slides.push(cur.hi - cur.lo); cur = null; continue; } foot ? far++ : near++;
+        const wx = p.X + F[8 + foot] * p.K * p.face;
+        if (cur && cur.foot === foot) { cur.lo = Math.min(cur.lo, wx); cur.hi = Math.max(cur.hi, wx); } else { if (cur) slides.push(cur.hi - cur.lo); cur = { foot, lo: wx, hi: wx }; } }
+      slides.sort((a, b) => a - b);
+      out[k] = { distinct: [...names].filter((n) => n.startsWith(k)).length, near, far, noPv, slideMax: +(slides[slides.length - 1] || 0).toFixed(2), slideP50: +(slides[slides.length >> 1] || 0).toFixed(2), vx: +P.vx.toFixed(0) };
+    }
+    return out; });
+  ok('hero gait: >=8 painted walk frames and >=8 run frames in use', g.walk.distinct >= 8 && g.run.distinct >= 8, JSON.stringify({ walk: g.walk.distinct, run: g.run.distinct }));
+  ok('hero gait: feet alternate (both feet plant in walk and run)', g.walk.near > 0 && g.walk.far > 0 && g.run.near > 0 && g.run.far > 0, JSON.stringify(g));
+  ok('hero gait: planted foot slides < 1 frame step (walk < 2u, run < 3.5u)', g.walk.slideMax < 2 && g.run.slideMax < 3.5 && g.walk.noPv + g.run.noPv === 0, `walk ${g.walk.slideMax} run ${g.run.slideMax}`);
+  ok('no page errors (hero gait)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
 server.close(); const fail = results.filter((r) => !r.pass);
 console.log(`\n${results.length - fail.length}/${results.length} passed`); process.exit(fail.length ? 1 : 0);
