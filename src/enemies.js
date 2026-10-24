@@ -53,6 +53,8 @@ export class Enemy {
     const P = W.player, A = diff().aggro; this.t += dt; this.anim += dt; this.flash = Math.max(0, this.flash - dt); this.sq = approach(this.sq, 1, dt * 4);
     const dx = P.cx - this.cx, dy = P.cy - this.cy, adx = Math.abs(dx);
     const seen = adx < 330 && Math.abs(dy) < 150 && !P.dead;
+    if (this.juggle > 0) { this.juggle -= dt; if (this.vy > -400) this.vy -= 1500 * dt * 0.55; } // v1.9 juggle float
+    if (this.spinV) { this.spin = (this.spin || 0) + this.spinV * dt; this.spinV *= 1 - dt * 1.5; if ((this.onGround && this.vy >= 0 && !(this.juggle > 0)) || Math.abs(this.spinV) < 1) { this.spinV = 0; this.spin = 0; } }
     if (this.stun > 0) { this.stun -= dt; this.tele = 0; this.physics(W, dt, true); return; }
     this.cd -= dt * A;
     const fn = this['u_' + this.type]; if (fn) fn.call(this, W, dt, P, dx, dy, adx, seen, A);

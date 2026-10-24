@@ -31,7 +31,31 @@ function drawPaintedTop(g, W, P, x, y, s, t) {
   const gl = W.mode === 'hub' || W.mode === 'tutorial' ? save.progress.glimmers : W.runGlim; W._gl = W._gl === undefined ? gl : W._gl + Math.sign(gl - W._gl) * Math.max(1, Math.abs(gl - W._gl) * 0.15) * (Math.abs(gl - W._gl) < 1 ? 0 : 1);
   g.font = `900 ${13 * s}px system-ui,sans-serif`; g.textAlign = 'left'; g.lineWidth = 3 * s; g.strokeStyle = 'rgba(10,8,18,0.85)'; g.strokeText(String(Math.round(W._gl)), gx + 10 * s, yy + 5 * s); g.fillStyle = PAL.glimmer; g.fillText(String(Math.round(W._gl)), gx + 10 * s, yy + 5 * s);
   const wpn = WEAPONS[P.weapon]; const wx = gx + 54 * s; badge(g, wx, yy, 12 * s, s); g.save(); g.translate(wx, yy); g.rotate(-0.78); spr(g, 'w_' + P.weapon, 0, 0, P.weapon === 'bow' ? 18 * s : P.weapon === 'hammer' ? 13 * s : 7.5 * s, 0.5, 0.5); g.restore();
+  gaugeRing(g, P, wx, yy, 14.5 * s, s);
   if (!(input.touchActive || input.forceTouch)) P.gadgets.forEach((gd, i) => { const cx = wx + (28 + i * 26) * s; badge(g, cx, yy, 11 * s, s); if (gd === 'bomb' && has('bomb')) spr(g, 'bomb', cx, yy + 7 * s, 15 * s, 0.5, 1); else drawIcon(g, GADGETS[gd].icon, cx, yy, 14 * s, '#fff'); const cd = P.gcd[i] / GADGETS[gd].cd; if (cd > 0) { g.fillStyle = 'rgba(10,8,18,0.6)'; g.beginPath(); g.moveTo(cx, yy); g.arc(cx, yy, 11 * s, -Math.PI / 2, -Math.PI / 2 + cd * Math.PI * 2); g.fill(); } });
+}
+function gaugeRing(g, P, x, y, r, s) { // v1.9 Bloom gauge: a petal ring around the weapon badge; glows and spins when full
+  if (P.gauge === undefined) return; const f = Math.min(1, P.gauge / 100), t = performance.now() / 1000, full = f >= 1;
+  g.save(); g.lineCap = 'round'; g.lineWidth = 3 * s; g.strokeStyle = 'rgba(10,8,18,0.55)'; g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke();
+  if (f > 0) { g.strokeStyle = full ? '#ffc2e0' : '#e889b6'; g.beginPath(); g.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2); g.stroke(); }
+  if (full) { drawGlow(g, x, y, r * 2, '#ff9ccf', 0.45 + Math.sin(t * 6) * 0.15); g.fillStyle = '#ffd6ea'; for (let i = 0; i < 5; i++) { const a = t * 1.5 + i * 1.2566; g.save(); g.translate(x + Math.cos(a) * r, y + Math.sin(a) * r); g.rotate(a); g.beginPath(); g.ellipse(0, 0, 3.2 * s, 1.8 * s, 0, 0, 7); g.fill(); g.restore(); } }
+  g.restore();
+}
+export function drawMovesHint(g, W, w, h, s) { // v1.9 icon-only moves card (no words: kids 5-10)
+  const T = W.movesHint || 0; if (T <= 0) return; const al = Math.min(1, T * 2, (W.movesHintMax || 8) - T + 0.001 > 0 ? Math.min(1, ((W.movesHintMax || 8) - T) * 3) : 1);
+  const rows = [['attack', 'x5'], ['attack', 'hold'], ['up', 'attack'], ['jump', 'down', 'attack'], ['dash', 'attack'], ['parry', 'attack'], ['flower', 'hold']];
+  const cs = 22 * s, gap = 8 * s, widths = rows.map((r) => r.length * cs + (r.length - 1) * 3 * s), tw = widths.reduce((a, b) => a + b, 0) + gap * (rows.length - 1) + 16 * s;
+  const x0 = w / 2 - tw / 2, y0 = h * 0.2; g.save(); g.globalAlpha = al * 0.95;
+  g.fillStyle = 'rgba(14,12,24,0.72)'; g.beginPath(); g.roundRect(x0, y0, tw, cs + 14 * s, 9 * s); g.fill();
+  let x = x0 + 8 * s; const cy = y0 + 7 * s + cs / 2, t = performance.now() / 1000;
+  rows.forEach((r, ri) => { r.forEach((ic, i) => { const cx = x + cs / 2;
+    if (ic === 'x5') { g.fillStyle = '#fff4dc'; g.font = `900 ${11 * s}px system-ui,sans-serif`; g.textAlign = 'center'; g.fillText('×5', cx, cy + 4 * s); }
+    else if (ic === 'hold') { g.strokeStyle = '#ffe27a'; g.lineWidth = 2.5 * s; g.beginPath(); g.arc(cx, cy, 7 * s, -Math.PI / 2, -Math.PI / 2 + ((t * 0.8) % 1) * Math.PI * 2); g.stroke(); }
+    else if (ic === 'flower') { g.fillStyle = '#ffc2e0'; for (let k = 0; k < 5; k++) { const a = k * 1.2566 + t; g.beginPath(); g.ellipse(cx + Math.cos(a) * 4 * s, cy + Math.sin(a) * 4 * s, 3.4 * s, 2 * s, a, 0, 7); g.fill(); } g.fillStyle = '#ffe27a'; g.beginPath(); g.arc(cx, cy, 2.4 * s, 0, 7); g.fill(); }
+    else { g.fillStyle = ic === 'attack' ? 'rgba(255,154,90,0.35)' : 'rgba(255,255,255,0.12)'; g.beginPath(); g.arc(cx, cy, cs * 0.45, 0, 7); g.fill(); drawIcon(g, ic, cx, cy, cs * 0.62, ic === 'attack' ? '#ffd2a8' : '#fff'); }
+    x += cs + 3 * s; }); x += gap - 3 * s;
+    if (ri < rows.length - 1) { g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(x - gap / 2 - 0.5, y0 + 8 * s, 1, cs - 2 * s); } });
+  g.restore();
 }
 export function drawHUD(g, W, w, h, s) {
   const P = W.player; const t = W.t; g.save();
@@ -56,6 +80,7 @@ export function drawHUD(g, W, w, h, s) {
   const gl = W.mode === 'hub' || W.mode === 'tutorial' ? save.progress.glimmers : W.runGlim; W._gl = W._gl === undefined ? gl : W._gl + Math.sign(gl - W._gl) * Math.max(1, Math.abs(gl - W._gl) * 0.15) * (Math.abs(gl - W._gl) < 1 ? 0 : 1);
   g.fillStyle = PAL.glimmer; g.font = `900 ${13 * s}px system-ui,sans-serif`; g.fillText(String(Math.round(W._gl)), gx + 10 * s, yy + 5 * s);
   const wpn = WEAPONS[P.weapon]; const wx = gx + 52 * s; g.fillStyle = 'rgba(14,12,24,0.6)'; g.beginPath(); g.arc(wx, yy, 11 * s, 0, 7); g.fill(); drawIcon(g, wpn.icon, wx, yy, 15 * s, wpn.color);
+  gaugeRing(g, P, wx, yy, 13.5 * s, s);
   if (!(input.touchActive || input.forceTouch)) { // desktop: gadget icons with cooldown
     P.gadgets.forEach((gd, i) => { const cx = wx + (26 + i * 24) * s; g.fillStyle = 'rgba(14,12,24,0.6)'; g.beginPath(); g.arc(cx, yy, 11 * s, 0, 7); g.fill(); drawIcon(g, GADGETS[gd].icon, cx, yy, 14 * s, '#fff'); const cd = P.gcd[i] / GADGETS[gd].cd; if (cd > 0) { g.fillStyle = 'rgba(0,0,0,0.6)'; g.beginPath(); g.moveTo(cx, yy); g.arc(cx, yy, 11 * s, -Math.PI / 2, -Math.PI / 2 + cd * Math.PI * 2); g.fill(); } });
   }
@@ -73,8 +98,10 @@ export function drawHUD(g, W, w, h, s) {
     g.fillStyle = 'rgba(14,12,24,0.75)'; g.beginPath(); g.roundRect(bx - 4 * s, by - 4 * s, bw2 + 8 * s, 18 * s, 7 * s); g.fill();
     g.fillStyle = '#ff9a5a'; g.beginPath(); g.roundRect(bx, by, bw2 * f, 10 * s, 5 * s); g.fill();
     if (B.phase) for (const p of [0.66, 0.33]) { g.fillStyle = '#15131f'; g.fillRect(bx + bw2 * p - 1, by, 2 * s, 10 * s); }
-    g.font = `900 ${11 * s}px system-ui,sans-serif`; g.textAlign = 'center'; g.fillStyle = '#fff4dc'; g.fillText(B.info.name, w / 2, by + 24 * s);
+    if (B.maxPoise) { const pf = Math.max(0, B.poise / B.maxPoise), br = B.poiseBroke > 0, py = by + 12 * s; g.fillStyle = 'rgba(255,226,122,0.18)'; g.fillRect(bx, py, bw2, 3 * s); g.fillStyle = br ? (Math.sin(performance.now() / 50) > 0 ? '#ffffff' : '#ffe27a') : pf < 0.3 ? '#ffd04a' : '#ffe9a8'; g.fillRect(bx, py, bw2 * (br ? 1 : pf), 3 * s); } // v1.9 poise: empty it to break the boss's guard
+    g.font = `900 ${11 * s}px system-ui,sans-serif`; g.textAlign = 'center'; g.fillStyle = '#fff4dc'; g.fillText(B.info.name, w / 2, by + 26 * s);
   }
+  drawMovesHint(g, W, w, h, s);
   // countdown
   if (W.countdown > 0 || W.goT > 0) {
     const n = Math.ceil(W.countdown / 0.5); const label = W.countdown > 0 ? (n > 3 ? '' : String(n)) : 'GO!'; const k = W.countdown > 0 ? 1 - ((W.countdown / 0.5) % 1) : 1 - W.goT / 0.6;

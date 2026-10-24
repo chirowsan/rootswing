@@ -35,6 +35,30 @@ function noise(dur, freq, vol, { q = 1, type = 'bandpass', f1 = 0, when = 0, a =
   const g = ctx.createGain(); env(g, t, a, vol, dur); s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
 }
 const SFX = {
+  // v1.9 combat set: each hit type has its own swish/body so a combo reads by ear
+  slashA: () => { noise(0.11, 1400, 0.15, { f1: 4200, q: 1.6 }); tone('triangle', 520, 300, 0.06, 0.04); },
+  slashB: () => { noise(0.12, 4000, 0.14, { f1: 1200, q: 1.6 }); tone('triangle', 400, 620, 0.06, 0.04); },
+  spin: () => { noise(0.2, 700, 0.14, { f1: 3000, q: 2.5 }); noise(0.16, 3000, 0.08, { f1: 900, q: 2.5, when: 0.08 }); },
+  thrust: () => { noise(0.08, 2600, 0.16, { f1: 6000, q: 3 }); tone('square', 300, 160, 0.06, 0.05, { filter: 2000 }); },
+  finisher: () => { noise(0.3, 260, 0.22, { f1: 2400, q: 1 }); tone('sine', 160, 60, 0.3, 0.18); noise(0.12, 5000, 0.06, { type: 'highpass', when: 0.12 }); },
+  finisherHit: () => { tone('sine', 90, 38, 0.4, 0.34); noise(0.35, 700, 0.2, { type: 'lowpass', f1: 120 }); [784, 1175].forEach((f, i) => tone('triangle', f, f, 0.25, 0.05, { when: 0.03 + i * 0.04 })); },
+  launch: () => { noise(0.16, 600, 0.16, { f1: 4000, q: 1.5 }); tone('triangle', 200, 700, 0.16, 0.12); },
+  plungeHit: () => { tone('sine', 220, 520, 0.12, 0.16); noise(0.05, 4000, 0.1, { type: 'highpass' }); },
+  slam: () => { tone('sine', 110, 34, 0.45, 0.36); noise(0.4, 500, 0.24, { type: 'lowpass', f1: 90 }); noise(0.08, 2500, 0.08, { q: 0.7 }); },
+  kick: () => { tone('sine', 180, 70, 0.12, 0.24); noise(0.06, 1500, 0.12, { q: 1 }); },
+  dashSlash: () => { noise(0.14, 6000, 0.14, { f1: 1500, q: 2 }); tone('sawtooth', 900, 300, 0.1, 0.04, { filter: 3000 }); },
+  crit: () => { [1760, 2349].forEach((f, i) => tone('sine', f, f * 1.02, 0.18, 0.08, { when: i * 0.025 })); noise(0.03, 8000, 0.1, { type: 'highpass', a: 0.001 }); },
+  perfect: () => { [1047, 1319, 1568, 2093].forEach((f, i) => tone('sine', f, f, 0.4, 0.08, { when: i * 0.04 })); noise(0.5, 2500, 0.05, { q: 6, f1: 7000 }); },
+  counter: () => { noise(0.04, 8000, 0.14, { type: 'highpass', a: 0.001 }); noise(0.16, 3000, 0.16, { f1: 900, q: 2 }); tone('sine', 1568, 784, 0.2, 0.08); },
+  charged2: () => { [988, 1319, 1661, 1976].forEach((f, i) => tone('triangle', f, f, 0.3, 0.07, { when: i * 0.05 })); },
+  whirl: () => { for (let i = 0; i < 4; i++) noise(0.12, 800 + i * 400, 0.12, { f1: 3000, q: 2.5, when: i * 0.09 }); },
+  vineBurst: () => { noise(0.3, 300, 0.2, { type: 'lowpass', f1: 1600 }); tone('sawtooth', 70, 140, 0.2, 0.08, { filter: 600 }); noise(0.1, 3000, 0.06, { q: 3, when: 0.05 }); },
+  specialWind: () => { noise(0.3, 400, 0.12, { f1: 5000, q: 4 }); tone('sine', 220, 880, 0.3, 0.1); },
+  special: () => { tone('sine', 80, 40, 0.8, 0.34); [523, 659, 784, 1047, 1319].forEach((f, i) => tone('triangle', f, f, 0.7, 0.07, { when: i * 0.05 })); noise(0.7, 1200, 0.12, { f1: 200, type: 'lowpass' }); },
+  poiseBreak: () => { tone('square', 300, 80, 0.3, 0.1, { filter: 1500 }); noise(0.25, 2000, 0.2, { q: 0.6 }); [1319, 988].forEach((f, i) => tone('sine', f, f, 0.3, 0.08, { when: 0.05 + i * 0.07 })); },
+  gaugeFull: () => { [784, 1047, 1319].forEach((f, i) => tone('sine', f, f, 0.3, 0.07, { when: i * 0.06 })); },
+  plunge: () => { noise(0.18, 500, 0.14, { f1: 2500, q: 2 }); tone('sine', 600, 200, 0.14, 0.06); },
+  zip: () => { noise(0.16, 1200, 0.15, { f1: 7000, q: 3 }); tone('triangle', 400, 1200, 0.12, 0.06); },
   jump: () => { tone('triangle', 260, 520, 0.12, 0.18); noise(0.08, 1800, 0.05); noise(0.06, 500, 0.05, { type: 'lowpass' }); },
   land: () => { noise(0.09, 400, 0.14, { type: 'lowpass', f1: 120 }); tone('sine', 120, 60, 0.1, 0.12); noise(0.05, 2400, 0.03, { q: 1.5, when: 0.01 }); }, // thud + grit layer
   step: () => noise(0.04, 900, 0.035, { q: 2 }),
@@ -74,7 +98,7 @@ const SFX = {
   thump: () => { tone('sine', 90, 40, 0.3, 0.3); noise(0.2, 300, 0.15, { type: 'lowpass' }); },
   secret: () => { [659, 831, 988, 1319].forEach((f, i) => tone('sine', f, f, 0.4, 0.09, { when: i * 0.09 })); },
 };
-const VARY = { hit: 0.14, hitHeavy: 0.1, pop: 0.12, land: 0.16, step: 0.3, jump: 0.08, pickup: 0.1, swing: 0.12, enemyShoot: 0.1, hookAttach: 0.08 }; // per-play pitch variation
+const VARY = { hit: 0.14, hitHeavy: 0.1, pop: 0.12, land: 0.16, step: 0.3, jump: 0.08, pickup: 0.1, swing: 0.12, enemyShoot: 0.1, hookAttach: 0.08, slashA: 0.1, slashB: 0.1, spin: 0.08, thrust: 0.08, kick: 0.12, crit: 0.06 }; // per-play pitch variation
 export function sfx(name, minGap = 0.035) {
   if (!ctx || !SFX[name] || save.settings.sfx <= 0) return;
   const now = ctx.currentTime; if (last[name] && now - last[name] < minGap) return; last[name] = now;

@@ -1,4 +1,5 @@
 // The world: a scene (tutorial, hub, run or boss), its entities, camera and rendering.
+import * as CB from './combat.js';
 import { TILE, clamp, sign, rand, makeRng, rectsOverlap, lerp } from './util.js';
 import { G, has, spr, tinted } from './gfx.js';
 import { drawPaintedBg, drawForeground, drawMotes, drawGrade, renderPaintedChunk, paintedOK } from './paint.js';
@@ -32,7 +33,7 @@ export function playerStats() {
 const CHUNK_KEEP = 40; // ~2.5 screens of painted 384px chunks; long maps stream instead of growing memory
 export class World {
   constructor(game, mode, opts = {}) {
-    this.game = game; this.mode = mode; this.fx = new FX(); this.t = 0; this.events = []; this.listeners = [];
+    this.game = game; this.mode = mode; this.fx = new FX(); this.fx.cap = (game && game.lowPerf) || (save.settings && save.settings.quality === 'low') ? 260 : 520; this.t = 0; this.events = []; this.listeners = [];
     this.enemies = []; this.shots = []; this.bombs = []; this.waves = []; this.markers = []; this.pickups = []; this.props = []; this.anchors = []; this.sentries = []; this.pillars = []; this.lights = [];
     this.hs = 0; this.slow = 0; this.fight = null; this.runGlim = opts.glim || 0; this.cleared = new Set(opts.cleared || []); this.visited = new Set(opts.visited || []); this.opened = new Set(opts.opened || []);
     let L; this.seed = opts.seed ?? ((Math.random() * 1e9) | 0); this.stage = opts.stage || 0; // stage 0 = Overpass (-> Furnace), stage 1 = Drowned Glowroots (-> Drowned Bloom)
@@ -50,6 +51,7 @@ export class World {
     let px = start ? start.x * TILE + 12 : 100, py = start ? (start.y + 1) * TILE : 100;
     if (opts.cellIndex !== undefined && this.cells[opts.cellIndex]) { const c = this.cells[opts.cellIndex]; const p = this.findFloorIn(c); px = p.x; py = p.y; }
     this.player = new Player(px - 9, py - 34, stats);
+    this.movesHint = 0; if ((mode === 'run' || mode === 'hub') && !opts.noHint) { const pr = save.progress; if ((pr.movesSeen || 0) < 3 && mode === 'run') { pr.movesSeen = (pr.movesSeen || 0) + 1; this.movesHint = this.movesHintMax = 8; try { writeSave(); } catch (e) {} } } // v1.9 icon-only moves card on the first 3 runs
     if (opts.cellIndex !== undefined && this.cells[opts.cellIndex]) { const c = this.cells[opts.cellIndex]; this.lastCheckpoint = opts.cellIndex; for (const o of this.props) if (o.kind === 'shrine' && this.cellAt(o.x + o.w / 2, o.y + o.h - 4) === c) o.lit = true; }
     this.room = this.fullRoom; this.cam = { x: px - 300, y: py - 200 }; this.updateRoom(true); this.snapCamera();
     this.chunkCache = new Map(); this.rs = 0; this.bg = null; this.hazTiles = []; this.traps = new Traps(this, L.traps || []); this.guides = buildGuides(this);
@@ -141,8 +143,8 @@ export class World {
     if (this.countdown > 0) { const before = Math.ceil(this.countdown / 0.5); this.countdown -= dt; const after = Math.ceil(this.countdown / 0.5); if (after !== before && this.countdown > 0 && after <= 3) sfx('beep'); if (this.countdown <= 0) { sfx('go'); this.goT = 0.6; if (this.boss && this.boss.st === 'sleep') { this.boss.go('intro'); this.startFight(this.boss); sfx('roar'); this.fx.shake(0.4); } } this.fx.update(dt); this.updateCamera(dt); return; }
     if (this.goT > 0) this.goT -= dt;
     if (this.zoomK > 0) this.zoomK = Math.max(0, this.zoomK - dt * 4.5);
-    if (this.hs > 0) { this.hs -= dt; this.fx.update(dt * 0.3); return 'hs'; } // v1.4: callers keep button edges through hit-stop
-    if (this.slow > 0) { this.slow -= dt; dt *= 0.4; }
+    if (this.hs > 0) { this.hs -= dt; this.fx.update(dt * 0.3); CB.tickPops(this, dt); return 'hs'; } // v1.4: callers keep button edges through hit-stop
+    CB.tickPops(this, dt); if (this.slow > 0) { this.slow -= dt; dt *= 0.4; }
     const P = this.player; P.update(this, dt); this.updateRoom(false);
     const ax = P.cx, ay = P.cy;
     for (const e of this.enemies) { if (e.dead) continue; const near = Math.abs(e.cx - ax) < 640 && Math.abs(e.cy - ay) < 420; if (near || e.boss && e.st !== 'sleep') e.update(this, dt); }
@@ -150,6 +152,9 @@ export class World {
     this.updateShots(dt); this.updateBombs(dt); this.updateWaves(dt); this.updatePillars(dt); this.updateSentries(dt); this.updatePickups(dt); this.traps.update(dt); updateSeeds(this, dt); updateMissions(this, dt);
     for (const m of this.markers) m.t += dt; this.markers = this.markers.filter((m) => m.t < m.life);
     for (const p of this.props) if (p.kind === 'trigger' && !p.fired && Math.abs(P.cx - p.x) < 20 && Math.abs(P.cy - p.y) < 120) { p.fired = true; this.emit('trigger', p.n); }
+    if (this.movesHint > 0) this.movesHint -= dt; else if (this.mode === 'hub' && this.t > 1) { const P = this.player; for (const e of this.enemies) if (e.type === 'dummy' && !e.dead && Math.abs(e.cx - P.cx) < 110 && Math.abs(e.cy - P.cy) < 60) { this.movesHint = this.movesHintMax = 4; break; } } // near the hub dummy: show the moves card
+    CB.update(this, dt); if (this.special && (this.special.t += dt) > this.special.life) this.special = null;
+    for (const e of this.enemies) if (e.maxPoise && e.poise < e.maxPoise && this.t - (e.lastHitT || 0) > 2.5 && !(e.poiseBroke > 0)) e.poise = Math.min(e.maxPoise, e.poise + e.maxPoise * 0.25 * dt); // v1.9 boss poise regen
     this.fx.update(dt); this.updateCamera(dt);
     // ambient particles: floating spores
     if (Math.random() < dt * 6) this.fx.burst(this.cam.x + Math.random() * (this.viewW || 760), this.cam.y + (this.viewH || VIEW_H) + 10, 1, { color: this.mode === 'boss' ? '#ffb07a' : '#e8ffb0', min: 10, max: 30, g: -20, drag: 0, life: 6, size: 2.2, angle: -Math.PI / 2, spread: 0.5, glow: 1 });
@@ -194,7 +199,7 @@ export class World {
   onParry(p, info) {
     sfx('parry'); vibrate(30); this.hitstop(0.1); this.zoomKick(1); this.slow = 0.35; p.iframes = Math.max(p.iframes, 0.45); this.fx.shake(0.3);
     this.fx.ring(p.cx + p.face * 14, p.cy, 60, '#bff2ff', 0.4, 7); this.fx.burst(p.cx + p.face * 16, p.cy, 18, { color: ['#fff', '#bff2ff', '#ffe27a'], min: 150, max: 420, kind: 'spark', glow: 1, life: 0.4 });
-    this.fx.text(p.cx, p.y - 10, 'PARRY!', '#bff2ff', 18);
+    this.fx.text(p.cx, p.y - 10, 'PARRY!', '#bff2ff', 18); p.counterT = 1.0; CB.gain(p, 15, this); // v1.9: next tap = counter slash
     const e = info.src; if (e && e.cx !== undefined && !e.shot) { e.stun = Math.max(e.stun, e.boss ? 1.5 : 1.8); e.parried = 2.2; e.tele = 0; if (e.st) e.st = e.boss ? 'idle' : 'idle'; if (e.boss) e.cd = 1.4; e.vx = sign(e.cx - p.cx) * (e.boss ? 60 : 200); }
     if (info.shot) { const s = info.shot; s.owner = 'player'; s.vx = -s.vx * 1.4; s.vy = s.ember ? -Math.abs(s.vy) * 0.4 - 200 : -s.vy * 1.4; if (Math.abs(s.vx) < 120) s.vx = p.face * 400; s.dmg *= 3; s.life = 1.6; s.g = s.ember ? 600 : 0; s.reflected = true; }
     this.emit('parry');
@@ -226,21 +231,36 @@ export class World {
       if (hit.breaks) { e.shield = false; sfx('shieldBreak'); this.fx.burst(e.cx + e.face * 12, e.cy, 16, { color: ['#c8d2e2', '#fff'], max: 260, size: 5 }); this.fx.text(e.cx, e.y - 14, 'Shield broken!', '#ffe27a', 13); this.emit('shieldBreak'); }
       else if (sign(p.cx - e.cx) === e.face && e.stun <= 0 && hit.src !== 'bomb') { sfx('block'); this.fx.burst(e.cx + e.face * 14, e.cy - 4, 6, { color: ['#fff', '#ffe27a'], kind: 'spark', max: 240, glow: 1 }); p.vx = -p.face * 160; this.fx.text(e.cx, e.y - 12, 'blocked', '#cfd6e6', 11); this.emit('blocked'); e.blocks = (e.blocks || 0) + 1; return false; }
     }
-    let dmg = hit.dmg * (p ? diff().dmgDealt * (this.dmgDealt || 1) : 1) * (e.parried > 0 ? 2 : 1) * (e.boss && e.stun > 0 ? 1.4 : 1);
-    if (e.type === 'dummy') { e.flash = 0.15; this.fx.text(e.cx, e.y - 6, String(Math.round(dmg)), '#fff', 13); this.emit('dummyHit'); sfx('hit'); this.hitstop(hit.hs || 0.04); this.fx.burst(e.cx, e.cy, 6, { color: ['#fff', '#ffe27a'], kind: 'spark', max: 260 }); return true; }
+    const crit = !!(p && (hit.crit || (e.yankUntil > this.t && hit.src === 'melee'))); // v1.9 crits: counters, perfect-dodge follow-ups, hook-zip strikes, hits on yanked foes, Bloom
+    let dmg = hit.dmg * (p ? diff().dmgDealt * (this.dmgDealt || 1) : 1) * (e.parried > 0 ? 2 : 1) * (e.boss && e.stun > 0 ? 1.4 : 1) * (crit ? 1.5 : 1);
+    if (e.type === 'dummy') { e.flash = 0.15; this.fx.text(e.cx, e.y - 6, String(Math.round(dmg)), '#fff', 13); this.emit('dummyHit'); sfx(hit.fin ? 'finisherHit' : 'hit'); CB.pop(this, lerp(e.cx, srcX, 0.35), e.cy - 2, hit.fin || hit.crit ? 1.5 : 1, hit.crit ? '#ffe9a0' : '#ffffff'); e.sq = hit.fin ? 0.35 : 0.2; if (hit.fin) CB.leaves(this, e.cx, e.cy, 8); this.hitstop(hit.hs || 0.04); this.fx.burst(e.cx, e.cy, 6, { color: ['#fff', '#ffe27a'], kind: 'spark', max: 260 }); return true; }
     if (e.type === 'tturret') { e.flash = 0.15; e.hitsTaken += hit.reflected ? 99 : 1; sfx('hit'); if (e.hitsTaken < 5) { this.fx.text(e.cx, e.y - 8, hit.reflected ? '' : 'Parry its spit!', '#bff2ff', 11); return true; } dmg = 1e9; }
-    dmg = Math.max(1, Math.round(dmg)); e.hp -= dmg; e.flash = 0.12;
-    if (!e.boss) { const k = (hit.kb || 0) * (e.light ? 1 : 0.4); e.vx = sign(e.cx - srcX || 1) * k; if (e.light && k > 0) e.vy = -Math.min(220, k * 0.5); if (e.light || hit.breaks) { e.stun = Math.max(e.stun, hit.stun || 0.22); e.tele = 0; if (e.st !== 'hop') e.st = 'idle'; } }
+    dmg = Math.max(1, Math.round(dmg)); e.hp -= dmg; e.flash = this.slow > 0 ? 0.05 : 0.12;
+    const dir = sign(e.cx - srcX || 1), stg = hit.stag ?? hit.stun ?? 0.22;
+    if (!e.boss) { const k = (hit.kb || 0) * (e.light ? 1 : 0.4); e.vx = dir * k; if (e.light && k > 0) e.vy = -Math.min(220, k * 0.5);
+      if (e.light || hit.breaks) { e.stun = Math.max(e.stun, hit.stun || stg); e.tele = 0; if (e.st !== 'hop') e.st = 'idle'; }
+      else if (stg >= 0.5 || crit) { e.stun = Math.max(e.stun, 0.3); e.tele = 0; } // v1.9: heavy foes only stagger from big hits
+      if (e.light && hit.launch) { e.vy = -hit.launch; e.juggle = 0.9; e.spinV = dir * (9 + Math.random() * 6); e.stun = Math.max(e.stun, 0.8); }
+      else if (!e.light && hit.launch >= 400) e.vy = -hit.launch * 0.35;
+      if (e.light && hit.air && !e.onGround) { e.vy = Math.min(e.vy, -170); e.juggle = Math.max(e.juggle || 0, 0.5); e.stun = Math.max(e.stun, 0.45); } // juggle: air hits keep light foes aloft
+      if (e.light && (crit || hit.fin) && !e.spinV) e.spinV = dir * 12;
+      e.sq = 0.78; }
     if (hit.stun && e.boss) e.stun = Math.max(e.stun, 0.2);
+    if (e.maxPoise && p) { e.lastHitT = this.t; e.poise -= dmg * (hit.poise || 1) * (hit.fin ? 2 : 1); if (e.poise <= 0 && !(e.poiseBroke > 0)) e.poisePending = true; }
+    if (e.poisePending && (e.st === 'idle' || /Tele$/.test(e.st || ''))) { e.poisePending = false; e.poiseBroke = 2.2; e.poise = e.maxPoise; e.stun = Math.max(e.stun, 2.2); if (e.go) e.go('idle'); else e.st = 'idle'; e.tele = 0; e.cd = Math.max(e.cd || 0, 0.8); sfx('poiseBreak'); this.fx.text(e.cx, e.y - 20, 'BREAK!', '#ffe27a', 20); this.fx.ring(e.cx, e.cy, 70, '#ffe27a', 0.45, 7); CB.leaves(this, e.cx, e.cy, 18); this.hitstop(0.14); this.zoomKick(1); this.fx.flash = 0.3; this.fx.flashColor = '#fff2b0'; this.emit('poiseBreak'); }
     const heavy = dmg >= 25 || !!hit.breaks; this.hitstop(Math.max(hit.hs || 0.035, heavy ? 0.065 : 0)); this.fx.shake(hit.shake || 0.08); sfx(heavy ? 'hitHeavy' : 'hit'); if (heavy) this.zoomKick(0.6);
     this.fx.burst(lerp(e.cx, srcX, 0.3), e.cy, dmg >= 25 ? 12 : 7, { color: ['#fff', '#ffe27a', PAL.inkPop], kind: 'spark', min: 120, max: 360, glow: 1, life: 0.3 });
-    this.fx.dmg(e.cx + rand.range(-4, 4), e.y - 4, dmg, { heavy, gold: e.parried > 0, dir: sign(e.cx - srcX || 1) });
+    this.fx.dmg(e.cx + rand.range(-4, 4), e.y - 4, dmg, { heavy: heavy || crit, gold: e.parried > 0 || crit, dir });
+    CB.pop(this, lerp(e.cx, srcX, 0.35), e.cy - 2, heavy || crit ? 1.5 : 1, crit ? '#ffe9a0' : '#ffffff');
+    if (crit) { sfx('crit'); this.hitstop(Math.max(hit.hs || 0.035, 0.07)); this.fx.text(e.cx, e.y - 18, 'CRIT!', '#ffe27a', 13); this.fx.ring(e.cx, e.cy, 30, '#ffe27a', 0.25, 4); this.fx.burst(e.cx, e.cy, 5, { color: ['#fff6d8', '#ffe27a'], kind: 'star', min: 60, max: 200, life: 0.5, size: 6 }); this.emit('crit'); }
+    if (hit.fin) { sfx('finisherHit'); this.fx.text(e.cx, e.y - 24, 'FINISH!', '#c8f08a', 15); CB.leaves(this, e.cx, e.cy, 12); this.zoomKick(0.8); }
+    if (p && hit.src !== 'special' && hit.src !== 'hazard' && p.gauge !== undefined) CB.gain(p, Math.min(8, dmg * 0.5), this);
     if (e.hp <= 0) this.killEnemy(e, p);
     return true;
   }
   killEnemy(e, p) {
     if (e instanceof Boss) { e.hp = 0; e.go('dying'); sfx('roar'); this.fx.shake(0.8); this.slow = 1.0; return; }
-    e.dead = true; this.fx.shatter(e._dr, e.boss ? 4 : 3, e.boss ? 1.2 : 1); this.fx.pop(e.cx, e.cy, e.boss ? 2 : 1); if (e.boss) this.zoomKick(0.8); sfx('pop'); vibrate(15);
+    e.dead = true; CB.leaves(this, e.cx, e.cy, e.boss ? 24 : 10); CB.spores(this, e.cx, e.cy, e.boss ? 16 : 8); this.fx.shatter(e._dr, e.boss ? 4 : 3, e.boss ? 1.2 : 1); this.fx.pop(e.cx, e.cy, e.boss ? 2 : 1); if (e.boss) this.zoomKick(0.8); sfx('pop'); vibrate(15);
     const lucky = save.progress.unlocks.lucky ? 1.25 : 1; this.dropGlims(e.cx, e.cy, Math.round(e.glim * lucky));
     if (!e.boss && rand.chance(0.08)) this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy, vx: rand.range(-50, 50), vy: -220, t: 0 });
     this.player.stats.kills++; this.emit('kill', e);
@@ -414,14 +434,15 @@ export class World {
     drawGuidesBack(g, this); this.drawAnchors(g);
     this.drawMarkers(g);
     for (const s of this.sentries) this.drawSentry(g, s);
-    mk && mk('props'); for (const e of this.enemies) if (e.x + e.w > vx0 && e.x < vx1 && e.y + e.h > vy0 && e.y < vy1) e.draw(g, this);
+    CB.drawBack(g, this); if (this.special) CB.drawSpecialWorld(g, this);
+    mk && mk('props'); for (const e of this.enemies) if (e.x + e.w > vx0 && e.x < vx1 && e.y + e.h > vy0 && e.y < vy1) { if (e.spin) { g.save(); g.translate(e.cx, e.cy); g.rotate(e.spin); g.translate(-e.cx, -e.cy); e.draw(g, this); g.restore(); } else e.draw(g, this); } // v1.9 ragdoll spin
     mk && mk('enemies'); this.dbg = { px: this.player.x, camx }; drawCritters(g, this); this.player.draw(g, this); mk && mk('player');
     this.drawShots(g);
     for (const w of this.waves) { const k = Math.sin(this.t * 30) * 2; g.fillStyle = '#7d5cff'; g.strokeStyle = '#15131f'; g.lineWidth = 2; g.beginPath(); g.moveTo(w.x - 12, w.y); g.quadraticCurveTo(w.x - w.dir * 2, w.y - 26 - k, w.x + w.dir * 12, w.y); g.closePath(); g.fill(); g.stroke(); drawGlow(g, w.x, w.y - 10, 26, '#ff5a7a', 0.6); }
     for (const p of this.pillars) { g.fillStyle = '#4a3e50'; g.strokeStyle = '#15131f'; g.lineWidth = 2.5; g.beginPath(); g.roundRect(p.x, p.y, p.w, p.h, 8); g.fill(); g.stroke(); g.fillStyle = '#ff8a5a'; g.fillRect(p.x + 8, p.y + 14, 6, 6); g.fillRect(p.x + 24, p.y + 26, 5, 5); }
     for (const k of this.pickups) if (!offV(k.x, k.y)) this.drawPickup(g, k);
     if (this.player.hookTarget && this.player.hook.s === 'none' && !this.player.dead) this.drawReticle(g, this.player.hookTarget);
-    mk && mk('shots'); this.fx.draw(g); mk && mk('fx');
+    CB.drawFront(g, this, lo); mk && mk('shots'); this.fx.draw(g); mk && mk('fx');
     if (this.bloomT) this.drawBloom(g);
     if (painted && !lo) drawMotes(this, g, vx0, vx1, vy0, vy1);
     g.setTransform(1, 0, 0, 1, 0, 0);
@@ -429,6 +450,7 @@ export class World {
     // vignette
     if (!this.vig || this.vigW !== cw) { const v = g.createRadialGradient(cw / 2, ch / 2, ch * 0.45, cw / 2, ch / 2, cw * 0.75); v.addColorStop(0, 'rgba(10,8,20,0)'); v.addColorStop(1, 'rgba(10,8,20,0.55)'); this.vig = v; this.vigW = cw; }
     if (!lo) { if (painted) drawGrade(this, g, cw, ch); else { g.fillStyle = this.vig; g.fillRect(0, 0, cw, ch); } }
+    if (this.special) CB.drawSpecial(g, this, cw, ch);
     if (this.fx.flash > 0) { g.globalAlpha = this.fx.flash * 0.35; g.fillStyle = this.fx.flashColor; g.fillRect(0, 0, cw, ch); g.globalAlpha = 1; }
     // low health edge pulse
     const P = this.player; if (P.hp / P.maxHp < 0.3 && !P.dead) { g.globalAlpha = 0.18 + Math.sin(this.t * 5) * 0.08; g.strokeStyle = '#ff3d6e'; g.lineWidth = ch * 0.05; g.strokeRect(0, 0, cw, ch); g.globalAlpha = 1; }

@@ -10,6 +10,7 @@ import { WEAPONS, GADGETS } from './weapons.js';
 import { diff, save } from './save.js';
 import { PAL, drawGlow } from './art.js';
 import { G, has, spr, sprAspect, shaded, heroFlash } from './gfx.js';
+import { MV, GAUGE_MAX, trail, lash, decal, wave, leaves, petals, gain } from './combat.js';
 
 const C = HERO; // unchanged values (moved to physics.js in v1.5 so the validator shares them)
 export const HERO_K = 1.22; // v1.2 visual scale of the hero rig around the feet (hitbox unchanged)
@@ -26,6 +27,7 @@ export class Player {
     this.dashT = 0; this.dashCd = 0; this.dashDir = 1; this.iframes = 0; this.hurtT = 0; this.flash = 0; this.dead = false; this.deadT = 0; this.respawnT = 0;
     this.hook = { s: 'none' }; this.atk = null; this.chargeT = 0; this.charged = false; this.comboT = 0; this.comboIdx = 0; this.queued = false; this.airHang = 0; this.hookBuf = 0;
     this.parryT = 0; this.parryLock = 0; this.flaskT = 0; this.healLeft = 0;
+    this.gauge = stats.gauge || 0; this.critT = 0; this.counterT = 0; this.dashEnd = 0; this.perfCd = 0; this.airStep = 0; this.airStepT = 0; this.airHover = 0; this.dashSlashes = 0; this.charged2 = false; // v1.9 combat state
     this.sx = 1; this.sy = 1; this.runPh = 0; this.stepT = 0; this.t = 0; this.safe = { x, y }; this.hookTarget = null; this.drop = 0; this.mantleT = 0;
     this.scarf = Array.from({ length: 7 }, () => ({ x: x + 9, y: y + 12, px: x + 9, py: y + 12 }));
     this.lastHit = null; this.stats = { jumps: 0, hooks: 0, dashes: 0, attacks: 0, parries: 0, kills: 0 };
@@ -34,7 +36,7 @@ export class Player {
   get busy() { return this.dead || this.respawnT > 0; }
   update(W, dt) {
     this.t += dt; const D = diff();
-    for (const k of ['coyote', 'jumpBuf', 'wallCoyote', 'wallLock', 'dashCd', 'iframes', 'hurtT', 'flash', 'parryT', 'parryLock', 'comboT', 'freeJump', 'drop', 'mantleT', 'hookBuf']) this[k] = Math.max(0, this[k] - dt);
+    for (const k of ['coyote', 'jumpBuf', 'wallCoyote', 'wallLock', 'dashCd', 'iframes', 'hurtT', 'flash', 'parryT', 'parryLock', 'comboT', 'freeJump', 'drop', 'mantleT', 'hookBuf', 'critT', 'counterT', 'dashEnd', 'perfCd', 'airStepT']) this[k] = Math.max(0, this[k] - dt);
     this.gcd = this.gcd.map((v) => Math.max(0, v - dt));
     this.sx = lerp(this.sx, 1, Math.min(1, dt * 12)); this.sy = lerp(this.sy, 1, Math.min(1, dt * 12));
     this.updateScarf(dt);
@@ -62,7 +64,7 @@ export class Player {
     if (this.dashT > 0) {
       this.dashT -= dt; this.vx = this.dashDir * C.DASH; this.vy = 0;
       if (Math.random() < 0.7) W.fx.burst(this.cx - this.dashDir * 8, this.cy + 6, 1, { color: '#e8fff0', min: 10, max: 40, g: 0, life: 0.25, size: 5 });
-      if (this.dashT <= 0) this.vx = this.dashDir * C.RUN * 0.9;
+      if (this.dashT <= 0) { this.vx = this.dashDir * C.RUN * 0.9; this.dashEnd = 0.15; } // v1.9: short window after a dash for the dash-slash
     } else {
       // horizontal
       const mm = WEAPONS[this.weapon].moveMul, slow = this.atk ? (!this.onGround ? 1 : this.atk.phase === 'rec' ? Math.max(mm, 0.85) : Math.max(mm, mm * 0.5 + 0.35)) : this.parryLock > 0 ? 0.1 : this.flaskT > 0 ? 0.4 : 1;
@@ -84,7 +86,7 @@ export class Player {
       // jump
       if (this.jumpBuf > 0 && this.parryLock <= 0 && this.canCancel()) { // v1.4: jump cancels attack recovery
         const can = this.onGround || this.coyote > 0 || this.freeJump > 0 || this.wallCoyote > 0;
-        if (can && this.atk && this.atk.kind !== 'air') { this.atk = null; this.queued = false; }
+        if (can && this.atk && this.atk.kind !== 'air' && this.atk.kind !== 'kick') { this.atk = null; this.queued = false; }
         if (this.onGround || this.coyote > 0 || this.freeJump > 0) this.doJump(W);
         else if (this.wallCoyote > 0) this.doWallJump(W);
       }
@@ -99,7 +101,7 @@ export class Player {
     const r = moveBody(W.map, this, dt, { drop: this.drop > 0, corner: this.vy < -120 });
     this.onGround = r.ground || (this.vy >= 0 && !!groundBelow(W.map, this) && this.drop <= 0 && this.hook.s !== 'zip');
     if (this.onGround && !wasGround) W.emit('land');
-    if (this.onGround) { this.coyote = diff().coyote; this.airDash = true; this.wallJumping = false; this.airHang = 0; if (!wasGround && this.atk && this.atk.kind === 'air' && this.atk.phase !== 'active') { this.atk = null; } } // landing cancels an air swing cleanly
+    if (this.onGround) { this.coyote = diff().coyote; this.airDash = true; this.wallJumping = false; this.airHang = 0; this.airHover = 0; if (!wasGround && this.atk && this.atk.kind === 'air' && this.atk.phase !== 'active') { this.atk = null; } } // landing cancels an air swing cleanly
     if (r.ground && !wasGround && prevVy > 160) { this.sy = 0.72; this.sx = 1.25; sfx('land'); W.fx.dust(this.cx, this.y + this.h, prevVy > 420 ? 8 : 5, { speed: 50 + Math.min(80, prevVy * 0.12), size: prevVy > 420 ? 5 : 3.8, life: 0.5 }); W.fx.burst(this.cx, this.y + this.h, 4, { color: '#d9d2c0', min: 30, max: 90, angle: -Math.PI / 2, spread: 1.4, g: 200, life: 0.35 }); }
     // ledge assist: pop up onto a ledge we barely missed
     if (!this.onGround && this.hook.s === 'none' && this.dashT <= 0) {
@@ -142,7 +144,7 @@ export class Player {
   }
   startDash(W, mx) {
     this.dashDir = Math.abs(mx) > 0.2 ? sign(mx) : this.face; this.face = this.dashDir; this.dashT = C.DASH_T; this.dashCd = C.DASH_CD; this.iframes = Math.max(this.iframes, 0.26);
-    if (!this.onGround) this.airDash = false; this.atk = null; this.sx = 1.35; this.sy = 0.75; sfx('dash'); this.stats.dashes++; W.emit('dash'); vibrate(10);
+    if (!this.onGround) this.airDash = false; this.atk = null; this.dashSlashes = 0; this.sx = 1.35; this.sy = 0.75; sfx('dash'); this.stats.dashes++; W.emit('dash'); vibrate(10);
   }
   // ---------------- grappling vine ----------------
   fireHook(W, mx, my) {
@@ -206,18 +208,18 @@ export class Player {
     else if (tg.kind === 'zip') { this.hook = { s: 'zip', tgt: tg, hx: tg.x, hy: tg.y, t: 0 }; W.emit('zip'); }
     else if (tg.kind === 'enemy') {
       const e = tg.ent;
-      if (e.light && !e.boss) { W.hitEnemy(e, { dmg: 4, kb: 0, hs: 0.04, shake: 0.08, stun: 0.9, src: 'hook' }, this); e.yank(this); /* v1.4: yank after the hit (the kb:0 hit used to cancel the pull) */ this.hook = { s: 'retract', hx: tg.x, hy: tg.y, t: 0 }; W.emit('hookEnemy'); }
+      if (e.light && !e.boss) { W.hitEnemy(e, { dmg: 4, kb: 0, hs: 0.04, shake: 0.08, stun: 0.9, src: 'hook' }, this); e.yank(this); e.yankUntil = W.t + 0.9; /* v1.4: yank after the hit; v1.9: a hit on a yanked foe is a crit */ this.hook = { s: 'retract', hx: tg.x, hy: tg.y, t: 0 }; W.emit('hookEnemy'); }
       else { this.hook = { s: 'zip', tgt: tg, hx: tg.x, hy: tg.y, t: 0, strike: true }; }
     }
   }
   hookArrive(W) {
     const h = this.hook;
     let slash = false;
-    if (h.strike && h.tgt.ent && !h.tgt.ent.dead) { const e = h.tgt.ent; slash = !!h.slash; this.face = sign(e.cx - this.cx || this.face); W.hitEnemy(e, slash ? { dmg: 22, kb: 320, hs: 0.1, shake: 0.3, stun: 0.6, src: 'hook' } : { dmg: 14, kb: 260, hs: 0.08, shake: 0.25, stun: 0.4, src: 'hook' }, this); this.vx = -this.face * (slash ? 150 : 200); this.vy = -300; this.iframes = Math.max(this.iframes, 0.3); W.emit('hookEnemy'); if (slash) { sfx('swing'); W.fx.ring(e.cx, e.cy, 26, WEAPONS[this.weapon].color, 0.25, 5); } }
+    if (h.strike && h.tgt.ent && !h.tgt.ent.dead) { const e = h.tgt.ent; slash = !!h.slash; this.face = sign(e.cx - this.cx || this.face); W.hitEnemy(e, slash ? { dmg: 22, kb: 320, hs: 0.1, shake: 0.3, stun: 0.6, stag: 0.8, crit: true, src: 'hook' } : { dmg: 14, kb: 260, hs: 0.08, shake: 0.25, stun: 0.4, stag: 0.6, src: 'hook' }, this); trail(W, this, { kind: 'spin', r: 34, th: 12, dur: 0.14, col: WEAPONS[this.weapon].color }); sfx('zip'); this.vx = -this.face * (slash ? 150 : 200); this.vy = -300; this.iframes = Math.max(this.iframes, 0.3); W.emit('hookEnemy'); if (slash) { sfx('swing'); W.fx.ring(e.cx, e.cy, 26, WEAPONS[this.weapon].color, 0.25, 5); } }
     else { this.vx *= 0.75; this.vy = Math.min(this.vy * 0.75, -200); } // v1.4: keeps the zip's direction instead of snapping
     this.freeJump = 0.32; this.airDash = true; this.hook = { s: 'none' }; this.sy = 1.2; this.sx = 0.85;
     if (h.slash && !slash) { this.atk = null; this.startAttack(W, input.my); } // buffered attack fires on arrival
-    if (slash) { this.atk = { kind: 'air', step: 0, phase: 'active', t: 0, wind: 0, def: WEAPONS[this.weapon].air, hit: new Set([h.tgt.ent]), slash: true }; this.stats.attacks++; }
+    if (slash) { this.atk = { kind: 'air', step: 2, phase: 'active', t: 0, wind: 0, def: { ...WEAPONS[this.weapon].air, mv: 'airspin', both: true }, hit: new Set([h.tgt.ent]), slash: true }; this.stats.attacks++; }
   }
   releaseSwing(W, boost) {
     if (boost) { this.vy = Math.min(this.vy - 240, -430); this.vx *= 1.15; sfx('jump'); this.sy = 1.3; this.sx = 0.8; W.emit('swingRelease'); }
@@ -226,55 +228,127 @@ export class Player {
   // ---------------- combat ----------------
   updateAttack(W, dt, mx, my) {
     const wpn = WEAPONS[this.weapon];
-    if (pressed('attack') && this.parryLock <= 0 && this.dashT <= 0 && this.flaskT <= 0) {
+    if (pressed('attack') && this.parryLock <= 0 && this.flaskT <= 0) {
       if (W.tryInteract(this)) { /* used as interact */ }
+      else if ((this.dashT > 0 || this.dashEnd > 0) && !this.atk && this.weapon !== 'bow' && this.dashSlashes < 1 && this.hook.s === 'none') this.startDashSlash(W); // v1.9 dash + tap
+      else if (this.dashT > 0) { /* dash owns the frame */ }
       else if (!this.atk) this.startAttack(W, my);
       else this.queued = true;
     }
-    // charge while holding after the first hit
+    // charge while holding after the first hit; with a full Bloom gauge keep holding for the special
     if (held('attack') && !this.atk && this.dashT <= 0 && this.parryLock <= 0) {
       this.chargeT += dt; if (this.chargeT > 0.2 && this.chargeT - dt <= 0.2) sfx('charge');
-      if (this.chargeT >= 0.62 && !this.charged) { this.charged = true; sfx('charged'); W.fx.ring(this.cx, this.cy, 30, wpn.color, 0.3, 4); W.emit('charged'); }
+      if (this.chargeT >= 0.55 && !this.charged) { this.charged = true; sfx('charged'); W.fx.ring(this.cx, this.cy, 30, wpn.color, 0.3, 4); W.emit('charged'); }
+      if (this.charged && !this.charged2 && this.chargeT >= 1.05 && this.gauge >= GAUGE_MAX) { this.charged2 = true; sfx('charged2'); W.fx.ring(this.cx, this.cy, 44, '#ffc2e0', 0.4, 5); petals(W, this.cx, this.cy - 6, 10, { max: 120 }); W.emit('bloomReady'); }
     }
     if (released('attack') || !held('attack')) {
-      if (this.charged && !this.atk) { this.startAttack(W, my, 'heavy'); W.emit('heavy'); }
-      this.chargeT = 0; this.charged = false;
+      if (this.charged2 && !this.atk) this.startSpecial(W);
+      else if (this.charged && !this.atk) { this.startAttack(W, my, 'heavy'); W.emit('heavy'); }
+      this.chargeT = 0; this.charged = false; this.charged2 = false;
     }
     const a = this.atk; if (!a) return;
     a.t += dt;
-    if (a.kind === 'plunge') {
-      if (a.phase === 'wind' && a.t > 0.08) { a.phase = 'active'; a.t = 0; this.vy = 560; }
-      if (a.phase === 'active') { this.vy = 560; this.vx *= 0.9; const box = { x: this.x - 6, y: this.y + this.h - 6, w: this.w + 12, h: 22 }; if (W.attackBox(box, a.def, this, a.hit)) { this.vy = -430; this.atk = null; this.airDash = true; sfx('jump'); return; }
-        if (this.onGround) { W.fx.burst(this.cx, this.y + this.h, 10, { color: '#e8e2d0', angle: -Math.PI / 2, spread: 1.4, max: 160, life: 0.35 }); W.fx.shake(0.15); sfx('land'); W.attackBox({ x: this.x - 26, y: this.y + this.h - 18, w: this.w + 52, h: 18 }, a.def, this, a.hit); a.phase = 'rec'; a.t = 0; } }
-      if (a.phase === 'rec' && a.t > 0.18) this.atk = null;
-      return;
-    }
+    if (a.kind === 'plunge') return this.updatePlunge(W, a);
     const d = a.def;
-    if (a.phase === 'wind' && a.t >= (a.wind ?? d.wind)) { a.phase = 'active'; a.t = 0; sfx(d.sfx); if (d.lunge && this.onGround) { const lv = d.lunge * (Math.abs(input.mx) > 0.1 || W.nearestEnemyAhead(this) ? 1 : 0.4); this.vx = this.face * Math.max(lv, sign(this.vx) === this.face ? Math.abs(this.vx) : 0); } // lunge never slows a running swing
-      if (d.proj) W.spawnArrow(this, d); if (d.quake) W.quake(this, d); }
+    if (a.phase === 'wind' && a.t >= (a.wind ?? d.wind)) { a.phase = 'active'; a.t = 0; this.onActive(W, a, d, wpn); }
     if (a.phase === 'active') {
-      if (!d.proj) { const box = this.attackRect(d); W.attackBox(box, d, this, a.hit); }
-      if (a.t >= d.active) { a.phase = 'rec'; a.t = 0; }
+      if (d.ticks > 1) { const n = Math.min(d.ticks - 1, Math.floor(a.t / (d.active / d.ticks))); if (n !== (a.tick || 0)) { a.tick = n; a.hit.clear(); if (d.mv === 'whirl') sfx('spin', 0.05); } }
+      if (d.pull) for (const e of W.enemies) if (!e.dead && e.light && !e.boss && Math.abs(e.cx - this.cx) < 110 && Math.abs(e.cy - this.cy) < 60) e.vx = approach(e.vx, sign(this.cx - e.cx) * 160, 900 * dt);
+      if (a.kind === 'special') this.updateSpecial(W, a);
+      else if (!d.proj) { const box = this.attackRect(d); if (W.attackBox(box, a.hd || d, this, a.hit)) this.onConnect(W, a); }
+      if (a.t >= d.active) { a.phase = 'rec'; a.t = 0; if (d.burst) this.vineBurst(W, d); }
     } else if (a.phase === 'rec') {
       if (this.queued && a.t > d.rec * 0.35 && a.kind === 'combo') { const n = wpn.combo.length; if (a.step + 1 < n) { this.queued = false; this.startAttack(W, my, 'combo', a.step + 1); return; } }
-      if (this.queued && a.t > d.rec * 0.45 && a.kind === 'air') { this.queued = false; this.atk = null; this.startAttack(W, my); return; } // chained air swings
-      if (a.t >= d.rec) { this.atk = null; this.comboT = 0.25; this.comboIdx = a.step + 1; if (this.queued) { this.queued = false; this.comboIdx = 0; this.startAttack(W, my); } } // v1.4: a tap during the finisher restarts the combo instead of being dropped
+      if (this.queued && a.t > d.rec * 0.45 && (a.kind === 'air' || a.kind === 'kick' || (a.kind === 'rise' && !this.onGround))) { this.queued = false; this.atk = null; this.startAttack(W, my); return; } // chained air swings
+      if (a.t >= d.rec) { this.atk = null; this.comboT = 0.25; this.comboIdx = a.kind === 'combo' ? a.step + 1 : 0; if (this.queued) { this.queued = false; this.comboIdx = 0; this.startAttack(W, my); } } // v1.4: a tap during the finisher restarts the combo instead of being dropped
     }
   }
-  attackRect(d, up = !!(this.atk && this.atk.up)) { if (up && !d.both) { const L = d.w * 0.9, Wd = d.h + 10; return { x: this.cx - Wd / 2, y: this.y + 10 - L, w: Wd, h: L }; } const w = d.w, h = d.h; const x = d.both ? this.cx - w / 2 : this.face > 0 ? this.cx - 4 : this.cx + 4 - w; return { x, y: this.cy - h / 2 + (d.oy || 0), w, h }; }
+  onActive(W, a, d, wpn) { // v1.9: the strike frame -- sound, lunge, trail, finisher shockwave
+    sfx(d.sfx);
+    if (d.lunge && this.onGround) { const lv = d.lunge * (Math.abs(input.mx) > 0.1 || W.nearestEnemyAhead(this) || a.kind === 'counter' ? 1 : 0.4); this.vx = this.face * Math.max(lv, sign(this.vx) === this.face ? Math.abs(this.vx) : 0); } // lunge never slows a running swing
+    if (d.hop) { this.vy = d.hop; this.onGround = false; this.coyote = 0; }
+    if (d.proj) W.spawnArrow(this, d); if (d.quake) W.quake(this, d);
+    a.hd = { ...d, crit: d.crit || this.critT > 0, air: a.kind === 'air' };
+    const mv = MV[a.mv || d.mv], col = wpn.color;
+    if (mv && !d.proj && !(this.weapon === 'whip' && !mv.spin)) {
+      if (mv.thrust) trail(W, this, { kind: 'thrust', L: Math.min(110, d.w * 0.95), h: 16, dur: d.active, col, oy: -4 + (d.oy || 0) });
+      else if (mv.line) trail(W, this, { kind: 'dash', L: 74, h: 18, dur: d.active, fade: 0.2, col });
+      else if (mv.spin) trail(W, this, { kind: 'spin', r: Math.min(64, (d.w || 70) * 0.5), th: mv.th, dur: d.active, turns: d.ticks > 2 ? d.ticks * 0.6 : 1, col, oy: -2 });
+      else if (mv.foot) trail(W, this, { kind: 'foot', dur: d.active, col: '#e8fff0' });
+      else if (mv.arc) trail(W, this, { kind: 'arc', arc: mv.arc, r: mv.r, th: mv.th, dur: Math.max(0.06, d.active * 0.85), col, ox: a.kind === 'rise' || a.up ? 6 : 2, oy: a.kind === 'rise' || a.up ? -10 : -6 });
+    }
+    if (d.fin) { // finisher: vine lash along the ground, shockwave, crack decal, white flash
+      const gy = this.y + this.h, fx0 = this.cx + this.face * 18; W.fx.flash = Math.max(W.fx.flash, 0.22); W.fx.flashColor = '#fff6d8'; W.fx.shake(0.22); W.zoomKick(0.45);
+      if (this.onGround) { wave(W, fx0, gy, 64); decal(W, fx0, gy, 1.1); leaves(W, fx0, gy - 4, 10, { angle: -Math.PI / 2, spread: 1.2 }); W.fx.dust && W.fx.dust(fx0, gy, 6, { dir: this.face, speed: 90, size: 4, life: 0.5 });
+        if (d.lashL) { lash(W, fx0, gy, this.face, d.lashL); const L = d.lashL; W.attackBox({ x: this.face > 0 ? fx0 : fx0 - L, y: gy - 22, w: L, h: 22 }, a.hd, this, a.hit); } }
+    }
+  }
+  onConnect(W, a) {
+    if (a.connected) return; a.connected = true; if (this.critT > 0 && a.hd && a.hd.crit) this.critT = 0;
+    if (!this.onGround && (a.kind === 'air' || a.kind === 'rise') && this.airHover < 4) { this.airHover++; if (this.vy > -60) this.vy = -110; } // v1.9: air hits give a small hover so juggles chain; momentum (vx) is kept
+    if (a.kind === 'counter') { W.fx.text(this.cx, this.y - 14, 'COUNTER!', '#bff2ff', 15); W.hitstop(0.12); }
+    if (a.kind === 'dash') { W.slow = Math.max(W.slow || 0, 0.12); }
+    if (a.kind === 'kick') { this.vx *= 0.85; }
+  }
+  vineBurst(W, d) { // end of the charged whirlwind: thorny vines burst out both ways
+    const gy = this.onGround ? this.y + this.h : this.cy + 10; sfx('vineBurst'); W.fx.shake(0.3); wave(W, this.cx, gy, 90, '#c8f08a'); leaves(W, this.cx, gy - 6, 16); if (this.onGround) decal(W, this.cx, gy, 1.2);
+    for (const dir of [-1, 1]) lash(W, this.cx, gy, dir, 90);
+    W.attackBox({ x: this.cx - 96, y: gy - 40, w: 192, h: 44 }, { dmg: d.burst, kb: 300, hs: 0.08, shake: 0.3, launch: 340, stag: 0.8, breaks: true, fin: true }, this, new Set());
+  }
+  updatePlunge(W, a) {
+    if (a.phase === 'wind' && a.t > 0.08) { a.phase = 'active'; a.t = 0; this.vy = 560; sfx('plunge'); }
+    if (a.phase === 'active') { this.vy = 560; this.vx *= 0.9; const box = { x: this.x - 6, y: this.y + this.h - 6, w: this.w + 12, h: 22 };
+      if (W.attackBox(box, a.def, this, a.hit)) { this.vy = -430; this.atk = null; this.airDash = true; this.airHover = 0; sfx('plungeHit'); wave(W, this.cx, this.y + this.h + 8, 40); W.fx.burst(this.cx, this.y + this.h + 6, 10, { color: ['#fff', '#ffe27a'], kind: 'spark', min: 120, max: 320, angle: Math.PI / 2, spread: 1.4, glow: 1, life: 0.3 }); W.emit('plungeBounce'); return; }
+      if (this.onGround) { const gy = this.y + this.h; W.fx.burst(this.cx, gy, 14, { color: '#e8e2d0', angle: -Math.PI / 2, spread: 1.4, max: 200, life: 0.4 }); W.fx.shake(0.32); W.hitstop(0.05); sfx('slam'); wave(W, this.cx, gy, 84); decal(W, this.cx, gy, 1.2); leaves(W, this.cx, gy - 4, 8, { angle: -Math.PI / 2, spread: 1.3 });
+        W.attackBox({ x: this.x - 40, y: gy - 22, w: this.w + 80, h: 22 }, { ...a.def, launch: 260, stag: 0.6 }, this, a.hit); a.phase = 'rec'; a.t = 0; W.emit('plungeLand'); } }
+    if (a.phase === 'rec' && a.t > 0.2) this.atk = null;
+  }
+  attackRect(d, up = !!(this.atk && this.atk.up)) { if (d.mv === 'rise') { const w = d.w; return { x: this.face > 0 ? this.cx - 6 : this.cx + 6 - w, y: this.y - 26, w, h: this.h + 30 }; } if (up && !d.both) { const L = d.w * 0.9, Wd = d.h + 10; return { x: this.cx - Wd / 2, y: this.y + 10 - L, w: Wd, h: L }; } const w = d.w, h = d.h; const x = d.both ? this.cx - w / 2 : this.face > 0 ? this.cx - 4 : this.cx + 4 - w; return { x, y: this.cy - h / 2 + (d.oy || 0), w, h }; }
   startAttack(W, my, kind = 'combo', step = 0) {
     const wpn = WEAPONS[this.weapon]; if (Math.abs(input.mx) > 0.2) this.face = sign(input.mx); else this.autoFace(W);
-    const up = my < -0.5 && this.weapon !== 'bow' && kind !== 'heavy';
+    const melee = this.weapon !== 'bow', up = my < -0.5 && melee && kind !== 'heavy', thr = wpn.combo[0].thrust;
+    if (kind === 'combo' && this.counterT > 0 && melee && this.hook.s === 'none') return this.startCounter(W);
     if (kind === 'combo' && !this.onGround && (this.hook.s === 'none' || this.hook.s === 'swing')) {
-      if (my > 0.5 && this.weapon !== 'bow') { this.atk = { kind: 'plunge', phase: 'wind', t: 0, def: { dmg: 16, kb: 200, hs: 0.06, shake: 0.2, breaks: this.weapon === 'hammer' }, hit: new Set() }; this.vy = -120; sfx('swing'); W.emit('attack'); return; }
-      this.atk = { kind: 'air', step: 0, phase: 'wind', t: 0, wind: wpn.air.wind * 0.75, def: wpn.air, hit: new Set(), up }; this.stats.attacks++; W.emit('attack'); return;
+      if (my > 0.5 && melee) { this.atk = { kind: 'plunge', phase: 'wind', t: 0, def: { dmg: 16, kb: 200, hs: 0.06, shake: 0.2, breaks: this.weapon === 'hammer', stag: 0.5 }, hit: new Set() }; this.vy = -120; sfx('swing'); W.emit('attack'); return; }
+      if (this.hook.s === 'swing' && melee) { // v1.9 swing kick: feet first, speed adds damage, the swing keeps going
+        const sp = Math.hypot(this.vx, this.vy); this.atk = { kind: 'kick', step: 0, phase: 'wind', t: 0, wind: 0.02, def: { dmg: Math.round(8 + Math.min(12, sp / 40)), wind: 0.02, active: 0.14, rec: 0.1, w: 36, h: 28, oy: 12, kb: 200 + sp * 0.4, hs: 0.05, shake: 0.16, sfx: 'kick', mv: 'kick', stag: 0.55 }, hit: new Set() }; this.stats.attacks++; W.emit('attack'); W.emit('kick'); return; }
+      if (this.airStepT <= 0) this.airStep = 0; const st = melee ? this.airStep % 3 : 0; this.airStep++; this.airStepT = 0.6;
+      const A = wpn.air, def = !melee ? A : thr ? { ...A, mv: 'lunge' } : up ? { ...A, mv: 'rise' } : st === 0 ? { ...A, mv: 'air' } : st === 1 ? { ...A, dmg: A.dmg + 1, mv: 'airrev', sfx: 'slashB' } : { ...A, dmg: Math.round(A.dmg * 1.25), mv: 'airspin', both: true, w: A.w * 1.5, active: A.active * 1.4, sfx: 'spin', stag: 0.5 };
+      this.atk = { kind: 'air', step: st, phase: 'wind', t: 0, wind: A.wind * 0.75, def, hit: new Set(), up }; this.stats.attacks++; W.emit('attack'); if (st === 2) W.emit('airSpin'); return;
+    }
+    if (kind === 'combo' && up && step === 0) { // v1.9 launcher: rising uppercut that pops light foes up and hops after them
+      const def = { dmg: this.weapon === 'hammer' ? 18 : 11, wind: 0.08, active: 0.1, rec: 0.22, w: 46, h: 40, kb: 60, hs: 0.06, shake: 0.18, sfx: 'launch', mv: 'rise', launch: 540, stag: 0.7, hop: -440, breaks: this.weapon === 'hammer' };
+      this.atk = { kind: 'rise', step: 0, phase: 'wind', t: 0, wind: def.wind, def, hit: new Set(), up: true }; this.stats.attacks++; this.sx = 0.9; this.sy = 1.12; W.emit('attack'); W.emit('launcher'); return;
     }
     if (kind === 'combo' && step === 0 && this.comboT > 0 && this.comboIdx < wpn.combo.length) step = this.comboIdx;
     const def = kind === 'heavy' ? wpn.heavy : wpn.combo[step];
-    this.atk = { kind, step, phase: 'wind', t: 0, wind: kind === 'heavy' ? def.wind : def.wind * 0.75, def, hit: new Set(), up: up && !def.proj }; this.stats.attacks++; // v1.4: snappier startup
+    this.atk = { kind, step, phase: 'wind', t: 0, wind: kind === 'heavy' ? def.wind : def.wind * 0.75, def, hit: new Set(), up: up && !def.proj && !def.both }; this.stats.attacks++; // v1.4: snappier startup
+    if (def.fin) W.emit('finisher'); if (kind === 'combo') W.emit('comboHit', step + 1);
     this.sx = 1.12; this.sy = 0.9; W.emit('attack');
   }
-  canCancel() { const a = this.atk; return !a || a.kind === 'air' || a.phase === 'rec' || (a.phase === 'active' && a.kind === 'combo' && a.t >= 0.034); } // v1.4 cancel window: after the first 2 active frames
+  startDashSlash(W) {
+    const def = { dmg: 14, wind: 0, active: 0.14, rec: 0.12, w: 58, h: 30, oy: -2, kb: 220, hs: 0.05, shake: 0.2, sfx: 'dashSlash', mv: 'dash', stag: 0.5 };
+    this.dashSlashes++; this.dashT = Math.max(this.dashT, 0.1); this.dashDir = this.face; this.iframes = Math.max(this.iframes, 0.3); this.dashEnd = 0;
+    this.atk = { kind: 'dash', step: 0, phase: 'wind', t: 0, wind: 0, def, hit: new Set() }; this.stats.attacks++; W.emit('attack'); W.emit('dashSlash');
+  }
+  startCounter(W) { // v1.9 parry counter: flash-step slash that always crits
+    this.counterT = 0; let tg = null, best = 1e9; for (const e of W.enemies) { if (e.dead) continue; const d = Math.hypot(e.cx - this.cx, e.cy - this.cy); if (d < 140 && d < best) { best = d; tg = e; } } if (tg) this.face = sign(tg.cx - this.cx) || this.face;
+    const def = { dmg: 24, wind: 0.04, active: 0.1, rec: 0.2, w: 62, h: 40, oy: -4, lunge: tg ? Math.min(420, 120 + best * 2.2) : 200, kb: 360, hs: 0.1, shake: 0.4, sfx: 'counter', mv: 'counter', crit: true, breaks: true, stag: 1, poise: 2 };
+    this.atk = { kind: 'counter', step: 0, phase: 'wind', t: 0, wind: def.wind, def, hit: new Set() }; this.iframes = Math.max(this.iframes, 0.35); W.slow = Math.max(W.slow || 0, 0.18); this.stats.attacks++; W.emit('attack'); W.emit('counter');
+  }
+  startSpecial(W) { // v1.9 Bloom: full gauge + long hold. Thorn-and-petal ring that hits everything nearby three times.
+    this.gauge = 0; this.iframes = Math.max(this.iframes, 1.1); if (this.onGround) { this.vy = -220; this.onGround = false; } else this.vy = Math.min(this.vy, -120);
+    this.atk = { kind: 'special', step: 0, phase: 'wind', t: 0, wind: 0.16, def: { dmg: 0, wind: 0.16, active: 0.5, rec: 0.22, mv: 'bloom', sfx: 'special' }, hit: new Set(), ticks: 0 };
+    W.special = { t: 0, life: 1.15, x: this.cx, y: this.y + this.h, R: 150, seed: Math.random() * 6 }; W.slow = Math.max(W.slow || 0, 0.3); sfx('specialWind'); W.emit('special'); this.stats.attacks++;
+  }
+  updateSpecial(W, a) {
+    const due = a.t >= a.ticks * 0.17; if (!due || a.ticks >= 3) return; a.ticks++;
+    if (a.ticks === 1) { W.fx.flash = 0.5; W.fx.flashColor = '#ffc2e0'; W.fx.shake(0.5); W.zoomKick(1); petals(W, this.cx, this.cy, 36, { max: 320 }); wave(W, this.cx, this.y + this.h, 150, '#ffc2e0'); if (W.special) { W.special.x = this.cx; W.special.y = this.y + this.h; } }
+    else { petals(W, this.cx, this.cy, 12, { max: 260 }); sfx('vineBurst'); }
+    const S = W.special || { x: this.cx, y: this.cy, R: 150 };
+    for (const e of W.enemies) { if (e.dead) continue; const dx = (e.cx - S.x) / S.R, dy = (e.cy - (S.y - 20)) / (S.R * 0.7); if (dx * dx + dy * dy > 1) continue; W.hitEnemy(e, { dmg: 16, kb: 240, launch: 360, hs: 0.05, shake: 0.25, stag: 0.8, crit: true, poise: 3, breaks: true, src: 'special' }, this); }
+  }
+  canCancel() { const a = this.atk; if (!a) return true; if (a.kind === 'special') return a.phase === 'rec' && a.t > 0.1; return a.kind === 'air' || a.kind === 'kick' || a.phase === 'rec' || (a.phase === 'active' && (a.kind === 'combo' || a.kind === 'rise') && !a.def.fin && a.t >= 0.034); } // v1.4 cancel window: after the first 2 active frames
   autoFace(W) { // no stick: turn toward a close enemy behind if none is in front
     let ahead = false, back = null; for (const e of W.enemies) { if (e.dead || e.type === 'dummy') continue; const dx = e.cx - this.cx; if (Math.abs(dx) > 70 || Math.abs(e.cy - this.cy) > 50) continue; if (sign(dx) === this.face) ahead = true; else back = e; }
     if (!ahead && back) this.face = -this.face;
@@ -283,6 +357,9 @@ export class Player {
     if (this.dead || this.respawnT > 0) return 'none';
     if (this.parryT > 0 && info.parryable !== false) { this.parryT = 0; this.parryLock = 0.12; this.stats.parries++; W.onParry(this, info); return 'parry'; }
     if (W.god) return 'dodge';
+    if (this.dashT > 0 && this.perfCd <= 0 && (info.src || info.shot)) { // v1.9 perfect dodge: slow-mo + the next hit crits
+      this.perfCd = 1.6; W.slow = Math.max(W.slow || 0, 0.5); this.critT = 1.3; gain(this, 12, W); sfx('perfect'); vibrate(20);
+      W.fx.text(this.cx, this.y - 8, 'PERFECT!', '#bff7ff', 15); W.fx.ring(this.cx, this.cy, 44, '#bff7ff', 0.35, 4); W.emit('perfectDodge'); return 'dodge'; }
     if (this.dashT > 0 || this.iframes > 0) { if (this.dashT > 0 && !this.dodgeShown) { this.dodgeShown = true; W.fx.text(this.cx, this.y - 4, 'dodge!', '#bff7ff', 11); setTimeout(() => (this.dodgeShown = false), 400); } return 'dodge'; }
     const real = Math.max(1, Math.round(dmg * diff().dmgTaken * (W.dmgTaken || 1)));
     this.hp -= real; this.iframes = 1.0; this.hurtT = 0.22; this.flash = 0.25; this.atk = null; this.hook = { s: 'none' };
@@ -303,7 +380,7 @@ export class Player {
   // ---------------- drawing ----------------
   draw(g, W) {
     if (this.respawnT > 0) return;
-    if (this.iframes > 0 && this.dashT <= 0 && !this.dead && Math.floor(this.t * 20) % 2 === 0 && this.iframes < 0.95) g.globalAlpha = 0.45;
+    if (this.iframes > 0 && this.dashT <= 0 && !this.atk && !this.dead && Math.floor(this.t * 20) % 2 === 0 && this.iframes < 0.95) g.globalAlpha = 0.45;
     const t = this.t, f = this.face, X = this.cx, Y = this.y + this.h;
     // vine/hook line
     const h = this.hook;
@@ -373,8 +450,10 @@ export class Player {
     if (this.parryT > 0 || this.parryLock > 0.1) { g.strokeStyle = '#bfefff'; g.lineWidth = 3; g.globalAlpha = this.parryT > 0 ? 0.95 : 0.4; g.beginPath(); g.arc(X, this.cy, 24, f > 0 ? -1.2 : Math.PI - 1.2 + 0.0, f > 0 ? 1.2 : Math.PI + 1.2); g.stroke(); drawGlow(g, X + f * 18, this.cy, 22, '#9fe8ff', 0.5); g.globalAlpha = 1; }
     if (this.flash > 0) { drawGlow(g, X, this.cy, 30, '#ff7090', this.flash * 2); }
     // attack smear
-    if (atk && atk.phase === 'active' && atk.def && !atk.def.proj && atk.kind !== 'plunge') { if (atk.up) { g.save(); g.translate(this.cx, this.cy); g.rotate(-this.face * Math.PI / 2); g.translate(-this.cx, -this.cy); } this.drawSmear(g, atk); if (atk.up) g.restore(); }
-    if (atk && atk.kind === 'plunge' && atk.phase === 'active') { g.fillStyle = 'rgba(255,255,255,0.5)'; g.beginPath(); g.moveTo(this.x - 4, this.y); g.lineTo(this.x + this.w + 4, this.y); g.lineTo(X, this.y + this.h + 16); g.fill(); }
+    if (atk && atk.phase === 'active' && atk.def && !atk.def.proj && atk.kind !== 'plunge' && atk.kind !== 'special' && atk.kind !== 'kick' && (!(atk.def.mv && MV[atk.def.mv]) || (this.weapon === 'whip' && !MV[atk.def.mv].spin))) { if (atk.up) { g.save(); g.translate(this.cx, this.cy); g.rotate(-this.face * Math.PI / 2); g.translate(-this.cx, -this.cy); } this.drawSmear(g, atk); if (atk.up) g.restore(); }
+    if (atk && atk.kind === 'plunge' && atk.phase === 'active') { // v1.9: falling-star streaks + a glowing blade tip instead of a flat wedge
+      g.save(); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round'; for (let i = 0; i < 5; i++) { const ox = (i - 2) * 5 + Math.sin(t * 50 + i * 2) * 1.5, L = 26 + ((i * 37 + Math.floor(t * 60) * 13) % 22); g.globalAlpha = 0.25 + 0.12 * (i % 2); g.strokeStyle = i === 2 ? '#fff6d8' : '#bff7ff'; g.lineWidth = i === 2 ? 3 : 1.6; g.beginPath(); g.moveTo(X + ox, this.y - L + 6); g.lineTo(X + ox, this.y + this.h - 4); g.stroke(); }
+      g.globalAlpha = 0.85; drawGlow(g, X + this.face * 2, this.y + this.h + 10, 12, '#fff6d8', 0.8); g.restore(); g.globalAlpha = 1; }
   }
 
   // ---- v1.3 painted frame-by-frame hero ----
@@ -410,6 +489,7 @@ export class Player {
     else if (this.hurtT > 0) n = 'hurt';
     else if (h.s === 'swing') { n = 'swing'; rot = Math.atan2(h.hx - this.cx, -(h.hy - this.cy)) * 0.85; }
     else if (h.s !== 'none') n = 'throw';
+    else if (atk && this.combatPose(atk, wpn)) { const cp = this._cp; n = cp.n; wa = cp.wa; face = cp.face; rot = cp.rot; }
     else if (atk) {
       const st = atk.step || 0, ph = atk.phase;
       if (atk.kind === 'plunge') { n = 'slam'; wa = 1.45; }
@@ -420,6 +500,7 @@ export class Player {
       else if (st % 3 === 2) { n = ph === 'wind' ? 'land' : 'thrust'; wa = ph === 'wind' ? null : -0.06; }
       else { n = ph === 'wind' ? 'hwind' : 'slash1'; wa = ph === 'wind' ? -2.1 : sweep(-1.6, 0.85); }
     }
+    else if (this.chargeT > 0.2 && wpn !== 'bow' && G.hero.f.c_charge) { n = this.charged2 ? 'c_bloom' : 'c_charge'; wa = this.charged2 ? -1.6 : 2.5; shake = this.charged ? 1.2 : 0.5; }
     else if (this.chargeT > 0.2) { if (wpn === 'bow') { n = 'thrust'; wa = -0.08; } else { n = 'hwind'; wa = -2.0; shake = this.charged ? 1.2 : 0.5; } }
     else if (this.parryLock > 0) { n = 'parry'; wa = -1.5; }
     else if (dash) n = 'dash';
@@ -437,8 +518,22 @@ export class Player {
     const F = G.hero.f[n] || G.hero.f.idle0, K = HERO_PX * (W.heroK || HERO_K), pvx = F.length > 6 ? F[6] : F[4] - 22, X = this.cx, Y = this.y + this.h;
     const sx = (1 + (this.sx - 1) * 0.45) * face, sy = 1 + (this.sy - 1) * 0.45 + (n.startsWith('idle') ? Math.sin(t * 2.4) * 0.012 : 0);
     const pose = { n, F, K, pvx, pvy: F.length > 7 ? F[7] : F[3], X, Y, sx, sy, rot, face, wa, shake: shake ? Math.sin(t * 50) * shake : 0, hand: null };
-    const fi = FIST[n]; if (fi) pose.hand = this.framePt(pose, fi[0], fi[1]);
+    const fi = this.fist(n); if (fi) pose.hand = this.framePt(pose, fi[0], fi[1]);
     return pose;
+  }
+  fist(n) { return FIST[n] || (G.hero && G.hero.hand && G.hero.hand[n]) || null; }
+  combatPose(atk, wpn) { // v1.9: anticipation -> strike (smear) -> follow-through frames from the rig, blade angle keyed per move
+    if (wpn === 'bow') return false;
+    const key = atk.kind === 'special' ? 'bloom' : atk.kind === 'plunge' ? 'plunge' : atk.def && atk.def.mv; const mv = MV[key]; if (!mv || !G.hero.f[mv.a]) return false;
+    const d = atk.def || {}, ph = atk.phase, k = ph === 'active' ? Math.min(1, atk.t / Math.max(0.01, d.active || 0.1)) : ph === 'rec' ? 1 : 0;
+    let n = ph === 'wind' ? mv.a : ph === 'active' ? (k < 0.5 ? mv.s : mv.f) : mv.f, face = this.face, rot = 0, wa = null;
+    if (key === 'plunge') n = ph === 'rec' ? mv.f : mv.s;
+    if (mv.w) { const w = mv.w, e = 1 - (1 - k) * (1 - k); wa = ph === 'wind' ? w[0] : ph === 'active' ? w[1] + (w[2] - w[1]) * e : w[3]; }
+    if (mv.spin && ph === 'active') { const turns = d.ticks > 2 ? d.ticks * 0.6 : 1, a = k * turns * Math.PI * 2; face = Math.cos(a) >= 0 ? this.face : -this.face; wa = (mv.w ? mv.w[0] : 0) + a * 1.0; }
+    if (key === 'dash' || key === 'counter') rot = clamp(this.vx / 2400, -0.12, 0.12);
+    if (key === 'kick' && this.hook.s === 'swing') rot = Math.atan2(this.hook.hx - this.cx, -(this.hook.hy - this.cy)) * 0.5;
+    if (!G.hero.f[n]) n = mv.a;
+    this._cp = { n, wa, face, rot }; return true;
   }
   framePt(p, fx, fy) { // frame pixel -> world point
     const lx = (fx - p.pvx) * p.K * p.sx, ly = (fy - p.pvy) * p.K * p.sy, c = Math.cos(p.rot), s = Math.sin(p.rot);
@@ -450,10 +545,10 @@ export class Player {
     const blink = this.iframes > 0 && !this.dead && this.flash <= 0 && Math.sin(this.t * 38) > 0;
     g.save(); g.translate(p.X + p.shake, p.Y); g.rotate(p.rot); g.scale(p.sx * p.K, p.sy * p.K); g.translate(-p.pvx, -p.pvy);
     if (blink) g.globalAlpha = 0.5;
-    const fi = FIST[p.n];
+    const fi = this.fist(p.n);
     if (p.wa === null || !fi) this.frameWeapon(g, p, F[4] - 30, F[5] + 6, this.weapon === 'bow' ? 1.75 : 1.95, 0.95, 0.72); // sheathed across the back
     const wr = missions().wardrobe; g.drawImage(capeSheet(H, wr.cape) || H.img, F[0], F[1], F[2], F[3], 0, 0, F[2], F[3]);
-    if (wr.hat && wr.hat !== 'none' && !this.dead) drawHat(g, wr.hat, F[4] - 12, F[5] - 47, 4.4, 1); // v1.8: earned hat rides the hood on every frame
+    if (wr.hat && wr.hat !== 'none' && !this.dead) { const hm = p.n.startsWith('c_') && G.hero.hand && G.hero.hand[p.n]; if (hm && hm[3]) { g.save(); g.translate(F[4], F[5] - 30); g.rotate(hm[3] * 0.012); g.translate(-F[4], -(F[5] - 30)); } drawHat(g, wr.hat, F[4] - 12, F[5] - 47, 4.4, 1); if (hm && hm[3]) g.restore(); } // v1.8: earned hat rides the hood on every frame
     if (p.wa !== null && fi) this.frameWeapon(g, p, fi[0], fi[1], p.wa, 1);
     if (this.flash > 0) { g.globalAlpha = Math.min(0.85, this.flash * 3 + 0.2); g.drawImage(heroFlash(p.n), 0, 0); }
     g.restore(); g.globalAlpha = 1;

@@ -289,5 +289,48 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
   const MS = await import('../src/missions.js'), md = MS.dailyMod(dy.key);
   ok('v1.8 daily run: seed = dailySeed(today), modifier damage applied, local best recorded', dy.seed === MS.dailySeed(dy.key) && dy.mod === md.id && dy.taken === (md.taken || 1) && dy.dealt === (md.dealt || 1) && dy.best > 0 && dy.date === dy.key, JSON.stringify(dy));
   ok('no page errors (v1.8)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
+{ // v1.9 combat overhaul
+  const { browser, page, errors } = await fresh();
+  const cb = await E(page, () => { __RS.start('hub'); __RS.manual(true); __RS.step(60); const W = __RS.W, P = W.player, st = (n) => __RS.step(n), seq = [], ev = new Set();
+    const on = W.emit.bind(W); W.emit = (n, ...a) => { ev.add(n); return on(n, ...a); };
+    const rec = () => { if (P.atk && P.atk.def) { const k = P.atk.def.mv || P.atk.kind; if (seq[seq.length - 1] !== k) seq.push(k); } };
+    const tap = (f = 9) => { __RS.press('attack'); st(2); __RS.release('attack'); for (let i = 0; i < f - 2; i++) { st(1); rec(); } };
+    const wait = (n) => { for (let i = 0; i < n; i++) { st(1); rec(); } };
+    W.spawnEnemy('charger', P.cx + 40, P.y + P.h); const D = W.enemies[W.enemies.length - 1]; D.hp = D.maxHp = 1e5; __RS.god && __RS.god(true); st(30); const x0 = P.x, home = () => { P.x = x0; P.vx = P.vy = 0; D.x = x0 + 40; D.vx = 0; st(20); };
+    for (let i = 0; i < 8; i++) tap(9); wait(40); const combo = seq.join(); seq.length = 0;
+    home(); W.spawnEnemy('hopper', P.cx + 30, P.y + P.h); const H = W.enemies[W.enemies.length - 1]; H.hp = H.maxHp = 1e5; st(2); const dy0 = H.y; __RS.axes(0, -1); tap(4); __RS.axes(0, 0); let launched = false; for (let i = 0; i < 24; i++) { st(1); rec(); if (H.y < dy0 - 12) launched = true; } for (let i = 0; i < 3; i++) tap(8); wait(90); const launcher = seq.join(); seq.length = 0;
+    home(); __RS.press('jump'); st(10); __RS.release('jump'); __RS.axes(0, 1); tap(4); __RS.axes(0, 0); wait(80); const plunge = seq.join(); seq.length = 0;
+    home(); __RS.axes(1, 0); __RS.press('dash'); st(2); __RS.release('dash'); tap(8); __RS.axes(0, 0); wait(40); const dash = seq.join(); seq.length = 0; wait(60);
+    home(); __RS.press('attack'); st(64); __RS.release('attack'); wait(90); const heavy = seq.join(); seq.length = 0;
+    home(); P.counterT = 1; tap(10); wait(40); const counter = seq.join(); seq.length = 0; wait(60);
+    home(); P.gauge = 100; let sp = 0, c2 = false; __RS.press('attack'); for (let i = 0; i < 95; i++) { st(1); if (P.charged2) c2 = true; if (W.special) sp = 1; rec(); } __RS.release('attack'); for (let i = 0; i < 80; i++) { st(1); if (W.special) sp = 1; rec(); } const special = seq.join();
+    // no soft-lock: after all of that the hero is free, can move and jump
+    wait(60); home(); const free = !P.atk && !P.charging; const xm = P.cx; __RS.axes(1, 0); st(20); __RS.axes(0, 0); const moved = P.cx > xm + 10; __RS.press('jump'); st(3); __RS.release('jump'); const jumped = P.vy < 0; st(60);
+    return { combo, launcher, launched, plunge, dash, heavy, counter, c2, sp, gauge: P.gauge, special, free, moved, jumped, ui: __RS.state().ui, ev: [...ev].join() }; });
+  ok('v1.9 ground combo: 5 distinct strikes cut->rev->spin->lunge->slam (one button)', /cut,rev,spin,lunge,slam/.test(cb.combo), cb.combo);
+  ok('v1.9 up+attack launcher lifts the foe, then air chain follows', /rise/.test(cb.launcher) && cb.launched && /air/.test(cb.launcher), cb.launcher + ' ' + cb.launched);
+  ok('v1.9 jump+down+attack plunge slam; dash+attack dash-slash; hold = whirlwind', /plunge/.test(cb.plunge) && /dash/.test(cb.dash) && /whirl/.test(cb.heavy), [cb.plunge, cb.dash, cb.heavy].join(' | '));
+  ok('v1.9 parry window -> counter strike; full gauge + long hold -> Bloom special (screen effect, gauge spent)', /counter/.test(cb.counter) && cb.c2 && cb.sp === 1 && cb.gauge < 50 && /special|bloom/.test(cb.special), JSON.stringify({ c: cb.counter, c2: cb.c2, sp: cb.sp, g: cb.gauge, s: cb.special }));
+  ok('v1.9 no soft-lock: after every move the hero is free to walk and jump', cb.free && cb.moved && cb.jumped && !cb.ui, JSON.stringify(cb));
+  const pd = await E(page, () => { __RS.start('hub'); __RS.manual(true); __RS.god && __RS.god(false); __RS.step(60); const W = __RS.W, P = W.player; P.perfCd = 0; P.iframes = 0;
+    __RS.axes(1, 0); __RS.press('dash'); __RS.step(2); __RS.release('dash'); __RS.axes(0, 0); const hp = P.hp, r = W.damagePlayer(2, P.cx + 10, { src: 'test' });
+    return { r, hpSame: P.hp === hp, slow: W.slow > 0, crit: P.critT > 0, g: P.gauge }; });
+  ok('v1.9 perfect dodge: hit during dash start -> no damage, slow-mo, next hit crits, gauge gain', pd.r === 'dodge' && pd.hpSame && pd.slow && pd.crit && pd.g > 0, JSON.stringify(pd));
+  const kill = await E(page, () => { const types = ['hopper', 'charger', 'moth', 'puffcap', 'knight', 'bomber', 'jelly', 'shellback', 'lurefish']; const out = {};
+    for (const t of types) { __RS.start('hub'); __RS.manual(true); __RS.step(40); const W = __RS.W, P = W.player; __RS.god && __RS.god(true); W.spawnEnemy(t, P.cx + 34, P.y + P.h); const e = W.enemies[W.enemies.length - 1]; if (!e || e.type !== t) { out[t] = 'nospawn'; continue; }
+      let f = 0; for (; f < 2400 && !e.dead; f++) { const dx = e.cx - P.cx; P.face = Math.sign(dx) || 1; __RS.axes(Math.abs(dx) > 26 ? Math.sign(dx) : 0, e.cy < P.y - 10 ? -1 : 0); if (e.cy < P.y - 20 && P.onGround && f % 30 === 0) __RS.press('jump'); if (f % 30 === 6) __RS.release('jump'); if (f % 8 === 0) __RS.press('attack'); if (f % 8 === 2) __RS.release('attack'); __RS.step(1); }
+      __RS.axes(0, 0); __RS.release('attack'); out[t] = e.dead ? f : 'alive:' + Math.round(e.hp); }
+    return out; });
+  ok('v1.9 every enemy type dies to plain tap-spam with the new combo', Object.values(kill).every((v) => typeof v === 'number' || v === 'nospawn') && Object.values(kill).some((v) => typeof v === 'number'), JSON.stringify(kill));
+  const bb = await E(page, () => { __RS.start('boss', {}); __RS.manual(true); __RS.skipCountdown && __RS.skipCountdown(); __RS.step(120); const W = __RS.W, P = W.player, B = W.boss; if (!B) return { noboss: 1, mode: W.mode };
+    __RS.god && __RS.god(true); const mp = B.maxPoise; let broke = 0, f = 0; const on = W.emit.bind(W); W.emit = (n, ...a) => { if (n === 'poiseBreak') broke++; return on(n, ...a); };
+    for (; f < 5000 && !broke && B.hp > 0; f++) { const dx = B.x + B.w / 2 - P.cx; __RS.axes(Math.abs(dx) > 30 ? Math.sign(dx) : 0, 0); if (f % 9 === 0) __RS.press('attack'); if (f % 9 === 3) __RS.release('attack'); if (P.onWall && f % 20 === 0) __RS.press('jump'); if (f % 20 === 5) __RS.release('jump'); __RS.step(1); }
+    __RS.axes(0, 0); __RS.release('attack'); return { mp, broke, f, stun: B.stun > 0 || broke > 0, type: B.type }; });
+  ok('v1.9 boss poise bar: steady hits break it -> BREAK! stun', bb.noboss || (bb.mp > 0 && bb.broke >= 1), JSON.stringify(bb));
+  const pc = await E(page, () => { __RS.start('hub'); __RS.manual(true); __RS.step(30); const W = __RS.W, P = W.player; for (let i = 0; i < 40; i++) { W.player.gauge = 100; W.fx.burst(P.cx, P.cy, 60, { color: ['#fff'] }); }
+    const n = W.fx.p.length; const c = W.cfx || { trails: [], lashes: [], decals: [], pops: [], waves: [] };
+    return { n, cap: W.fx.cap, tr: c.trails.length, dc: c.decals.length }; });
+  ok('v1.9 particle cap holds under a 2400-spark flood (and combat fx lists are bounded)', pc.cap > 0 && pc.n <= pc.cap * 1.25 && pc.tr <= 11 && pc.dc <= 12, JSON.stringify(pc));
+  ok('no page errors (v1.9)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
 server.close(); const fail = results.filter((r) => !r.pass);
 console.log(`\n${results.length - fail.length}/${results.length} passed`); process.exit(fail.length ? 1 : 0);

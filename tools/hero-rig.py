@@ -65,9 +65,14 @@ def leg(cv, P, hip, foot):
   place(cv, P['SHIN'], SH_PV, k, dirang(a[0] - k[0], a[1] - k[1]))
   place(cv, P['BOOT'], BT_PV, a, foot[2])
   return a
+LF = 22.5  # elbow -> fist centre (atlas px), measured on the glove
 def arm(cv, P, sh, ang, elbow):
   e = (sh[0] + math.sin(math.radians(ang)) * LU, sh[1] + math.cos(math.radians(ang)) * LU)
   place(cv, P['UARM'], UA_PV, sh, ang); place(cv, P['FARM'], FA_PV, e, ang + elbow)
+  b = math.radians(ang + elbow); return (e[0] + math.sin(b) * LF, e[1] + math.cos(b) * LF), math.atan2(math.cos(b), math.sin(b))
+def ghost(im, k):
+  a = np.asarray(im).copy(); a[..., 3] = (a[..., 3].astype(np.float32) * k).astype(np.uint8); return Image.fromarray(a)
+GHOST = {k: ghost(v, 0.32) for k, v in NEAR.items()}
 def render(p):
   """p: hip_h (ankle-to-hip height above ankle line), lean, feet (near, far) as (x_rel, lift, boot_ang), arms (near, far) as (ang, elbow), cape, sprout"""
   cv = Image.new('RGBA', (W * SS, H * SS)); hy = GY - ANK_H - p['hip_h']; hip = (HX, hy)
@@ -83,8 +88,10 @@ def render(p):
     feet.append(leg(cv, P, jh, (tgt[0], tgt[1], ba)))
   place(cv, L_BODY, HIP, hip, -p['lean'])
   place(cv, L_SPROUT, SPROUT_BASE, bp(SPROUT_BASE), -p['lean'] + p.get('sprout', 0))
-  arm(cv, NEAR, bp(SH_N), *p['arms'][0])
+  for sa in p.get('smear', []): arm(cv, GHOST, bp(SH_N), sa, p['arms'][0][1])  # v1.9 smear: ghost arms along the swing path
+  hand = arm(cv, NEAR, bp(SH_N), *p['arms'][0])
   im = cv.resize((W, H), Image.LANCZOS)
+  render.hand = hand
   return im, feet
 # ---- gait ----
 def ease(v): return 0.5 - 0.5 * math.cos(math.pi * v)
@@ -107,6 +114,7 @@ def save(name, p, extra=None):
   im, feet = render(p); bb = im.getchannel('A').point(lambda v: 255 if v > 24 else 0).getbbox(); im = im.crop(bb)
   im.save(OUT + name + '.png'); m = {'pv': [round(HX - bb[0], 2), round(GY - bb[1], 2)], 'w': im.width, 'h': im.height}
   if extra: m.update(extra)
+  if p.get('hand'): (hx, hy), fa = render.hand; m['hand'] = [round(hx - bb[0], 2), round(hy - bb[1], 2), round(fa, 3)]; m['lean'] = p['lean']
   meta[name] = m
 for g, G in GAITS.items():
   D = 2 * G['a'] / G['beta']  # stride per cycle (atlas px): stance length / stance fraction
@@ -132,13 +140,17 @@ save('start1', dict(hip_h=39, lean=14, feet=[(22, 4, -6), (-22, 2, -20)], arms=[
 save('stop0', dict(hip_h=36, lean=-12, feet=[(26, 0, -14), (-6, 3, 0)], arms=[(30, 25), (18, 25)], cape=10, sprout=-12))
 save('stop1', dict(hip_h=39, lean=-4, feet=[(12, 0, -4), (-6, 0, 0)], arms=[(16, 18), (6, 18)], cape=6, sprout=-6))
 save('turn0', dict(hip_h=37, lean=-6, feet=[(4, 0, 0), (-4, 2, 6)], arms=[(10, 50), (-6, 50)], cape=8, sprout=-10))
+# ---- v1.9 combat poses (arms: (shoulder angle, elbow bend) in degrees; 0 = hanging down, +90 = pointing forward, 180 = straight up) ----
+exec(open(R + 'tools/hero-combat-poses.py').read())
+for name, p in COMBAT.items(): save(name, dict(p, hand=True))
 json.dump(meta, open(OUT + 'rig.json', 'w'), indent=0)
 print('rig frames', len([k for k in meta if not k.startswith('_')]), {k: v for k, v in meta.items() if k.startswith('_')})
 if '--preview' in sys.argv:
-  names = [k for k in meta if not k.startswith('_')]; cw, ch = 200, 260; cols = 12; rows = (len(names) + cols - 1) // cols
+  names = [k for k in meta if not k.startswith('_') and (not '--combat' in sys.argv or k.startswith('c_'))]; cw, ch = 200, 260; cols = 8; rows = (len(names) + cols - 1) // cols
   pv = Image.new('RGB', (cw * cols, ch * rows), (40, 44, 52)); d = ImageDraw.Draw(pv)
   for i, n in enumerate(names):
     im = Image.open(OUT + n + '.png'); m = meta[n]; cx, cy = (i % cols) * cw + 90, (i // cols) * ch + 245
     pv.paste(im, (int(cx - m['pv'][0]), int(cy - m['pv'][1])), im); d.line([(cx - 90, cy), (cx + 100, cy)], fill=(120, 200, 120)); d.line([(cx, cy - 6), (cx, cy + 6)], fill=(255, 80, 80))
     d.text(((i % cols) * cw + 4, (i // cols) * ch + 4), n, fill=(255, 255, 0))
+    if 'hand' in m: hx, hy, fa = m['hand']; X0, Y0 = cx - m['pv'][0] + hx, cy - m['pv'][1] + hy; d.ellipse([X0 - 3, Y0 - 3, X0 + 3, Y0 + 3], outline=(0, 255, 255)); d.line([(X0, Y0), (X0 + math.cos(fa) * 30, Y0 + math.sin(fa) * 30)], fill=(0, 255, 255))
   pv.save('/tmp/rig_preview.png')

@@ -16,7 +16,7 @@ function paintSprite(g, n, x, y, H, flip, flash, hotK, src = null) { // ink outl
   if (flash > 0) { g.globalAlpha = Math.min(1, flash * 7); spr(g, n, x, y, H, 0.5, 1, flip, tinted(n, '#ffffff')); g.globalAlpha = 1; }
 }
 class BigFoe {
-  constructor(x, y, w, h, hp) { this.w = w; this.h = h; this.x = x - w / 2; this.y = y - h; this.vx = 0; this.vy = 0; this.maxHp = this.hp = hp; this.face = -1; this.st = 'sleep'; this.t = 0; this.cd = 1; this.stun = 0; this.flash = 0; this.dead = false; this.light = false; this.boss = true; this.anim = 0; this.tele = 0; this.sq = 1; this.onGround = false; }
+  constructor(x, y, w, h, hp) { this.w = w; this.h = h; this.x = x - w / 2; this.y = y - h; this.vx = 0; this.vy = 0; this.maxHp = this.hp = hp; this.maxPoise = this.poise = Math.max(30, Math.round(hp * 0.16)); this.poiseBroke = 0; this.face = -1; this.st = 'sleep'; this.t = 0; this.cd = 1; this.stun = 0; this.flash = 0; this.dead = false; this.light = false; this.boss = true; this.anim = 0; this.tele = 0; this.sq = 1; this.onGround = false; }
   get cx() { return this.x + this.w / 2; } get cy() { return this.y + this.h / 2; }
   yank() {}
   go(st) { this.st = st; this.t = 0; this.tele = 0; }
@@ -28,6 +28,7 @@ export class Warden extends BigFoe {
     const P = W.player, A = diff().aggro; this.t += dt; this.anim += dt; this.flash = Math.max(0, this.flash - dt); this.sq = approach(this.sq, 1, dt * 4);
     const dx = P.cx - this.cx;
     if (this.st === 'sleep') { if (Math.abs(dx) < 300 && Math.abs(P.cy - this.cy) < 200) { this.go('wake'); W.startFight(this); sfx('roar'); W.fx.shake(0.3); } this.fall(W, dt); return; }
+    if (this.poiseBroke > 0) this.poiseBroke -= dt;
     if (this.stun > 0) { this.stun -= dt; this.vx *= 0.9; this.fall(W, dt); return; }
     if (this.st === 'wake') { if (this.t > 1.1) { this.go('idle'); this.cd = 0.6; } }
     else if (this.st === 'idle') { this.face = sign(dx) || 1; this.vx = Math.abs(dx) > 80 ? this.face * 60 : 0; this.cd -= dt * A;
@@ -88,6 +89,7 @@ export class Boss extends BigFoe {
     for (const p of this.pending) { p.t -= dt; if (p.t <= 0 && !p.done) { p.done = true; p.fire(); } } this.pending = this.pending.filter((p) => !p.done);
     if (this.st === 'sleep') { this.fall(W, dt); return; }
     if (this.st === 'dying') { this.vx = 0; if (Math.random() < dt * 10) W.fx.pop(this.x + rand.range(0, this.w), this.y + rand.range(0, this.h), 0.8); if (this.t > 2.2) { this.dead = true; W.fx.shatter(this._dr, 5, 1.4); W.onBossDefeated(this); } this.fall(W, dt); return; }
+    if (this.poiseBroke > 0) this.poiseBroke -= dt;
     if (this.stun > 0) { this.stun -= dt; this.vx *= 0.9; this.fall(W, dt); return; }
     const want = this.hp > this.maxHp * 0.66 ? 1 : this.hp > this.maxHp * 0.33 ? 2 : 3;
     if (want > this.phase && this.st !== 'roar') { this.phase = want; this.go('roar'); this.beamT = 0; sfx('roar'); W.fx.shake(0.6); W.fx.ring(this.cx, this.cy, 160, '#ffb13b', 0.6, 8); W.onBossPhase(this.phase); const d = sign(P.cx - this.cx) || 1; P.vx = d * 260; P.vy = -200; }

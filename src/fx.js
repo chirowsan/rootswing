@@ -6,7 +6,7 @@ export class FX {
   constructor() { this.p = []; this.texts = []; this.trauma = 0; this.flash = 0; this.flashColor = '#fff'; this.rings = []; }
   shake(amount) { const m = save.settings.shake === 'off' ? 0 : save.settings.shake === 'reduced' ? 0.45 : 1; this.trauma = Math.min(1, this.trauma + amount * m); }
   burst(x, y, n, o = {}) {
-    if (this.p.length > 650) n = Math.min(n, 3);
+    if (this.p.length > (this.cap || 650)) n = Math.min(n, 3);
     for (let i = 0; i < n; i++) {
       const a = o.angle !== undefined ? o.angle + rand.range(-(o.spread || 3.14), o.spread || 3.14) : rand.range(0, Math.PI * 2);
       const sp = rand.range(o.min || 40, o.max || 220);
@@ -27,7 +27,7 @@ export class FX {
   dmg(x, y, n, o = {}) { const heavy = !!o.heavy, gold = !!o.gold; this.texts.push({ x, y, s: String(n), color: gold ? '#ffe27a' : heavy ? '#ffb347' : '#fff', size: heavy ? 17 : 12.5, t: 0, life: heavy ? 0.95 : 0.75, dmg: 1, heavy, gold, vx: (o.dir || (Math.random() < 0.5 ? -1 : 1)) * (14 + Math.random() * 12) }); }
   // soft dust puffs (landing / running): grow + fade, drawn as layered translucent circles
   dust(x, y, n, o = {}) {
-    if (this.p.length > 650) return;
+    if (this.p.length > (this.cap || 650)) return;
     for (let i = 0; i < n; i++) { const dir = o.dir !== undefined ? o.dir : (i % 2 ? 1 : -1); const sp = (o.speed || 60) * (0.5 + Math.random() * 0.7);
       this.p.push({ x: x + dir * Math.random() * 4, y: y - 1 - Math.random() * 2, vx: dir * sp, vy: -(o.rise || 14) * (0.4 + Math.random()), life: (o.life || 0.45) * (0.7 + Math.random() * 0.5), t: 0, size: (o.size || 4) * (0.7 + Math.random() * 0.6), color: o.color || '#d8cdb4', g: -10, drag: 5, glow: 0, kind: 'puff', rot: 0, vr: 0 }); }
   }
