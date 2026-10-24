@@ -31,3 +31,4 @@
 - 20:54 PDT: resumed after interrupt; shots/v13 caverns set (11-16) taken, 0 page errors; README v1.3 section + run-length estimate
 - 20:55 PDT: victory card text for the Drowned Bloom; committed
 - 20:58 PDT: caverns tiles teal-tinted with glowing cyan moss (distinct from overpass); sheets shots/compare-v13-{1,2,3,new}.png; bumped 1.3.0/versionCode 4; tests running
+- 21:12 PDT: tests 46/46; perf draw 24.1 ms normal / 17.3 ms low (v1.2 25.6 ms; swiftshader 915x412); signed APK 6,017,138 B, AAB 5,830,935 B, versionCode 4, same cert 6e59e14a…
