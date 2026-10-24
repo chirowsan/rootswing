@@ -74,3 +74,11 @@ Knight), flow/juggle (Ori), style feedback + build choice (Hades).
 Combat and game feel: **8.5/10**. It is not a 9 yet for three reasons: hammer and boss-death FX can still be busy
 (the death strobe is bright), nothing has been verified on a real device, and the new difficulty curve has not been
 playtested. Content depth (traps, enemies, arenas, difficulty) has gone from about a 6 to an 8.5.
+
+## Shipped
+- main 48266af, tag v2.0.0. Release: https://github.com/chirowsan/rootswing/releases/tag/v2.0.0
+  - APK: 7,507,929 B
+  - AAB: 7,321,442 B
+  - Source zip: 17.0 MB (excludes older shots and art/src)
+  - The APK and AAB use the same certificate (6e59e14a...d8de).
+- gh-pages 9089c68. The live site returns 200, its game.js matches dist, and verify-live reports 0 errors.
