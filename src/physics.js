@@ -26,7 +26,13 @@ export function moveBody(map, b, dt, opts = {}) {
     }
   } else if (b.vy < 0) {
     const ty = Math.floor(ny / TILE);
-    for (let x = tx0; x <= tx1; x++) if (map.solid(x, ty)) { ny = (ty + 1) * TILE; b.vy = 0; res.ceil = true; break; }
+    const hitAt = (x0) => { for (let x = Math.floor(x0 / TILE), x1 = Math.floor((x0 + b.w - EPS) / TILE); x <= x1; x++) if (map.solid(x, ty)) return true; return false; };
+    const bodyFree = (x0) => { for (let x = Math.floor(x0 / TILE), x1 = Math.floor((x0 + b.w - EPS) / TILE); x <= x1; x++) for (let yy = Math.floor(b.y / TILE), y1 = Math.floor((b.y + b.h - EPS) / TILE); yy <= y1; yy++) if (map.solid(x, yy)) return false; return true; };
+    if (hitAt(b.x)) {
+      let fixed = false; // v1.4 corner correction: clipping a ceiling corner by <= 7 px slides you past it instead of killing the jump
+      if (opts.corner) for (let k = 1; k <= 7 && !fixed; k++) for (const d of [-1, 1]) { const x2 = b.x + d * k; if (!hitAt(x2) && bodyFree(x2)) { b.x = x2; fixed = true; res.corner = d * k; break; } }
+      if (!fixed) { ny = (ty + 1) * TILE; b.vy = 0; res.ceil = true; }
+    }
   }
   b.y = ny;
   return res;

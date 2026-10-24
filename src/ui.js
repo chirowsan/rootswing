@@ -70,6 +70,10 @@ export function showSettings(back) {
   ${row('Hook aim help', seg('hookAssist', [['true', 'On'], ['false', 'Off']]))}
   ${row('Screen shake', seg('shake', [['off', 'Off'], ['reduced', 'Low'], ['full', 'Full']]))}
   ${row('Left thumb', seg('leftStyle', [['stick', 'Stick'], ['pads', '◀ ▶ Buttons']]))}
+  <h3 class="sect">Controls</h3>
+  ${row('Stick style', seg('stickMode', [['float', 'Floating'], ['fixed', 'Fixed']]), 'Floating: the stick appears where your thumb lands')}
+  ${row('Stick size', seg('stickSize', [[0.8, 'Small'], [1, 'Medium'], [1.25, 'Large']]))}
+  ${row('Stick see-through', `<input type="range" min="0.15" max="0.9" step="0.05" value="${s.stickOpacity ?? 0.5}" data-k="stickOpacity">`)}
   ${row('Button size', seg('ctrlSize', [[0.85, 'Small'], [1, 'Medium'], [1.2, 'Large']]))}
   ${row('Button see-through', `<input type="range" min="0.2" max="0.9" step="0.05" value="${s.ctrlOpacity}" data-k="ctrlOpacity">`)}
   ${row('Vibration', seg('haptics', [['true', 'On'], ['false', 'Off']]))}

@@ -4,6 +4,7 @@ export const DEFAULT_SETTINGS = {
   speed: 0.8,          // Game Speed: 0.7 Very calm, 0.8 Calm (default), 0.9 Steady, 1.0 Full
   difficulty: 'relaxed', // relaxed | normal | tough
   ctrlOpacity: 0.45, ctrlSize: 1.0, leftStyle: 'stick', // stick | pads
+  stickMode: 'float', stickSize: 1, stickOpacity: 0.5, // v1.4 Controls: floating | fixed stick
   haptics: true, music: 0.6, sfx: 0.8, shake: 'reduced', // full | reduced | off
   hookAssist: true, quality: 'auto', // auto | high | low
 };

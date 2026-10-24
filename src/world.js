@@ -98,20 +98,36 @@ export class World {
     for (const o of this.props) if (o.kind === 'shrine' && this.cellAt(o.x + o.w / 2, o.y + o.h - 4) === c && !o.lit) { o.lit = true; this.fx.burst(o.x + o.w / 2, o.y + 10, 26, { color: ['#9ff6ff', '#e8ffff'], g: -60, max: 170, kind: 'star', life: 1 }); }
     this.game.saveRunState(this, c.index); sfx('unlock'); this.fx.text(P.cx, P.y - 24, 'Checkpoint saved', '#bffcff', 14); this.emit('checkpoint', c.index);
   }
-  snapCamera() { const t = this.camTarget(); this.cam.x = t.x; this.cam.y = t.y; }
+  // v1.4 render interpolation: positions at the start of each fixed step are kept; draw() shows prev + (cur - prev) * alpha
+  interpBodies() { const a = new Set([this.player, ...this.enemies, ...this.shots, ...this.pickups, ...this.bombs]); if (this.boss) a.add(this.boss); return a; }
+  snapPrev() { for (const o of this.interpBodies()) { o._px = o.x; o._py = o.y; } this._pcx = this.cam.x; this._pcy = this.cam.y; }
+  lerpBegin(al) {
+    if (!(al < 0.999)) return null; al = Math.max(0, al); const L = [];
+    for (const o of this.interpBodies()) { if (o._px === undefined) continue; const dx = o.x - o._px, dy = o.y - o._py; if (dx * dx + dy * dy > 6400) continue; L.push(o, o.x, o.y); o.x = o._px + dx * al; o.y = o._py + dy * al; }
+    const cx = this.cam.x, cy = this.cam.y; if (this._pcx !== undefined && Math.abs(cx - this._pcx) + Math.abs(cy - this._pcy) < 200) { this.cam.x = this._pcx + (cx - this._pcx) * al; this.cam.y = this._pcy + (cy - this._pcy) * al; }
+    return [L, cx, cy];
+  }
+  lerpEnd(s) { if (!s) return; const L = s[0]; for (let i = 0; i < L.length; i += 3) { L[i].x = L[i + 1]; L[i].y = L[i + 2]; } this.cam.x = s[1]; this.cam.y = s[2]; }
+  snapCamera() { this.camYT = undefined; const t = this.camTarget(); this.cam.x = t.x; this.cam.y = t.y; this.cam.vx = this.cam.vy = 0; }
   camTarget() {
     const P = this.player, VW = this.viewW || 760, VH = this.viewH || VIEW_H;
-    this.look = lerp(this.look || 0, P.face * 60 + clamp(P.vx * 0.14, -36, 36), 0.04);
-    let x = P.cx + this.look - VW / 2, y = P.cy - VH * 0.55 + (P.vy > 350 ? 40 : 0);
+    const lt = P.face * 44 + clamp(P.vx * 0.2, -56, 56); this.look = (this.look || 0) + (lt - (this.look || 0)) * 0.035; // eased, velocity-led look-ahead
+    let x = P.cx + this.look - VW / 2;
+    const want = P.cy - VH * 0.55 + (P.vy > 380 ? 36 : 0); // vertical deadzone: hold height through jumps, follow on landing, band exit or long falls
+    if (this.camYT === undefined || P.onGround || P.hook.s === 'swing' || P.hook.s === 'zip') this.camYT = want; else { const B = 46; if (want < this.camYT - B) this.camYT = want + B; else if (want > this.camYT + B * 0.5) this.camYT = want - B * 0.5; }
+    let y = this.camYT;
     const R = this.fight ? this.fight.room : this.room;
     if (R.w <= VW) x = R.x + R.w / 2 - VW / 2; else x = clamp(x, R.x, R.x + R.w - VW);
     if (R.h <= VH) y = R.y + R.h / 2 - VH / 2; else y = clamp(y, R.y, R.y + R.h - VH);
     return { x, y };
   }
-  updateCamera(dt) { const t = this.camTarget(); const k = Math.min(1, dt * 7); this.cam.x += (t.x - this.cam.x) * k; this.cam.y += (t.y - this.cam.y) * Math.min(1, dt * 5); }
+  updateCamera(dt) { // v1.4: critically damped spring (no velocity snaps on room changes / target jumps)
+    const t = this.camTarget(), c = this.cam; c.vx = c.vx || 0; c.vy = c.vy || 0; const w = this.fight ? 7 : 9, wy = 6.5;
+    c.vx += (w * w * (t.x - c.x) - 2 * w * c.vx) * dt; c.vy += (wy * wy * (t.y - c.y) - 2 * wy * c.vy) * dt; c.x += c.vx * dt; c.y += c.vy * dt;
+  }
   // ---------------- main update ----------------
   update(dt) {
-    this.t += dt; this.fade = Math.max(0, this.fade - dt * 2.5);
+    this.snapPrev(); this.t += dt; this.fade = Math.max(0, this.fade - dt * 2.5);
     if (this.countdown > 0) { const before = Math.ceil(this.countdown / 0.5); this.countdown -= dt; const after = Math.ceil(this.countdown / 0.5); if (after !== before && this.countdown > 0 && after <= 3) sfx('beep'); if (this.countdown <= 0) { sfx('go'); this.goT = 0.6; if (this.boss && this.boss.st === 'sleep') { this.boss.go('intro'); this.startFight(this.boss); sfx('roar'); this.fx.shake(0.4); } } this.fx.update(dt); this.updateCamera(dt); return; }
     if (this.goT > 0) this.goT -= dt;
     if (this.zoomK > 0) this.zoomK = Math.max(0, this.zoomK - dt * 4.5);
@@ -344,7 +360,7 @@ export class World {
     const [sx, sy] = this.fx.shakeOffset(this.t); const camx = Math.round((this.cam.x + sx) * rs) / rs, camy = Math.round((this.cam.y + sy) * rs) / rs;
     const B = this.biome;
     const lo = (this.game && this.game.lowPerf) || save.settings.quality === 'low';
-    const painted = paintedOK();
+    const painted = paintedOK(); const PF = this.prof; let pt = PF ? performance.now() : 0; const mk = PF ? (k) => { const n = performance.now(); PF[k] = (PF[k] || 0) + n - pt; pt = n; } : null;
     if (painted) drawPaintedBg(this, g, cw, ch, rs, camx, camy, lo);
     else {
     // sky
@@ -362,9 +378,11 @@ export class World {
     // god rays
     if (!lo) { g.globalCompositeOperation = 'lighter'; g.fillStyle = B.fog; for (let i = 0; i < 3; i++) { const x = ((i * 0.37 + 0.15) * cw - camx * rs * 0.05) % (cw * 1.2); g.beginPath(); g.moveTo(x, 0); g.lineTo(x + cw * 0.12, 0); g.lineTo(x + cw * 0.32, ch); g.lineTo(x + cw * 0.18, ch); g.fill(); } g.globalCompositeOperation = 'source-over'; }
     }
+    mk && mk('bg');
     const zk = this.zoomK || 0, z = 1 + 0.045 * zk * zk * (3 - 2 * zk), zr = rs * z, tox = -camx * zr + cw * 0.5 * (1 - z), toy = -camy * zr + ch * 0.5 * (1 - z); this.wt = [zr, tox, toy];
     g.setTransform(zr, 0, 0, zr, tox, toy);
     const vx0 = camx - 40, vx1 = camx + VW + 40, vy0 = camy - 40, vy1 = camy + (this.viewH || VIEW_H) + 40;
+    const vr = this.vr = [vx0 - 140, vx1 + 140, vy0 - 140, vy1 + 140]; const offV = (x, y, w = 0, h = 0) => x + w < vr[0] || x > vr[1] || y + h < vr[2] || y > vr[3]; this.offV = offV; // v1.4: cull off-screen props/anchors/markers/shots
     // lanterns light behind tiles
     if (!lo) for (const l of this.lights) if (l.x > vx0 - 100 && l.x < vx1 + 100 && l.y > vy0 - 100 && l.y < vy1 + 100) drawGlow(g, l.x, l.y + 10, 110 + Math.sin(this.t * 2 + l.x) * 6, B.light, 0.35);
     // background dark mass behind level (inside rooms only for runs)
@@ -375,23 +393,27 @@ export class World {
       const k = cx + ',' + cy; let c = this.chunkCache.get(k); if (!c) { c = G.ready ? renderPaintedChunk(this.map, cx, cy, rs, B) : renderTileChunk(this.map, cx, cy, rs, B); this.chunkCache.set(k, c); this.chunkMade = (this.chunkMade || 0) + 1; while (this.chunkCache.size > CHUNK_KEEP) { const old = this.chunkCache.keys().next().value; this.chunkCache.delete(old); this.chunkEvicted = (this.chunkEvicted || 0) + 1; } } else { this.chunkCache.delete(k); this.chunkCache.set(k, c); } // LRU: stream render chunks in/out with the camera
       g.drawImage(c, cx * CS, cy * CS, c.width / rs, c.height / rs);
     }
-    this.drawHazards(g, vx0, vx1, vy0, vy1);
+    if (this.chunkMade === this._cm0) { // v1.4: no chunk was built this frame -> pre-build one neighbour in the scroll direction so crossing a chunk edge never hitches
+      const dir = (this.cam.vx || 0) >= 0 ? 1 : -1; outer: for (const cx of [dir > 0 ? c1 + 1 : c0 - 1, dir > 0 ? c0 - 1 : c1 + 1]) for (let cy = r0 - 1; cy <= r1 + 1; cy++) { if (cx < 0 || cy < 0 || cx * CHUNK_T >= this.map.w || cy * CHUNK_T >= this.map.h) continue; const k = cx + ',' + cy; if (!this.chunkCache.has(k)) { if (this.chunkCache.size >= CHUNK_KEEP) this.chunkCache.delete(this.chunkCache.keys().next().value); this.chunkCache.set(k, G.ready ? renderPaintedChunk(this.map, cx, cy, rs, B) : renderTileChunk(this.map, cx, cy, rs, B)); break outer; } }
+    }
+    this._cm0 = this.chunkMade;
+    mk && mk('tiles'); this.drawHazards(g, vx0, vx1, vy0, vy1);
     this.drawProps(g);
     this.drawAnchors(g);
     this.drawMarkers(g);
     for (const s of this.sentries) this.drawSentry(g, s);
-    for (const e of this.enemies) if (e.x + e.w > vx0 && e.x < vx1 && e.y + e.h > vy0 && e.y < vy1) e.draw(g, this);
-    this.dbg = { px: this.player.x, camx }; this.player.draw(g, this);
+    mk && mk('props'); for (const e of this.enemies) if (e.x + e.w > vx0 && e.x < vx1 && e.y + e.h > vy0 && e.y < vy1) e.draw(g, this);
+    mk && mk('enemies'); this.dbg = { px: this.player.x, camx }; this.player.draw(g, this); mk && mk('player');
     this.drawShots(g);
     for (const w of this.waves) { const k = Math.sin(this.t * 30) * 2; g.fillStyle = '#7d5cff'; g.strokeStyle = '#15131f'; g.lineWidth = 2; g.beginPath(); g.moveTo(w.x - 12, w.y); g.quadraticCurveTo(w.x - w.dir * 2, w.y - 26 - k, w.x + w.dir * 12, w.y); g.closePath(); g.fill(); g.stroke(); drawGlow(g, w.x, w.y - 10, 26, '#ff5a7a', 0.6); }
     for (const p of this.pillars) { g.fillStyle = '#4a3e50'; g.strokeStyle = '#15131f'; g.lineWidth = 2.5; g.beginPath(); g.roundRect(p.x, p.y, p.w, p.h, 8); g.fill(); g.stroke(); g.fillStyle = '#ff8a5a'; g.fillRect(p.x + 8, p.y + 14, 6, 6); g.fillRect(p.x + 24, p.y + 26, 5, 5); }
-    for (const k of this.pickups) this.drawPickup(g, k);
+    for (const k of this.pickups) if (!offV(k.x, k.y)) this.drawPickup(g, k);
     if (this.player.hookTarget && this.player.hook.s === 'none' && !this.player.dead) this.drawReticle(g, this.player.hookTarget);
-    this.fx.draw(g);
+    mk && mk('shots'); this.fx.draw(g); mk && mk('fx');
     if (this.bloomT) this.drawBloom(g);
     if (painted && !lo) drawMotes(this, g, vx0, vx1, vy0, vy1);
     g.setTransform(1, 0, 0, 1, 0, 0);
-    if (painted) drawForeground(this, g, cw, ch, rs, camx, camy);
+    mk && mk('motes'); if (painted) drawForeground(this, g, cw, ch, rs, camx, camy); mk && mk('fg');
     // vignette
     if (!this.vig || this.vigW !== cw) { const v = g.createRadialGradient(cw / 2, ch / 2, ch * 0.45, cw / 2, ch / 2, cw * 0.75); v.addColorStop(0, 'rgba(10,8,20,0)'); v.addColorStop(1, 'rgba(10,8,20,0.55)'); this.vig = v; this.vigW = cw; }
     if (!lo) { if (painted) drawGrade(this, g, cw, ch); else { g.fillStyle = this.vig; g.fillRect(0, 0, cw, ch); } }
@@ -399,7 +421,7 @@ export class World {
     // low health edge pulse
     const P = this.player; if (P.hp / P.maxHp < 0.3 && !P.dead) { g.globalAlpha = 0.18 + Math.sin(this.t * 5) * 0.08; g.strokeStyle = '#ff3d6e'; g.lineWidth = ch * 0.05; g.strokeRect(0, 0, cw, ch); g.globalAlpha = 1; }
     if (this.fade > 0) { g.globalAlpha = this.fade; g.fillStyle = '#0d0b16'; g.fillRect(0, 0, cw, ch); g.globalAlpha = 1; }
-    this.camx = camx; this.camy = camy;
+    this.camx = camx; this.camy = camy; mk && mk('grade+post'); if (PF) PF.n = (PF.n || 0) + 1;
   }
   drawHazards(g, vx0, vx1, vy0, vy1) {
     const t = this.t, pulse = 0.65 + Math.sin(t * 5) * 0.35;
@@ -426,6 +448,7 @@ export class World {
   drawAnchors(g) {
     const t = this.t, P = this.player, lo = (this.game && this.game.lowPerf) || save.settings.quality === 'low';
     for (const a of this.anchors) {
+      if (this.offV && this.offV(a.x, a.y)) continue;
       const near = Math.hypot(a.x - P.cx, a.y - P.cy) < P.hookRange; const k = 0.8 + Math.sin(t * 3 + a.pulse) * 0.2;
       const hl = this.highlightAnchor && near;
       if (a.kind === 'swing') {
@@ -456,6 +479,7 @@ export class World {
   drawMarkers(g) {
     const t = this.t;
     for (const m of this.markers) {
+      if (this.offV && this.offV(m.x, m.y, m.w || 0, m.h || 0)) continue;
       const k = m.t / m.life, blink = 0.45 + 0.35 * Math.sin(t * (10 + k * 25));
       g.save();
       if (m.kind === 'circle') { g.globalAlpha = blink * 0.6; g.fillStyle = '#ff3d6e'; g.beginPath(); g.ellipse(m.x, m.y, m.r, m.r * 0.32, 0, 0, 7); g.fill(); g.globalAlpha = 0.95; g.strokeStyle = '#ffd0dc'; g.lineWidth = 2; g.beginPath(); g.ellipse(m.x, m.y, m.r * (1 - k * 0.7), m.r * 0.32 * (1 - k * 0.7), 0, 0, 7); g.stroke(); g.beginPath(); g.ellipse(m.x, m.y, m.r, m.r * 0.32, 0, 0, 7); g.stroke(); }
@@ -474,6 +498,7 @@ export class World {
   }
   drawShots(g) {
     for (const s of this.shots) {
+      if (this.offV && this.offV(s.x, s.y)) continue;
       if (s.arrow) { const a = Math.atan2(s.vy, s.vx); g.save(); g.translate(s.x, s.y); g.rotate(a); g.fillStyle = s.big ? '#eaffc0' : '#a6e47a'; g.strokeStyle = '#15131f'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(8, 0); g.lineTo(-10, -2.5); g.lineTo(-10, 2.5); g.closePath(); g.fill(); g.stroke(); g.restore(); if (s.big) drawGlow(g, s.x, s.y, 18, '#a6e47a', 0.6); continue; }
       const col = s.reflected ? '#bff2ff' : s.ember ? '#ffb13b' : '#c9b8f0';
       drawGlow(g, s.x, s.y, s.r * 3.2, s.reflected ? '#9fe8ff' : s.ember ? '#ff8a3a' : '#b88aff', 0.8);
@@ -497,6 +522,7 @@ export class World {
   drawProps(g) {
     const t = this.t, P = this.player, near = this.interactable(P);
     for (const o of this.props) {
+      if (this.offV && this.offV(o.x, o.y, o.w || 0, o.h || 0)) continue;
       if (this.drawPropPainted(g, o)) {}
       else if (o.kind === 'chest') { g.fillStyle = '#15131f'; g.beginPath(); g.roundRect(o.x - 1, o.y - 1 + (o.open ? 6 : 0), o.w + 2, o.h + 2 - (o.open ? 6 : 0), 4); g.fill(); g.fillStyle = '#9a6a42'; g.fillRect(o.x + 1, o.y + 8, o.w - 2, o.h - 9); g.fillStyle = o.open ? '#5c3a24' : '#b8783a'; g.fillRect(o.x + 1, o.y + 1 + (o.open ? 5 : 0), o.w - 2, 8 - (o.open ? 4 : 0)); g.fillStyle = '#ffd36b'; g.fillRect(o.x + o.w / 2 - 3, o.y + 6, 6, 6); if (!o.open) drawGlow(g, o.x + o.w / 2, o.y + 6, 24, '#ffd36b', 0.3 + Math.sin(t * 3) * 0.1); }
       else if (o.kind === 'fountain') { g.fillStyle = '#15131f'; g.beginPath(); g.roundRect(o.x - 2, o.y + 18, o.w + 4, 24, 6); g.fill(); g.fillStyle = '#6a7488'; g.beginPath(); g.roundRect(o.x, o.y + 20, o.w, 20, 5); g.fill(); g.fillStyle = '#6a7488'; g.fillRect(o.x + 14, o.y + 2, 8, 20); if (!o.open) { g.fillStyle = '#7ff0ff'; g.fillRect(o.x + 4, o.y + 20, o.w - 8, 5); drawGlow(g, o.x + 18, o.y + 14, 34, '#7ff0ff', 0.5); if (Math.random() < 0.2) this.fx.burst(o.x + 18, o.y + 2, 1, { color: '#bff', min: 20, max: 60, g: 300, angle: -Math.PI / 2, spread: 0.6, life: 0.6, size: 2.5 }); } }

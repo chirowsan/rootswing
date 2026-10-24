@@ -63,13 +63,13 @@ UI.initUI({
   relayout() { game.relayout(); }, statsChanged() { const W = game.world; if (W && W.mode === 'hub') { const s = playerStats(); Object.assign(W.player, { maxHp: s.maxHp, hp: s.maxHp, maxFlasks: s.maxFlasks, flasks: s.maxFlasks, weapon: s.weapon, gadgets: s.gadgets, hookRange: s.hookRange }); input.visible.skill2 = s.gadgets.length > 1; } },
 });
 function resize() {
-  const q = save.settings.quality; const cap = q === 'high' ? 2.5 : q === 'low' ? 1 : (game.lowPerf ? 1.25 : 2);
+  const q = save.settings.quality; const coarse = matchMedia && matchMedia('(pointer: coarse)').matches; const cap = q === 'high' ? 2.5 : q === 'low' ? 1 : [coarse ? 1.5 : 2, 1.25, 1][game.resLevel || 0]; // v1.4: phones cap at 1.5x; auto steps the resolution down when frames run long
   game.dpr = Math.min(devicePixelRatio || 1, cap); game.cssW = innerWidth; game.cssH = innerHeight;
   canvas.width = Math.round(game.cssW * game.dpr); canvas.height = Math.round(game.cssH * game.dpr); canvas.style.width = game.cssW + 'px'; canvas.style.height = game.cssH + 'px';
   game.relayout(); UI.showRotate(game.cssH > game.cssW * 1.05);
 }
 addEventListener('resize', resize); addEventListener('orientationchange', () => setTimeout(resize, 200));
-document.addEventListener('visibilitychange', () => { if (document.hidden) game.pause(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) game.pause(); else { last = performance.now(); acc = 0; } });
 let last = performance.now(), acc = 0, titleT = 0, menuCd = 0;
 function frame(now) {
   requestAnimationFrame(frame);
@@ -89,17 +89,17 @@ function tick(now) {
       if (n === 4) acc = 0;
     }
   } else endStep();
-  render(real);
+  render(real, W && game.state === 'play' && !game.paused && !game.manual && !UI.isOpen() ? acc / STEP : 1);
 }
 function menuInput(dt) {
   menuCd -= dt; const y = input.my, x = input.mx;
   if (menuCd <= 0 && (y || x)) { UI.menuNav(y > 0 || x > 0 ? 1 : -1); menuCd = 0.22; } if (!y && !x) menuCd = 0;
   if (pressed('confirm') || pressed('jump')) UI.menuNav(0, true); else if (pressed('pause') || pressed('dash')) UI.menuNav(0, false, true);
 }
-function render(dt) {
+function render(dt, alpha = 1) {
   const W = game.world, cw = canvas.width, ch = canvas.height;
   if (!W) { titleScene(dt); return; }
-  const rs = ch / (W.viewH || VIEW_H); W.draw(g, cw, ch, rs);
+  const rs = ch / (W.viewH || VIEW_H); const lerpS = W.lerpBegin ? W.lerpBegin(alpha) : null; W.draw(g, cw, ch, rs); W.lerpEnd && W.lerpEnd(lerpS);
   if (game.tut) { if (W.wt) g.setTransform(W.wt[0], 0, 0, W.wt[0], W.wt[1], W.wt[2]); else g.setTransform(rs, 0, 0, rs, -W.camx * rs, -W.camy * rs); game.tut.drawWorld(g); }
   const s = game.dpr * Math.max(0.8, Math.min(1.25, game.cssH / 412));
   g.setTransform(1, 0, 0, 1, 0, 0); drawHUD(g, W, cw, ch, s);
@@ -132,7 +132,7 @@ function titleScene(dt) { // the title screen shows a live, idle hub behind the 
 }
 function perfTrack(dt) {
   const p = game.perf; p.frames++; p.ms.push(dt * 1000); if (p.ms.length > 120) p.ms.shift();
-  if (save.settings.quality === 'auto' && !game.lowPerf && p.frames > 240 && p.frames % 120 === 0) { const avg = p.ms.reduce((a, b) => a + b, 0) / p.ms.length; if (avg > 22) { game.lowPerf = true; resize(); } }
+  if (save.settings.quality === 'auto' && (game.resLevel || 0) < 2 && p.frames > 240 && p.frames % 120 === 0 && game.state === 'play' && !game.paused) { const m = p.ms.slice().sort((a, b) => a - b), med = m[m.length >> 1]; if (med > 19) { game.resLevel = (game.resLevel || 0) + 1; if (game.resLevel >= 2) game.lowPerf = true; p.frames = 0; resize(); } } // dynamic resolution: 1.5x -> 1.25x -> 1x + low effects
 }
 // first touch: audio + fullscreen + orientation lock (web only; the Android app is already full-screen landscape)
 function firstGesture() {

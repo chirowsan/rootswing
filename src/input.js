@@ -61,17 +61,18 @@ export function computeLayout(w, h) {
     jump: { ...R(-78, -80), r: 46 * s }, attack: { ...R(-182, -64), r: 42 * s }, dash: { ...R(-168, -166), r: 32 * s },
     hook: { ...R(-70, -190), r: 36 * s }, parry: { ...R(-268, -54), r: 28 * s }, skill1: { ...R(-262, -138), r: 26 * s }, skill2: { ...R(-238, -212), r: 24 * s },
     flask: { x: 58 * s, y: h - 232 * s, r: 25 * s }, pause: { x: w - 34 * s, y: 32 * s, r: 22 * s },
-    stickHome: { x: 118 * s, y: h - 104 * s }, stickR: 58 * s,
+    stickHome: { x: 118 * s, y: h - 104 * s }, stickR: 58 * s * (save.settings.stickSize || 1),
     padL: { x: 70 * s, y: h - 74 * s, r: 44 * s }, padR: { x: 180 * s, y: h - 74 * s, r: 44 * s }, padD: { x: 125 * s, y: h - 168 * s, r: 30 * s },
   };
   input.layout = L; input.w = w; input.h = h; return L;
 }
 const RIGHT_BTNS = ['jump', 'attack', 'dash', 'hook', 'parry', 'skill1', 'skill2', 'flask', 'pause'];
-function hitButton(x, y) {
+const SLIDE = new Set(['jump', 'attack', 'dash', 'hook', 'parry']);
+function hitButton(x, y, k = 1.3) {
   const L = input.layout; let best = null, bd = 1e9;
   for (const b of RIGHT_BTNS) {
     if (b !== 'pause' && b !== 'jump' && input.visible[b] === false) continue;
-    const p = L[b]; const d = Math.hypot(x - p.x, y - p.y); const lim = p.r * (b === 'pause' ? 1.6 : 1.3);
+    const p = L[b]; const d = Math.hypot(x - p.x, y - p.y); const lim = p.r * (b === 'pause' ? 1.6 : k);
     if (d < lim && d / lim < bd) { bd = d / lim; best = b; }
   }
   return best;
@@ -87,7 +88,7 @@ function onTouch(e, type) {
       if (b) { touchMap.set(t.identifier, b); press(b); vibrate(8); continue; }
       if (x < input.w * 0.45) {
         if (save.settings.leftStyle === 'pads') { touchMap.set(t.identifier, 'pads'); padTouch(t.identifier, x, y); }
-        else { const st = input.stick; st.active = true; st.id = t.identifier; st.bx = x; st.by = Math.max(y, input.h * 0.35); st.x = x; st.y = y; touchMap.set(t.identifier, 'stick'); }
+        else { const st = input.stick, fixed = save.settings.stickMode === 'fixed'; st.active = true; st.id = t.identifier; st.bx = fixed ? L.stickHome.x : x; st.by = fixed ? L.stickHome.y : Math.max(y, input.h * 0.35); st.x = x; st.y = y; touchMap.set(t.identifier, 'stick'); }
       } else if (x > input.w * 0.55) {
         // empty right side: nearest big button within a generous radius
         const near = nearestBig(x, y); if (near) { touchMap.set(t.identifier, near); press(near); vibrate(8); }
@@ -96,6 +97,7 @@ function onTouch(e, type) {
       const c = touchMap.get(t.identifier);
       if (c === 'stick') { input.stick.x = x; input.stick.y = y; const st = input.stick; const dx = x - st.bx, dy = y - st.by, d = Math.hypot(dx, dy), R = L.stickR; if (d > R * 1.25) { st.bx = x - dx / d * R * 1.25; st.by = y - dy / d * R * 1.25; } }
       else if (c === 'pads') padTouch(t.identifier, x, y);
+      else if (SLIDE.has(c)) { const b = hitButton(x, y, 1.05); if (b && b !== c && SLIDE.has(b)) { release(c); press(b); touchMap.set(t.identifier, b); vibrate(6); } } // v1.4: slide a thumb from one action button onto another
     } else {
       const c = touchMap.get(t.identifier); touchMap.delete(t.identifier);
       if (c === 'stick') { input.stick.active = false; input.stick.id = null; }
@@ -132,8 +134,9 @@ export function pollInput() {
   if (st.active && input.layout) {
     const dx = st.x - st.bx, dy = st.y - st.by, R = input.layout.stickR;
     let sx = clamp(dx / R, -1, 1), sy = clamp(dy / R, -1, 1);
-    if (Math.abs(sx) < 0.22) sx = 0; else sx = Math.sign(sx) * Math.min(1, (Math.abs(sx) - 0.1) / 0.6); // quick to full speed
-    if (Math.abs(sy) < 0.45) sy = 0; else sy = Math.sign(sy);
+    // v1.4: small radial dead zone, analog walk -> run (full speed at ~65% throw); up/down only on steep angles so running never ducks
+    const d = Math.hypot(dx, dy) / R, ang = Math.abs(dy) / Math.max(1e-6, Math.hypot(dx, dy));
+    if (d < 0.12) { sx = 0; sy = 0; } else { sx = Math.sign(dx) * Math.min(1, Math.max(0, (Math.abs(dx) / R - 0.08) / 0.57)); sy = d > 0.42 && ang > 0.74 ? Math.sign(dy) : 0; if (ang > 0.92) sx *= 0.5; }
     x = sx; y = sy;
     if (sy > 0) press('down'); else release('down'); if (sy < 0) press('up'); else release('up');
   } else if (save.settings.leftStyle === 'pads') {
@@ -143,16 +146,23 @@ export function pollInput() {
   input.mx = x; input.my = y;
 }
 // ---------- drawing the touch overlay ----------
+const ringCache = new Map();
+function ringCanvas(r, active, S) { // v1.4: pre-rendered button body (was a fresh radial gradient per button per frame)
+  const key = Math.round(r * 4) + (active ? 'a' : 'i') + S.toFixed(2); let c = ringCache.get(key); if (c) return c;
+  const m = Math.ceil(r + 4 * S); c = document.createElement('canvas'); c.width = c.height = m * 2; c._m = m; const g = c.getContext('2d'), x = m, y = m;
+  const gr = g.createRadialGradient(x, y - r * 0.35, r * 0.1, x, y, r); gr.addColorStop(0, active ? 'rgba(255,226,160,0.45)' : 'rgba(46,52,60,0.42)'); gr.addColorStop(1, active ? 'rgba(120,80,30,0.5)' : 'rgba(10,10,20,0.55)');
+  g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  g.strokeStyle = 'rgba(12,10,20,0.6)'; g.lineWidth = 4.5 * S; g.stroke(); g.strokeStyle = active ? 'rgba(255,230,160,0.95)' : 'rgba(217,178,106,0.85)'; g.lineWidth = 2 * S; g.stroke();
+  g.strokeStyle = 'rgba(160,230,140,0.35)'; g.lineWidth = 1.5 * S; g.beginPath(); g.arc(x, y, r - 3.5 * S, 3.7, 5.7); g.stroke();
+  if (ringCache.size > 64) ringCache.clear(); ringCache.set(key, c); return c;
+}
 export function drawTouch(g, t, gadgetIcons, cooldowns = {}, flasks = 0) {
   const L = input.layout; if (!L || !input.touchActive && !input.forceTouch) return;
-  const a = save.settings.ctrlOpacity;
+  let a = save.settings.ctrlOpacity;
   g.save(); g.lineWidth = 2.5 * L.s;
   const ring = (x, y, r, active, hl) => {
     g.globalAlpha = Math.min(1, a * (active ? 1.6 : 1.1));
-    const gr = g.createRadialGradient(x, y - r * 0.35, r * 0.1, x, y, r); gr.addColorStop(0, active ? 'rgba(255,226,160,0.45)' : 'rgba(46,52,60,0.42)'); gr.addColorStop(1, active ? 'rgba(120,80,30,0.5)' : 'rgba(10,10,20,0.55)');
-    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
-    g.strokeStyle = 'rgba(12,10,20,0.6)'; g.lineWidth = 4.5 * L.s; g.stroke(); g.strokeStyle = active ? 'rgba(255,230,160,0.95)' : 'rgba(217,178,106,0.85)'; g.lineWidth = 2 * L.s; g.stroke();
-    g.strokeStyle = 'rgba(160,230,140,0.35)'; g.lineWidth = 1.5 * L.s; g.beginPath(); g.arc(x, y, r - 3.5 * L.s, 3.7, 5.7); g.stroke(); g.lineWidth = 2.5 * L.s;
+    const rc = ringCanvas(r, active, L.s), m = rc._m; g.drawImage(rc, x - m, y - m);
     if (hl) { const p = (t * 2.2) % 1; g.globalAlpha = 1 - p; g.strokeStyle = '#ffe27a'; g.lineWidth = 4 * L.s; g.beginPath(); g.arc(x, y, r * (1 + p * 0.6), 0, 7); g.stroke(); g.lineWidth = 2.5 * L.s; g.globalAlpha = 1; g.strokeStyle = '#ffe27a'; g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke(); }
   };
   // left side
@@ -160,10 +170,10 @@ export function drawTouch(g, t, gadgetIcons, cooldowns = {}, flasks = 0) {
     const v = Object.values(input.pads);
     for (const [k, dir, ic] of [['padL', -1, 'left'], ['padR', 1, 'right'], ['padD', 'D', 'down']]) { const p = L[k]; ring(p.x, p.y, p.r, v.includes(dir), input.highlight.move); g.globalAlpha = Math.min(1, a * 2); drawIcon(g, ic, p.x, p.y, p.r * 0.9, '#fff'); }
   } else {
-    const st = input.stick; const bx = st.active ? st.bx : L.stickHome.x, by = st.active ? st.by : L.stickHome.y;
+    const st = input.stick; const bx = st.active ? st.bx : L.stickHome.x, by = st.active ? st.by : L.stickHome.y; const ca = a; a = save.settings.stickOpacity ?? a;
     ring(bx, by, L.stickR, false, input.highlight.move);
     const kx = st.active ? clamp(st.x - bx, -L.stickR, L.stickR) : 0, ky = st.active ? clamp(st.y - by, -L.stickR, L.stickR) : 0;
-    g.globalAlpha = Math.min(1, a * 1.7); g.fillStyle = 'rgba(232,214,170,0.6)'; g.beginPath(); g.arc(bx + kx, by + ky, L.stickR * 0.42, 0, 7); g.fill(); g.strokeStyle = 'rgba(12,10,20,0.6)'; g.lineWidth = 2 * L.s; g.stroke();
+    g.globalAlpha = Math.min(1, a * 1.7); g.fillStyle = 'rgba(232,214,170,0.6)'; g.beginPath(); g.arc(bx + kx, by + ky, L.stickR * 0.42, 0, 7); g.fill(); g.strokeStyle = 'rgba(12,10,20,0.6)'; g.lineWidth = 2 * L.s; g.stroke(); a = ca;
   }
   // right side buttons
   for (const b of ['jump', 'attack', 'dash', 'hook', 'parry', 'skill1', 'skill2', 'flask', 'pause']) {
