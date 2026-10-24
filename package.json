@@ -1,0 +1,10 @@
+{
+  "name": "rootswing",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Rootswing - an original grappling-hook roguelite platformer",
+  "scripts": { "build": "node build.mjs", "test": "node tests/run-all.mjs" },
+  "license": "MIT",
+  "devDependencies": { "esbuild": "^0.28.2" }
+}

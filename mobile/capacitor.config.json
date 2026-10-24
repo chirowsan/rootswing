@@ -1,0 +1,7 @@
+{
+  "appId": "com.chirow.rootswing",
+  "appName": "Rootswing",
+  "webDir": "www",
+  "backgroundColor": "#1a1230",
+  "android": { "allowMixedContent": false, "backgroundColor": "#1a1230" }
+}

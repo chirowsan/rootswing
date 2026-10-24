@@ -1,0 +1,12 @@
+{
+  "name": "rootswing-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor Android wrapper for ROOTSWING",
+  "dependencies": {
+    "@capacitor/android": "^6.2.2",
+    "@capacitor/cli": "^6.2.2",
+    "@capacitor/core": "^6.2.2",
+    "@capacitor/haptics": "^6.0.3"
+  }
+}

@@ -1,0 +1,7 @@
+- 2026-10-23 17:32 step0: project created, name ROOTSWING (checked web: no existing game), app id com.chirow.rootswing
+- 2026-10-23 17:41 step1: util/save/audio/input/art/chunks(23)/level generator written; generator 300 seeds 0 fails
+- 2026-10-23 17:57 PDT step2: physics/fx/weapons/player/enemies/boss/world/hud/tutorial/ui/main written; first build 159KB
+- 2026-10-23 18:06 PDT step3: icons generated, title fade bug fixed, perf low-mode skips, deterministic __RS.step driver, scripted tutorial playthrough passes (fixed: tutorial anchor reach, swing lift+auto-reel, air momentum, enemy aggro NaN bug)
+- 2026-10-23 18:20 PDT step4: reachability analyzer (tools/reach.mjs, 200 seeds 0 problems) ; fixed floating exit door (props snap to ground), lowered smogswing anchors, softened cross2 thorns, removed vertical side-branches, fixed '#fff8'+alpha gradient crash; god-mode bot run reached boss and beat all 3 phases
+- 2026-10-23 18:22 PDT step5: tests/run-all.mjs suite written; mobile/ Capacitor 6 android platform added (com.chirow.rootswing, landscape, immersive, icons+splash)
+- 2026-10-23 18:24 PDT step6: 24/24 tests pass (incl. victory card); signed release/Rootswing.apk + .aab built via mobile/build-android.sh
