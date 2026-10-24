@@ -1,0 +1,59 @@
+{
+ "viewport": "915x412",
+ "dpr": 2.625,
+ "quality": "auto",
+ "x1": {
+  "p50": 0.8,
+  "p95": 1.9,
+  "max": 63.5,
+  "canvas": "1373x618",
+  "layers": {
+   "bg": 0.15,
+   "tiles": 0.13,
+   "props": 0.2,
+   "enemies": 0.04,
+   "player": 0.01,
+   "shots": 0.04,
+   "fx": 0.02,
+   "motes": 0.01,
+   "fg": 0.43,
+   "grade+post": 0
+  }
+ },
+ "x4": {
+  "p50": 3.4,
+  "p95": 7.9,
+  "max": 31.9,
+  "canvas": "1373x618",
+  "layers": {
+   "bg": 0.48,
+   "tiles": 0.74,
+   "props": 0.85,
+   "enemies": 0.08,
+   "player": 0.05,
+   "shots": 0.11,
+   "fx": 0.06,
+   "motes": 0.06,
+   "fg": 0.1,
+   "grade+post": 0
+  }
+ },
+ "x6": {
+  "p50": 4.6,
+  "p95": 11.3,
+  "max": 34.8,
+  "canvas": "1373x618",
+  "layers": {
+   "bg": 0.71,
+   "tiles": 1.06,
+   "props": 1.1,
+   "enemies": 0.05,
+   "player": 0.07,
+   "shots": 0.1,
+   "fx": 0.11,
+   "motes": 0.06,
+   "fg": 0.1,
+   "grade+post": 0
+  }
+ }
+}
