@@ -51,3 +51,10 @@ daily determinism; critter reachability (explore proof, 12 spots / 6 seeds); sav
 
 ## Screenshots
 `shots/v18/`: board.png, critter-rescue.png, toast.png, wardrobe.png. The wardrobe and board shots use a save with several rewards pre-unlocked for display.
+
+## Ship log (2026-10-24)
+- Tests: 78/78 pass. Also hardened the pre-existing flaky 'biome-2 shellback' test: it now resets Sprig to the flat spot before each enemy. It had failed about 1 in 8 runs on v1.7 as well.
+- APK: release/Rootswing-1.8.0.apk (6.9M), sha256 f5299f3eb0dadf68…; AAB: 6.8M. Signing cert SHA-256 6e59e14a…d8de (verified).
+- Release: https://github.com/chirowsan/rootswing/releases/tag/v1.8.0
+- Live: https://chirowsan.github.io/rootswing/. The live game.js hash matches dist. verify-live passed with 0 errors, and the board opens live with 3 missions.
+- Not yet verified: on-device play on a real Android phone; full multi-day daily rollover in real time; the timed mini-boss and no-potion missions were tested only through their event plumbing, not by playing them to completion.
