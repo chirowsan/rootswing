@@ -6,3 +6,4 @@
 - 2026-10-23 18:22 PDT step5: tests/run-all.mjs suite written; mobile/ Capacitor 6 android platform added (com.chirow.rootswing, landscape, immersive, icons+splash)
 - 2026-10-23 18:24 PDT step6: 24/24 tests pass (incl. victory card); signed release/Rootswing.apk + .aab built via mobile/build-android.sh
 - 2026-10-23 18:26 PDT step7: README/LICENSE/.gitignore; public repo chirowsan/rootswing pushed; gh-pages deployed from dist/
+- 2026-10-23 18:31 PDT step8: touch controls on phones from start; Pages live verified (200, 0 console errors); release v1.0.0 with APK/AAB/source zip
