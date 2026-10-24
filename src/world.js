@@ -381,7 +381,7 @@ export class World {
     this.drawMarkers(g);
     for (const s of this.sentries) this.drawSentry(g, s);
     for (const e of this.enemies) if (e.x + e.w > vx0 && e.x < vx1 && e.y + e.h > vy0 && e.y < vy1) e.draw(g, this);
-    this.player.draw(g, this);
+    this.dbg = { px: this.player.x, camx }; this.player.draw(g, this);
     this.drawShots(g);
     for (const w of this.waves) { const k = Math.sin(this.t * 30) * 2; g.fillStyle = '#7d5cff'; g.strokeStyle = '#15131f'; g.lineWidth = 2; g.beginPath(); g.moveTo(w.x - 12, w.y); g.quadraticCurveTo(w.x - w.dir * 2, w.y - 26 - k, w.x + w.dir * 12, w.y); g.closePath(); g.fill(); g.stroke(); drawGlow(g, w.x, w.y - 10, 26, '#ff5a7a', 0.6); }
     for (const p of this.pillars) { g.fillStyle = '#4a3e50'; g.strokeStyle = '#15131f'; g.lineWidth = 2.5; g.beginPath(); g.roundRect(p.x, p.y, p.w, p.h, 8); g.fill(); g.stroke(); g.fillStyle = '#ff8a5a'; g.fillRect(p.x + 8, p.y + 14, 6, 6); g.fillRect(p.x + 24, p.y + 26, 5, 5); }

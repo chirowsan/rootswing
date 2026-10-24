@@ -73,6 +73,9 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) game.
 let last = performance.now(), acc = 0, titleT = 0, menuCd = 0;
 function frame(now) {
   requestAnimationFrame(frame);
+  if (!game.tracing) tick(now);
+}
+function tick(now) {
   let real = Math.min(0.1, (now - last) / 1000); last = now; perfTrack(real);
   pollInput();
   const W = game.world;
@@ -153,6 +156,13 @@ window.__RS = {
   god(on = true) { game.god = on; if (game.world) game.world.god = on; },
   manual(on = true) { game.manual = on; },
   step(n = 1) { for (let i = 0; i < n; i++) { pollInput(); const W = game.world; if (!W || game.state !== 'play' || game.paused || UI.isOpen()) { endStep(); continue; } W.update(STEP); game.tut && game.tut.update(STEP); if (game.god) W.player.hp = W.player.maxHp; endStep(); } return this.state(); },
+  // v1.4 frame-pacing trace: drive the real loop with a fake clock at hz with +-noise ms jitter; returns per-frame drawn hero x / camera x
+  trace(hz = 60, frames = 240, noise = 0, seed = 1) {
+    let r = seed; const rnd = () => ((r = (r * 16807) % 2147483647) / 2147483647);
+    const W = game.world; game.tracing = true; game.manual = false; let t = last + 1, out = [];
+    for (let i = 0; i < frames; i++) { const dt = 1000 / hz + (noise ? (rnd() * 2 - 1) * noise : 0); t += Math.max(1, dt); const t0 = performance.now(); tick(t); out.push({ dt: Math.max(1, dt), px: W.dbg.px, camx: W.dbg.camx, cost: performance.now() - t0 }); }
+    game.tracing = false; last = performance.now(); return out;
+  },
   tut() { const t = game.tut; return t ? { step: t.step, done: [...t.done] } : null; },
   skipCountdown() { if (game.world) { game.world.countdown = 0.001; } },
   state() { const W = game.world; if (!W) return { state: game.state, ui: UI.ui.open }; const P = W.player; return { state: game.state, ui: UI.ui.open, mode: W.mode, x: P.x, y: P.y, vx: P.vx, vy: P.vy, hp: P.hp, onGround: P.onGround, hook: P.hook.s, enemies: W.enemies.length, glim: W.runGlim, cell: W.curCell ? W.curCell.index : -1, cells: W.cells.length, boss: W.boss ? { hp: W.boss.hp, phase: W.boss.phase, st: W.boss.st } : null, paused: game.paused, fps: 1000 / (game.perf.ms.reduce((a, b) => a + b, 0) / Math.max(1, game.perf.ms.length)) }; },
