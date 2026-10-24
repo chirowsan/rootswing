@@ -40,3 +40,4 @@
 - 10:24 PM PDT — Touch: radial dead zone 0.12 with analog walk→run, up/down only on steep angles, slide between action buttons, Settings›Controls (floating/fixed stick, stick size, stick see-through; vibration kept), cached button bodies. Corner correction (≤7 px) on rising jumps. Accel 6 f to 95% run, skid 6 f.
 - 22:40 PDT enemy animation: 98-frame painted atlas, render-only rig (idle/move/tele/attack+smear/recover/hurt/turn/death shatter) for all 15 foes; contact sheets shots/v14/enemies; enemy-anim test
 - 10:53 PM PDT — v1.4.0 (versionCode 5) built + signed (cert 6e59e14a…), perf re-check unchanged (x6 p50 4.6 ms), tests 51/51
+- 10:55 PM PDT — Shipped v1.4.0: tag, Pages deployed + live-verified (HTTP 200, enemies atlas served, no errors), release with APK/AAB/source zip
