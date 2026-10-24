@@ -94,7 +94,7 @@ function toned(m, filt) {
 const SKIN = {
   overpass: { fill: 'tex_rock', fs: 0.3, lip: 'lip', lipH: 19, lipUp: 0.3, rim: 'rgba(255,236,170,0.55)', lipF: 'saturate(0.8) brightness(0.86)', hang: 42, propP: 0.16, propF: 'brightness(0.9)',
     props: [['d_mush', 15], ['d_fern', 18], ['d_rubble', 13], ['d_grass', 16], ['d_grass', 14], ['d_stump', 17], ['d_pillar', 26], ['d_lamp', 30, '#ffc070']] },
-  caverns: { fill: 'tex_cave', fs: 0.3, lip: 'lip', lipH: 19, lipUp: 0.3, rim: 'rgba(140,255,240,0.5)', lipF: 'hue-rotate(70deg) saturate(0.9) brightness(0.8)', hang: 46, hangF: 'hue-rotate(60deg) brightness(0.8)', propP: 0.17, propF: 'hue-rotate(35deg) brightness(0.9)',
+  caverns: { fill: 'tex_cave', fs: 0.3, tint: 'rgba(8,62,74,0.42)', lip: 'lip', lipH: 19, lipUp: 0.3, rim: 'rgba(140,255,240,0.5)', lipF: 'hue-rotate(95deg) saturate(1.35) brightness(1.0)', hang: 46, hangF: 'hue-rotate(60deg) brightness(0.8)', propP: 0.17, propF: 'hue-rotate(35deg) brightness(0.9)',
     props: [['d_mush', 16], ['d_crys', 18], ['d_fern', 16], ['d_rubble', 13], ['d_mush', 20], ['d_lamp', 28, '#7ff0ff'], ['d_crys', 22]] },
   hub: { fill: 'tex_rock', fs: 0.3, lip: 'lip', lipH: 19, lipUp: 0.3, rim: 'rgba(255,236,170,0.55)', lipF: 'saturate(0.85) brightness(0.92)', hang: 36, propP: 0.1, props: [['d_fern', 18], ['d_grass', 16], ['d_mush', 14]] },
   boss: { fill: 'tex_metal', fs: 0.36, lip: 'moss', lipH: 10, lipUp: 0.32, rim: 'rgba(255,150,90,0.4)', lipF: 'saturate(0.45) brightness(0.7)', hang: 0, propP: 0, props: [] },
@@ -112,7 +112,7 @@ export function renderPaintedChunk(map, cx, cy, rs, biome) {
   // ink rim
   each((tx, ty) => { const [up, dn, lf, rt, a, b, cc, d] = corners(tx, ty); if (!(up || dn || lf || rt)) return; g.fillStyle = g.strokeStyle = PAL.ink; path(tx * TILE, ty * TILE, a, b, cc, d); g.lineWidth = 4; g.stroke(); });
   // textured fill
-  each((tx, ty, ch) => { const [, , , , a, b, cc, d] = corners(tx, ty); g.fillStyle = ch === 'B' ? pRoot : pStone; path(tx * TILE, ty * TILE, a, b, cc, d); g.fill(); });
+  each((tx, ty, ch) => { const [, , , , a, b, cc, d] = corners(tx, ty); g.fillStyle = ch === 'B' ? pRoot : pStone; path(tx * TILE, ty * TILE, a, b, cc, d); g.fill(); if (SK.tint && ch !== 'B') { g.fillStyle = SK.tint; g.fill(); } });
   // depth shading + edge light
   each((tx, ty, ch) => {
     const X = tx * TILE, Y = ty * TILE, [up, dn, lf, rt] = corners(tx, ty), dU = up ? 0 : !S(tx, ty - 2) ? 1 : !S(tx, ty - 3) ? 2 : 3;

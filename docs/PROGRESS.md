@@ -29,3 +29,5 @@
 - 20:43 PDT: tests 25/25 (biome-2 flow, final boss, checkpoint resume); reach 600 maps 0 problems avg 47.1 rooms
 - 20:52 PDT: weapons spear/sickle (new art), Ember Heart hub skill, LRU chunk streaming (40 chunks), pause map; tests 46/46
 - 20:54 PDT: resumed after interrupt; shots/v13 caverns set (11-16) taken, 0 page errors; README v1.3 section + run-length estimate
+- 20:55 PDT: victory card text for the Drowned Bloom; committed
+- 20:58 PDT: caverns tiles teal-tinted with glowing cyan moss (distinct from overpass); sheets shots/compare-v13-{1,2,3,new}.png; bumped 1.3.0/versionCode 4; tests running
