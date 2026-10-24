@@ -6,10 +6,14 @@ import { sfx } from './audio.js';
 import { WEAPONS, GADGETS } from './weapons.js';
 import { diff, save } from './save.js';
 import { PAL, drawGlow } from './art.js';
-import { G, has, spr, sprAspect, shaded } from './gfx.js';
+import { G, has, spr, sprAspect, shaded, heroFlash } from './gfx.js';
 
 const C = { RUN: 182, ACC_G: 1750, DEC_G: 2100, ACC_A: 1200, GRAV: 1480, GRAV_FALL: 1720, JUMP: 515, CUT: 0.45, MAXFALL: 600, SLIDE: 115, WJX: 235, WJY: 470, DASH: 470, DASH_T: 0.17, DASH_CD: 0.38 };
 export const HERO_K = 1.22; // v1.2 visual scale of the hero rig around the feet (hitbox unchanged)
+export const HERO_PX = 47 / 223; // v1.3 world units per painted-frame pixel (idle frame = 44 units tall before HERO_K)
+// front-fist anchor in frame pixels per painted pose (weapon grip); measured from the annotated sheets
+const RUN_BOB = { run3: 16, run7: 16, run2: 5, run6: 5, jump: 0 }; // frame px the body floats above the feet line
+const FIST = { slash1: [170, 73], slash2: [124, 23], thrust: [169, 70], hwind: [123, 29], slam: [141, 139], parry: [120, 50], airatk: [150, 60], throw: [161, 45], swing: [81, 11] };
 export class Player {
   constructor(x, y, stats) {
     this.w = 18; this.h = 34; this.x = x; this.y = y; this.vx = 0; this.vy = 0; this.face = 1;
@@ -277,11 +281,14 @@ export class Player {
     const t = this.t, f = this.face, X = this.cx, Y = this.y + this.h;
     // vine/hook line
     const h = this.hook;
+    const pose = G.hero ? this.heroPose(W) : null;
     if (h.s !== 'none' && h.hx !== undefined) {
-      const hx0 = X + f * 7, hy0 = this.y + 16;
+      let hx0 = X + f * 7, hy0 = this.y + 16; if (pose && pose.hand) [hx0, hy0] = pose.hand;
       this.drawVine(g, hx0, hy0, h, t);
       g.fillStyle = '#d9a35a'; g.beginPath(); g.arc(h.hx, h.hy, 4, 0, 7); g.fill(); g.strokeStyle = PAL.ink; g.lineWidth = 1.5; g.stroke();
     }
+    if (pose) this.drawFrames(g, W, pose);
+    else {
     // scarf
     const rig = has('head'); if (rig) { g.save(); g.translate(X, Y); g.scale(W.heroK || HERO_K, W.heroK || HERO_K); g.translate(-X, -Y); } g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); g.moveTo(this.scarf[0].x, this.scarf[0].y); for (const p of this.scarf) g.lineTo(p.x, p.y);
     if (rig) { g.strokeStyle = PAL.ink; g.lineWidth = 5; g.stroke(); g.strokeStyle = '#d8622a'; g.lineWidth = 3.2; g.stroke(); g.strokeStyle = '#ffb36a'; g.lineWidth = 1; g.stroke(); }
@@ -333,6 +340,7 @@ export class Player {
     g.fillStyle = 'rgba(255,120,120,0.35)'; g.beginPath(); g.arc(9, 4.5, 1.6, 0, 7); g.fill();
     g.restore(); g.globalAlpha = 1;
     }
+    }
     const atk = this.atk;
     // charge glow + parry shield
     if (this.chargeT > 0.2) drawGlow(g, X + f * 10, this.cy - 4, 14 + (this.charged ? 10 + Math.sin(t * 30) * 3 : this.chargeT * 12), WEAPONS[this.weapon].color, this.charged ? 0.9 : 0.5);
@@ -341,6 +349,67 @@ export class Player {
     // attack smear
     if (atk && atk.phase === 'active' && atk.def && !atk.def.proj && atk.kind !== 'plunge') this.drawSmear(g, atk);
     if (atk && atk.kind === 'plunge' && atk.phase === 'active') { g.fillStyle = 'rgba(255,255,255,0.5)'; g.beginPath(); g.moveTo(this.x - 4, this.y); g.lineTo(this.x + this.w + 4, this.y); g.lineTo(X, this.y + this.h + 16); g.fill(); }
+  }
+
+  // ---- v1.3 painted frame-by-frame hero ----
+  heroPose(W) {
+    const t = this.t, h = this.hook, atk = this.atk, wpn = this.weapon, air = !this.onGround;
+    const run = this.onGround && Math.abs(this.vx) > 20, dash = this.dashT > 0;
+    const wall = air && this.wallDir && this.vy > 0 && Math.sign(input.mx) === this.wallDir;
+    let n = 'idle0', wa = null, rot = 0, face = this.face, shake = 0;
+    const sweep = (a0, a1) => { const d = atk.def || {}; const k = atk.phase === 'wind' ? 0 : atk.phase === 'active' ? Math.min(1, atk.t / Math.max(0.01, d.active || 0.1)) : 1; const e = 1 - (1 - k) * (1 - k); return a0 + (a1 - a0) * e; };
+    if (this.dead) n = this.deadT < 0.28 ? 'hurt' : 'dead';
+    else if (this.hurtT > 0) n = 'hurt';
+    else if (h.s === 'swing') { n = 'swing'; rot = Math.atan2(h.hx - this.cx, -(h.hy - this.cy)) * 0.85; }
+    else if (h.s !== 'none') n = 'throw';
+    else if (atk) {
+      const st = atk.step || 0, ph = atk.phase;
+      if (atk.kind === 'plunge') { n = 'slam'; wa = 1.45; }
+      else if (wpn === 'bow') { n = 'thrust'; wa = -0.08; }
+      else if (atk.kind === 'air') { n = ph === 'wind' ? 'apex' : 'airatk'; wa = ph === 'wind' ? -2.0 : sweep(-1.6, 0.9); if (n === 'apex') wa = null; }
+      else if (atk.kind === 'heavy' || (wpn === 'hammer' && st % 2 === 0)) { n = ph === 'wind' ? 'hwind' : 'slam'; wa = ph === 'wind' ? -1.9 : sweep(-1.4, 1.25); }
+      else if (wpn === 'hammer' || st % 3 === 1) { n = ph === 'wind' ? 'slash1' : 'slash2'; wa = ph === 'wind' ? 0.9 : sweep(1.0, -1.45); }
+      else if (st % 3 === 2) { n = ph === 'wind' ? 'land' : 'thrust'; wa = ph === 'wind' ? null : -0.06; }
+      else { n = ph === 'wind' ? 'hwind' : 'slash1'; wa = ph === 'wind' ? -2.1 : sweep(-1.6, 0.85); }
+    }
+    else if (this.chargeT > 0.2) { if (wpn === 'bow') { n = 'thrust'; wa = -0.08; } else { n = 'hwind'; wa = -2.0; shake = this.charged ? 1.2 : 0.5; } }
+    else if (this.parryLock > 0) { n = 'parry'; wa = -1.5; }
+    else if (dash) n = 'dash';
+    else if (wall) { n = 'wall'; face = this.wallDir; }
+    else if (air) n = this.vy < -160 ? 'jump' : this.vy < 160 ? 'apex' : 'fall';
+    else if ((this.sy < 0.86 && this.sx > 1.1) || this.mantleT > 0) n = 'land';
+    else if (run) n = 'run' + (((Math.floor(this.runPh / (Math.PI * 2) * 8) % 8) + 8) % 8);
+    else n = (t % 2.6) > 1.9 ? 'idle1' : 'idle0';
+    if (this.dead) rot = 0;
+    const F = G.hero.f[n] || G.hero.f.idle0, K = HERO_PX * (W.heroK || HERO_K), pvx = F[4] - 22, pvy = F[5] + 0, X = this.cx, Y = this.y + this.h;
+    const sx = (1 + (this.sx - 1) * 0.45) * face, sy = 1 + (this.sy - 1) * 0.45 + (n.startsWith('idle') ? Math.sin(t * 2.4) * 0.012 : 0);
+    const pose = { n, F, K, pvx, pvy: F[3] + (RUN_BOB[n] || 0), X, Y, sx, sy, rot, face, wa, shake: shake ? Math.sin(t * 50) * shake : 0, hand: null };
+    const fi = FIST[n]; if (fi) pose.hand = this.framePt(pose, fi[0], fi[1]);
+    void pvy; return pose;
+  }
+  framePt(p, fx, fy) { // frame pixel -> world point
+    const lx = (fx - p.pvx) * p.K * p.sx, ly = (fy - p.pvy) * p.K * p.sy, c = Math.cos(p.rot), s = Math.sin(p.rot);
+    return [p.X + p.shake + lx * c - ly * s, p.Y + lx * s + ly * c];
+  }
+  drawFrames(g, W, p) {
+    const H = G.hero, F = p.F, lo = (W.game && W.game.lowPerf) || save.settings.quality === 'low';
+    if (!lo) drawGlow(g, p.X, this.cy - 8, 36, '#0a0814', 0.4);
+    const blink = this.iframes > 0 && !this.dead && this.flash <= 0 && Math.sin(this.t * 38) > 0;
+    g.save(); g.translate(p.X + p.shake, p.Y); g.rotate(p.rot); g.scale(p.sx * p.K, p.sy * p.K); g.translate(-p.pvx, -p.pvy);
+    if (blink) g.globalAlpha = 0.5;
+    const fi = FIST[p.n];
+    if (p.wa === null || !fi) this.frameWeapon(g, p, F[4] - 30, F[5] + 6, this.weapon === 'bow' ? 1.75 : 1.95, 0.95, 0.72); // sheathed across the back
+    g.drawImage(H.img, F[0], F[1], F[2], F[3], 0, 0, F[2], F[3]);
+    if (p.wa !== null && fi) this.frameWeapon(g, p, fi[0], fi[1], p.wa, 1);
+    if (this.flash > 0) { g.globalAlpha = Math.min(0.85, this.flash * 3 + 0.2); g.drawImage(heroFlash(p.n), 0, 0); }
+    g.restore(); g.globalAlpha = 1;
+  }
+  frameWeapon(g, p, x, y, a, k, len = 1) {
+    const w = this.weapon, n = 'w_' + w; if (!has(n)) return; const u = len / HERO_PX; // world units -> frame px
+    g.save(); g.translate(x, y); g.rotate(a); if (k !== 1) g.globalAlpha *= k;
+    if (w === 'bow') { spr(g, n, 0, 0, 24 * u, 0.35, 0.5); if (this.chargeT > 0.2) { g.strokeStyle = '#eaffc0'; g.lineWidth = 1 * u; g.beginPath(); g.moveTo(-2 * u, -10 * u); g.lineTo(-7 * u, 0); g.lineTo(-2 * u, 10 * u); g.stroke(); } }
+    else { const L = (w === 'whip' ? 20 : 27) * u; spr(g, n, 0, 0, L / sprAspect(n), w === 'whip' ? 0.05 : 0.08, 0.5); }
+    g.restore();
   }
   drawVine(g, x0, y0, h, t) { // textured, twisting vine rope with leaves
     const wob = h.s === 'fly' || h.s === 'miss' ? 6 : 0, mx = (x0 + h.hx) / 2, my = (y0 + h.hy) / 2 + (wob ? Math.sin(t * 40) * wob : Math.min(10, Math.hypot(h.hx - x0, h.hy - y0) * 0.03));

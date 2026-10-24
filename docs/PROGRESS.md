@@ -17,3 +17,6 @@
 - 2026-10-23 19:38 PDT: v1.2 shots in shots/v12, sheets shots/compare-v12-{1,2,3}.png; tests 24/24; draw 25.6 ms vs v1.1 24.5 ms (same session, swiftshader); bumped to 1.2.0 / versionCode 3; Android build started
 - 2026-10-23 19:41 PDT: signed APK/AAB 1.2.0 (versionCode 3, cert 6e59e14a…d8de matches); committing + tagging v1.2.0
 - 2026-10-23 19:43 PDT: v1.2.0 shipped — pushed main + tag, Pages deployed (live gfx ready, 0 errors), release https://github.com/chirowsan/rootswing/releases/tag/v1.2.0
+- 2026-10-23 20:03 PDT: v1.3 started (anim, painted tiles, calmer boss arena, juice, biome 2)
+- 2026-10-23 20:04 PDT: steering: v1.3 also needs much bigger runs (25-40 min Easy, 40-60 rooms/biome, 2-3 biomes, final boss, pause map, checkpoints, streaming). Anim decision: frame-by-frame painted sheets (pose test in art/src/anim/ showed consistent character + distinct poses)
+- 20:10 PDT: P1 hero anim DONE: 26 painted frames (art/src/anim/*.jpg -> tools/build-anim.py -> assets/gfx/hero.webp/json), player.js heroPose/drawFrames (rig = fallback), sheets shots/v13/anim-contact*.png, anim-compare.png

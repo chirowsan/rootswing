@@ -1,5 +1,5 @@
 // Painted art loader (v1.1). Everything degrades to the procedural v1.0 drawing when assets are missing.
-export const G = { ready: false, ver: 0, img: {}, spr: {}, atlas: null, meta: null, tint: new Map() };
+export const G = { ready: false, ver: 0, img: {}, spr: {}, atlas: null, meta: null, tint: new Map(), hero: null };
 const loadImg = (src) => new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
 export async function loadGfx(base = 'gfx/') {
   try {
@@ -7,6 +7,7 @@ export async function loadGfx(base = 'gfx/') {
     const names = [...Object.keys(meta.bg), 'tex_stone', 'tex_metal', 'tex_root'];
     const imgs = await Promise.all([loadImg(base + 'atlas.webp'), ...names.map((n) => loadImg(base + n + '.webp'))]);
     if (!imgs[0]) return false;
+    try { const [hm, hi] = await Promise.all([fetch(base + 'hero.json').then((r) => r.json()), loadImg(base + 'hero.webp')]); if (hi && hm) G.hero = { img: hi, f: hm.f, cache: new Map() }; } catch (e) { G.hero = null; }
     G.atlas = imgs[0]; names.forEach((n, i) => { if (imgs[i + 1]) G.img[n] = imgs[i + 1]; }); G.spr = meta.spr; G.ready = true; G.ver++;
     return true;
   } catch (e) { return false; }
@@ -39,4 +40,9 @@ export function shaded(n, k) {
 export function pattern(g, n, scale) {
   const img = G.img[n]; if (!img) return null; const p = g.createPattern(img, 'repeat');
   if (p && p.setTransform) p.setTransform(new DOMMatrix([scale, 0, 0, scale, 0, 0])); return p;
+}
+// v1.3 painted hero frame: [x, y, w, h, faceX, faceY] in hero.webp; white silhouette cached for hurt flashes
+export function heroFlash(n) {
+  const H = G.hero; let c = H.cache.get(n); if (c) return c; const f = H.f[n]; c = document.createElement('canvas'); c.width = f[2]; c.height = f[3];
+  const x = c.getContext('2d'); x.drawImage(H.img, f[0], f[1], f[2], f[3], 0, 0, f[2], f[3]); x.globalCompositeOperation = 'source-in'; x.fillStyle = '#fff'; x.fillRect(0, 0, f[2], f[3]); H.cache.set(n, c); return c;
 }
