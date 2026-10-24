@@ -5,9 +5,9 @@ import { PAL, drawGlow, CHUNK_T, isSolidCh } from './art.js';
 const hash2 = (x, y) => { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); };
 // parallax sets per biome: [image, parallax factor, zoom, extra y (fraction of screen)]
 const SETS = {
-  overpass: { sky: 'ov_sky', layers: [['ov_far', 0.06, 1.0, 0.02], ['ov_mid', 0.16, 1.0, 0.06], ['ov_near', 0.34, 0.95, 0.12]], fg: 'fg_vines', dim: 'rgba(14,18,38,0.38)', haze: 'rgba(255,190,130,0.10)', fog: '255,200,150', mote: '#f2ffb8', moteG: -12 },
-  hub: { sky: 'hub_sky', layers: [['hub_mid', 0.14, 1.0, 0.05], ['hub_near', 0.32, 0.95, 0.12]], fg: 'fg_vines', dim: 'rgba(12,22,34,0.34)', haze: 'rgba(255,226,170,0.08)', fog: '255,230,180', mote: '#fff2c0', moteG: -6 },
-  boss: { sky: 'boss_sky', layers: [['boss_mid', 0.14, 1.0, 0.04], ['boss_near', 0.3, 0.95, 0.10]], fg: null, dim: 'rgba(16,10,24,0.30)', haze: 'rgba(255,120,70,0.10)', fog: '255,140,90', mote: '#ffb13b', moteG: -40 },
+  overpass: { sky: 'ov_sky', layers: [['ov_far', 0.06, 1.0, 0.02], ['ov_mid', 0.16, 1.0, 0.06], ['ov_near', 0.34, 0.95, 0.12]], fg: 'fg_vines', deep: '44,54,86', dim: 'rgba(14,18,38,0.36)', haze: 'rgba(255,190,130,0.10)', fog: '255,200,150', mote: '#f2ffb8', moteG: -12 },
+  hub: { sky: 'hub_sky', layers: [['hub_mid', 0.14, 1.0, 0.05], ['hub_near', 0.32, 0.95, 0.12]], fg: 'fg_vines', deep: '40,60,72', dim: 'rgba(12,22,34,0.32)', haze: 'rgba(255,226,170,0.08)', fog: '255,230,180', mote: '#fff2c0', moteG: -6 },
+  boss: { sky: 'boss_sky', layers: [['boss_mid', 0.14, 1.0, 0.04], ['boss_near', 0.3, 0.95, 0.10]], fg: null, deep: '52,30,52', dim: 'rgba(16,10,24,0.28)', haze: 'rgba(255,120,70,0.10)', fog: '255,140,90', mote: '#ffb13b', moteG: -40 },
 };
 export const setFor = (B) => SETS[B.key] || SETS.overpass;
 export const paintedOK = () => G.ready && !!G.img.ov_sky;
@@ -19,7 +19,7 @@ function tileLayer(g, img, f, camx, rs, cw, y, h, flipAlt = true) {
   }
 }
 export function drawPaintedBg(W, g, cw, ch, rs, camx, camy, lo) {
-  const S = setFor(W.biome), M = G.meta.bg; const vy = camy - (W.map.h * TILE - 340);
+  const S = setFor(W.biome), M = G.meta.bg; const vy = camy - (W.map.h * TILE - (W.viewH || 340));
   g.setTransform(1, 0, 0, 1, 0, 0);
   // sky: cover the screen, gentle parallax
   const sky = G.img[S.sky], sh = ch * 1.08; tileLayer(g, sky, 0.02, camx, rs, cw, -ch * 0.04 - clamp(vy * 0.01 * rs, -ch * 0.04, ch * 0.04), sh);
@@ -28,6 +28,10 @@ export function drawPaintedBg(W, g, cw, ch, rs, camx, camy, lo) {
     const img = G.img[n]; if (!img) continue; const m = M[n]; const s = ch / m.h * zoom, h = img.height * s;
     const y = ch - (m.h - m.top) * s + (m.ih - img.height) * s + ch * dy - clamp(vy * f * rs * 0.25, -ch * 0.25, ch * 0.25);
     tileLayer(g, img, f, camx, rs, cw, y, h);
+    // v1.2 atmospheric depth: a cool fog veil after every layer so distance reads as haze, not detail
+    const dk = S.deep || '40,48,78', fa = f < 0.1 ? 0.22 : f < 0.2 ? 0.18 : 0;
+    if (!fa) continue; if (lo) { g.fillStyle = `rgba(${dk},${fa})`; g.fillRect(0, 0, cw, ch); }
+    else { const fg = g.createLinearGradient(0, 0, 0, ch); fg.addColorStop(0, `rgba(${dk},${fa * 0.6})`); fg.addColorStop(0.7, `rgba(${dk},${fa * 1.3})`); fg.addColorStop(1, `rgba(${dk},${fa})`); g.fillStyle = fg; g.fillRect(0, 0, cw, ch); }
   }
   if (!lo) { g.fillStyle = S.haze; g.fillRect(0, ch * 0.45, cw, ch * 0.55); drawFog(W, g, cw, ch, rs, camx, S, 0.55); }
   g.fillStyle = S.dim; g.fillRect(0, 0, cw, ch);

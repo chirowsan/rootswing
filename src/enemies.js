@@ -111,7 +111,7 @@ export class Enemy {
   drawPainted(g, W) {
     const X = this.cx, Y = this.y + this.h, t = this.anim, n = this.type, tele = this.tele, f = this.face;
     const lo = (W.game && W.game.lowPerf) || _save.settings.quality === 'low';
-    const H = { hopper: 27, charger: 27, moth: 30, puffcap: 32, knight: 47, bomber: 31, dummy: 40, tturret: 30 }[n] || this.h;
+    const H = { hopper: 27, charger: 27, moth: 30, puffcap: 32, knight: 47, bomber: 31, dummy: 40, tturret: 30 }[n] * 1.15 || this.h; // v1.2: drawn 15% larger than v1.1 (hitboxes unchanged)
     const hot = tele > 0 || this.st === 'charge' || this.st === 'swoop' || this.st === 'swing';
     if (!lo) drawGlow(g, X, this.cy, H * 0.8, '#07060e', 0.35);
     if (hot) drawGlow(g, X, Y - H * 0.5, H * (0.9 + tele * 0.4), '#ff2a3a', 0.45 + tele * 0.45);
@@ -126,7 +126,7 @@ export class Enemy {
     else if (n === 'dummy' && this.flash > 0) rot = Math.sin(t * 30) * this.flash * 2;
     g.rotate(rot); g.scale(st * bx, sq * by);
     const flip = f < 0;
-    if (!lo) { const ink = tinted(n, '#0c0a14'); for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) spr(g, n, dx * 0.9, dy * 0.9, H, 0.5, 1, flip, ink); }
+    if (!lo) { const ink = tinted(n, '#0c0a14'), rim = tinted(n, '#ff5a28'); for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) spr(g, n, dx * 1.8, dy * 1.8, H, 0.5, 1, flip, ink); for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) spr(g, n, dx * 0.85, dy * 0.85, H, 0.5, 1, flip, rim); } // ink border + red-orange danger rim
     spr(g, n, 0, 0, H, 0.5, 1, flip);
     if (hot) { g.globalAlpha = 0.25 + tele * 0.35; g.globalCompositeOperation = 'lighter'; spr(g, n, 0, 0, H, 0.5, 1, flip, tinted(n, '#ff3040')); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; }
     if (this.flash > 0) { g.globalAlpha = Math.min(1, this.flash * 7); spr(g, n, 0, 0, H, 0.5, 1, flip, tinted(n, '#ffffff')); g.globalAlpha = 1; }

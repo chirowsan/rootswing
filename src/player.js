@@ -6,9 +6,10 @@ import { sfx } from './audio.js';
 import { WEAPONS, GADGETS } from './weapons.js';
 import { diff, save } from './save.js';
 import { PAL, drawGlow } from './art.js';
-import { G, has, spr, sprAspect } from './gfx.js';
+import { G, has, spr, sprAspect, shaded } from './gfx.js';
 
 const C = { RUN: 182, ACC_G: 1750, DEC_G: 2100, ACC_A: 1200, GRAV: 1480, GRAV_FALL: 1720, JUMP: 515, CUT: 0.45, MAXFALL: 600, SLIDE: 115, WJX: 235, WJY: 470, DASH: 470, DASH_T: 0.17, DASH_CD: 0.38 };
+export const HERO_K = 1.22; // v1.2 visual scale of the hero rig around the feet (hitbox unchanged)
 export class Player {
   constructor(x, y, stats) {
     this.w = 18; this.h = 34; this.x = x; this.y = y; this.vx = 0; this.vy = 0; this.face = 1;
@@ -282,9 +283,10 @@ export class Player {
       g.fillStyle = '#d9a35a'; g.beginPath(); g.arc(h.hx, h.hy, 4, 0, 7); g.fill(); g.strokeStyle = PAL.ink; g.lineWidth = 1.5; g.stroke();
     }
     // scarf
-    const rig = has('head'); g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); g.moveTo(this.scarf[0].x, this.scarf[0].y); for (const p of this.scarf) g.lineTo(p.x, p.y);
+    const rig = has('head'); if (rig) { g.save(); g.translate(X, Y); g.scale(W.heroK || HERO_K, W.heroK || HERO_K); g.translate(-X, -Y); } g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); g.moveTo(this.scarf[0].x, this.scarf[0].y); for (const p of this.scarf) g.lineTo(p.x, p.y);
     if (rig) { g.strokeStyle = PAL.ink; g.lineWidth = 5; g.stroke(); g.strokeStyle = '#d8622a'; g.lineWidth = 3.2; g.stroke(); g.strokeStyle = '#ffb36a'; g.lineWidth = 1; g.stroke(); }
     else { g.strokeStyle = PAL.scarf; g.lineWidth = 4.5; g.stroke(); g.strokeStyle = '#ffc77a'; g.lineWidth = 1.5; g.stroke(); }
+    if (rig) g.restore();
     if (has('head')) this.drawRig(g, W);
     else {
     g.save(); g.translate(X, Y);
@@ -351,7 +353,7 @@ export class Player {
     if (has('leaf')) for (let i = 1; i < n; i += 3) { const k = i / n, [px, py] = pt(k), side = (i % 2 ? 1 : -1); g.save(); g.translate(px, py); g.rotate(Math.atan2(dy, dx) + side * 1.1 + Math.sin(t * 5 + i) * 0.2); spr(g, 'leaf', 0, 0, 6, 0.1, 0.9); g.restore(); }
   }
   drawRig(g, W) {
-    const rs = W.rs || 3, U = 110, Sz = Math.ceil(U * rs); const t = this.t, f = this.face, X = this.cx, Y = this.y + this.h, h = this.hook;
+    const HK = W.heroK || HERO_K, rs = (W.rs || 3) * HK, U = 110, Sz = Math.ceil(U * rs); const t = this.t, f = this.face, X = this.cx, Y = this.y + this.h, h = this.hook;
     if (!this._off || this._off.width !== Sz) { const mk = () => { const c = document.createElement('canvas'); c.width = c.height = Sz; return c; }; this._off = mk(); this._tmp = mk(); }
     const off = this._off, o = off.getContext('2d'); o.setTransform(1, 0, 0, 1, 0, 0); o.clearRect(0, 0, Sz, Sz); o.globalCompositeOperation = 'source-over';
     o.setTransform(rs, 0, 0, rs, U / 2 * rs, U * 0.68 * rs);
@@ -361,18 +363,28 @@ export class Player {
     o.rotate(lean); o.scale(this.sx * f, this.sy);
     const run = this.onGround && Math.abs(this.vx) > 20, ph = this.runPh, air = !this.onGround, dash = this.dashT > 0;
     const wall = air && this.wallDir && this.vy > 0 && Math.sign(input.mx) === this.wallDir;
-    const bob = run ? -Math.abs(Math.sin(ph)) * 2.2 : air ? 0 : Math.sin(t * 2.4) * 0.6;
+    const bob = run ? -Math.abs(Math.sin(ph)) * 2.4 + 0.6 : air ? 0 : Math.sin(t * 2.4) * 0.6;
     // leg angles (front, back)
     let la = 0, lb = 0;
     if (run) { la = Math.sin(ph) * 0.8; lb = -la; } else if (dash) { la = 0.9; lb = -0.7; } else if (wall) { la = 0.5; lb = 0.2; } else if (air) { if (this.vy < 0) { la = 0.6; lb = -0.25; } else { la = 0.15; lb = -0.35 + Math.sin(t * 12) * 0.1; } }
-    const leg = (n, x, a, dark) => { o.save(); o.translate(x, -11); o.rotate(-a); if (dark) o.filter = 'brightness(0.7)'; spr(o, n, 0, -1, 12, 0.5, 0); o.filter = 'none'; o.restore(); };
-    leg('leg2', -2.5, lb, true); leg('leg', 2.5, la, false);
+    if (run) { la = Math.sin(ph) * 0.85; lb = -la; }
+    // foot lift on the forward swing (reads as a knee bend), tucked legs when rising
+    const liftA = run ? Math.max(0, Math.cos(ph)) * 1.8 : air && this.vy < 0 ? 1.6 : 0, liftB = run ? Math.max(0, -Math.cos(ph)) * 1.8 : air && this.vy < 0 ? 1.2 : 0;
+    const leg = (n, x, a, dark, lift) => { o.save(); o.translate(x, -11 - lift); o.rotate(-a); o.scale(1, 1 - lift * 0.05); spr(o, n, 0, -1, 12, 0.5, 0, false, dark ? shaded(n, 0.7) : undefined); o.restore(); };
+    // back arm (behind the body, counter-swings the front arm)
+    let B = 0.35 + Math.sin(t * 2.4 + 1) * 0.05;
+    if (run) B = -Math.sin(ph) * 0.65 + 0.15; else if (dash) B = 1.4; else if (wall) B = -2.2; else if (air) B = this.vy < 0 ? 2.3 : 1.5 + Math.sin(t * 10) * 0.15;
+    if (this.hurtT > 0) B = 2.4; if (h.s !== 'none') B = 0.7; if (this.dead) B = 1.2;
+    o.save(); o.translate(-1.5, -17 + bob); o.rotate(B); spr(o, 'arm', 0, -1.5, 11.5, 0.5, 0, false, shaded('arm', 0.6)); o.restore();
+    leg('leg2', -2.5, lb, true, liftB); leg('leg', 2.5, la, false, liftA);
     o.translate(0, bob);
     // torso with cloak sway
     const sway = clamp(-this.vx / 300, -1, 1) * 0.08 + Math.sin(t * 3) * 0.02;
     o.save(); o.translate(0, -7.5); o.rotate(sway * 0.5); spr(o, 'torso', 0, 0, 13, 0.5, 1); o.restore();
     // head (with hood, sprout and scarf knot)
-    o.save(); o.translate(0.5, -17.5); o.rotate(Math.sin(t * 2.2) * 0.03 - clamp(this.vx / 2500, -0.08, 0.08) + (dash ? 0.1 : 0)); spr(o, 'head', 0, 0, 22, 0.5, 0.86); o.restore();
+    o.save(); o.translate(0.5, -17.5 + (run ? Math.abs(Math.sin(ph + 0.4)) * 0.5 : 0)); o.rotate(Math.sin(t * 2.2) * 0.03 - clamp(this.vx / 2500, -0.08, 0.08) + (dash ? 0.1 : 0) + (this.hurtT > 0 ? -0.15 : 0));
+    if (has('hood')) this.drawHead(o, t, f); else spr(o, 'head', 0, 0, 22, 0.5, 0.86);
+    o.restore();
     // arm + weapon
     const atk = this.atk; let A = -0.75 + (run ? Math.sin(ph) * 0.5 : Math.sin(t * 2.4) * 0.05);
     if (atk) {
@@ -398,10 +410,34 @@ export class Player {
     q.globalCompositeOperation = 'source-over'; q.clearRect(0, 0, Sz, Sz); q.drawImage(off, 0, 0); q.globalCompositeOperation = 'source-in'; q.fillStyle = PAL.ink; q.fillRect(0, 0, Sz, Sz); q.globalCompositeOperation = 'source-over';
     const x0 = X - U / 2, y0 = Y - U * 0.68, e = px / rs * 1.2;
     if (this.iframes > 0 && !this.dead && this.flash <= 0 && Math.sin(t * 38) > 0) g.globalAlpha = 0.5;
-    if (!lo) drawGlow(g, X, this.cy - 6, 30, '#0a0814', 0.35); // dark backing halo so the hero always separates
+    if (!lo) drawGlow(g, X, this.cy - 8, 36, '#0a0814', 0.4); // dark backing halo so the hero always separates
+    g.save(); g.translate(X, Y); g.scale(HK, HK); g.translate(-X, -Y);
     for (const [dx, dy] of [[-e, 0], [e, 0], [0, -e], [0, e]]) g.drawImage(tmp, x0 + dx, y0 + dy, U, U);
-    g.drawImage(off, x0, y0, U, U);
+    g.drawImage(off, x0, y0, U, U); g.restore();
     g.globalAlpha = 1; void G;
+  }
+  drawHead(o, t, f) { // v1.2: hood + spring-driven leaf sprout + expressive eyes (head art is mirrored so the face looks forward)
+    const dt = clamp(t - (this._lt ?? t), 0, 0.05); this._lt = t;
+    const want = clamp(-this.vx / 420, -0.7, 0.7) * f + clamp(this.vy / 1400, -0.3, 0.4) * 0 + Math.sin(t * 2.6) * 0.06;
+    this._spV = (this._spV || 0) + ((want - (this._spA || 0)) * 140 - (this._spV || 0) * 8) * dt; this._spA = (this._spA || 0) + this._spV * dt;
+    if (this.sy < 0.8 && !this._kick) { this._spV += 6; this._kick = true; } else if (this.sy > 0.95) this._kick = false;
+    o.scale(-1, 1);
+    const hh = G.meta.spr.head[3], sh = G.meta.spr.sprout[3];
+    o.save(); o.translate(-0.6, -14.3); o.rotate(-this._spA); spr(o, 'sprout', 0, 0, 22 * sh / hh, 0.47, 0.95); o.restore();
+    spr(o, 'hood', 0, 0, 22, 0.5, 0.86);
+    // eyes (sprite-space centres measured from the painted head)
+    const E = [[-6.6, -5.85], [-2.6, -5.8]]; o.fillStyle = '#1a1a14';
+    for (const [ex, ey] of E) { o.beginPath(); o.ellipse(ex, ey, 1.35, 1.75, 0, 0, 7); o.fill(); }
+    const blink = (t % 3.3) < 0.12, mood = this.dead ? 'dead' : this.hurtT > 0 ? 'hurt' : (this.atk || this.chargeT > 0.2 || this.parryLock > 0) ? 'angry' : (this.dashT > 0 || this.hook.s === 'swing') ? 'focus' : blink ? 'blink' : 'open';
+    o.fillStyle = '#f4f8e8'; o.strokeStyle = '#f4f8e8'; o.lineWidth = 0.55; o.lineCap = 'round';
+    for (let i = 0; i < 2; i++) { const [ex, ey] = E[i], inner = i === 0 ? 1 : -1; // inner = towards the other eye
+      if (mood === 'dead') { o.beginPath(); o.moveTo(ex - 0.8, ey - 0.8); o.lineTo(ex + 0.8, ey + 0.8); o.moveTo(ex + 0.8, ey - 0.8); o.lineTo(ex - 0.8, ey + 0.8); o.stroke(); }
+      else if (mood === 'hurt') { o.beginPath(); o.moveTo(ex - 0.7 * inner, ey - 0.8); o.lineTo(ex + 0.6 * inner, ey); o.lineTo(ex - 0.7 * inner, ey + 0.8); o.stroke(); }
+      else if (mood === 'blink') { o.fillRect(ex - 0.75, ey + 0.1, 1.5, 0.45); }
+      else { const hgt = mood === 'focus' ? 0.75 : mood === 'angry' ? 1.05 : 1.45; o.beginPath(); o.ellipse(ex, ey + (1.45 - hgt) * 0.5, 0.62, hgt, 0, 0, 7); o.fill();
+        if (mood === 'angry') { o.fillStyle = '#1a1a14'; o.beginPath(); o.moveTo(ex - 1.2, ey - 1.9 + (inner > 0 ? -0.4 : 1.0)); o.lineTo(ex + 1.2, ey - 1.9 + (inner > 0 ? 1.0 : -0.4)); o.lineTo(ex + 1.2, ey - 2.6); o.lineTo(ex - 1.2, ey - 2.6); o.fill(); o.fillStyle = '#f4f8e8'; }
+        o.fillStyle = '#ffffff'; o.fillRect(ex - 0.35, ey - 0.75, 0.35, 0.35); o.fillStyle = '#f4f8e8'; }
+    }
   }
   drawPaintedWeapon(o) {
     const w = this.weapon; o.save(); o.translate(0, 10.5);

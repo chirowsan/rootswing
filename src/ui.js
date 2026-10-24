@@ -100,16 +100,40 @@ export function showJournal() {
   <div class="stats"><div><b>${p.runs}</b>runs</div><div><b>${p.wins}</b>wins</div><div><b>${p.totalGlimmers}</b>glimmers found</div><div><b>${p.minibossBeaten}</b>Wardens beaten</div></div>
   <div class="col"><button class="big" data-act="replayTutorial">${ic('jump', '#fff', 22)} Practice again</button><button class="big primary" data-act="back">Done</button></div></div>`);
 }
+// v1.2 painted results screens: full-bleed key art, count-up glimmers, unlock progress
+function unlockList() {
+  const p = save.progress, out = [];
+  for (const u of UPGRADES) { if (p.unlocks[u.id] || (u.req && !p.unlocks[u.req])) continue; out.push({ u, ready: p.glimmers >= u.cost }); }
+  out.sort((a, b) => (b.ready - a.ready) || (a.u.cost - b.u.cost)); return out.slice(0, 3);
+}
+function unlockHtml() {
+  const L = unlockList(), bank = save.progress.glimmers;
+  if (!L.length) return `<div class="unl"><div class="unl-h">Every upgrade unlocked!</div></div>`;
+  return `<div class="unl"><div class="unl-h">${ic('glimmer', '#ffe27a', 16)} Bank <b>${bank}</b> &middot; Seedhouse unlocks</div>${L.map(({ u, ready }) => `<div class="unl-r ${ready ? 'ready' : ''}">${ic(u.icon, ready ? '#ffe27a' : '#b9b2d6', 20)}<span>${u.name}</span><i style="--p:${Math.min(1, bank / u.cost)}"></i><em>${ready ? 'Ready!' : bank + '/' + u.cost}</em></div>`).join('')}</div>`;
+}
+function countUp() {
+  const els = [...root.querySelectorAll('[data-count]')], t0 = performance.now(), dur = 1100, name = ui.open;
+  const tick = (now) => { if (ui.open !== name) return; const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    for (const el of els) el.textContent = Math.round(+el.dataset.count * e); if (k < 1) requestAnimationFrame(tick); else root.querySelector('.res-glim')?.classList.add('pop'); };
+  requestAnimationFrame(tick);
+}
 export function showDeath(info, kept, found, stats) {
-  info = info || ENEMY_INFO.thorns;
-  show('death', `<div class="card death"><h2>Sprig needs a rest</h2>
-  <div class="cause"><div class="who">Knocked out by <b>${info.name}</b></div><div class="tip">${ic('glimmer', '#ffe27a', 20)} ${info.tip}</div></div>
-  <div class="stats"><div><b>${kept}</b>glimmers kept${found !== kept ? ` (of ${found})` : ''}</div><div><b>${stats.rooms}</b>rooms explored</div><div><b>${stats.kills}</b>baddies popped</div></div>
-  <div class="col"><button class="big primary" data-act="toHub">${ic('door', '#15131f', 22)} Back to the Seedhouse</button></div></div>`, 'dim');
+  info = info && info.name ? info : ENEMY_INFO.thorns;
+  show('death', `<div class="res-art death-art"></div><div class="res death"><h2>Sprig needs a rest</h2>
+  <div class="res-glim">${ic('glimmer', '#ffe27a', 30)}<b data-count="${kept}">0</b><span>glimmers kept${found !== kept ? ` <small>(of ${found} found)</small>` : ''}</span></div>
+  <div class="cause"><div class="who">Knocked out by <b>${info.name}</b></div><div class="tip">${ic('glimmer', '#ffe27a', 18)} ${info.tip}</div></div>
+  <div class="stats"><div><b data-count="${stats.rooms}">0</b>rooms explored</div><div><b data-count="${stats.kills}">0</b>baddies popped</div></div>
+  ${unlockHtml()}
+  <div class="col"><button class="big primary" data-act="toHub">${ic('door', '#15131f', 22)} Back to the Seedhouse</button></div></div>`, 'results');
+  countUp();
 }
 export function showVictory(glim, stats) {
-  show('victory', `<div class="card win"><h2>The furnace is calm!</h2><p class="big-t">Flowers bloom across Rustvine Overpass.</p>
-  <div class="stats"><div><b>${glim}</b>glimmers banked</div><div><b>${stats.kills}</b>baddies popped</div><div><b>${stats.time}</b>run time</div></div>
-  <div class="col"><button class="big primary" data-act="toHub">${ic('door', '#15131f', 22)} Home to the Seedhouse</button></div></div>`, 'dim');
+  const first = save.progress.wins === 1;
+  show('victory', `<div class="res-art win-art"></div><div class="res win"><h2>The furnace is calm!</h2><p class="big-t">Flowers bloom across Rustvine Overpass.${first ? ' <b class="first">First victory!</b>' : ''}</p>
+  <div class="res-glim">${ic('glimmer', '#ffe27a', 30)}<b data-count="${glim}">0</b><span>glimmers banked</span></div>
+  <div class="stats"><div><b data-count="${stats.kills}">0</b>baddies popped</div><div><b>${stats.time}</b>run time</div><div><b>${save.progress.wins}</b>total wins</div></div>
+  ${unlockHtml()}
+  <div class="col"><button class="big primary" data-act="toHub">${ic('door', '#15131f', 22)} Home to the Seedhouse</button></div></div>`, 'results');
+  countUp();
 }
 export function showRotate(on) { $('#rotate').style.display = on ? 'flex' : 'none'; }

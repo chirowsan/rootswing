@@ -12,3 +12,7 @@
 - 2026-10-23 19:17 PDT v1.1: painted HUD, touch buttons restyle, additive sparks/smears, painted title key art; shots/wip2 0 page errors; compare sheets shots/compare-1/2.png
 - 2026-10-23 19:20 PDT v1.1: low-mode anchor gating, lowshot ok (0 errors), prof v1.0 draw 32.2ms vs v1.1 24.3ms (swiftshader CPU, 915x412), 1.1.0/versionCode 2 signed APK 5,717,446 B AAB 5,531,717 B same cert; tests 24/24
 - 2026-10-23 19:22 PDT v1.1.0 shipped: pushed main+tag, gh-pages deployed, release v1.1.0 (APK 5,717,446 B, AAB 5,531,717 B, source zip 5,387,095 B), live verified (gfx ready, 0 console errors)
+- 2026-10-23 19:23 PDT v1.2 started: readability pass (zoom/hero scale, bg separation, victory/results screens)
+- 2026-10-23 19:31 PDT: v1.2 camera zoom (viewH 250/290), hero rig v1.2 (K=1.22, hood+spring sprout, back arm, expressions, knee-lift run), cyan anchors, depth fog, painted victory/death screens; full shots running
+- 2026-10-23 19:38 PDT: v1.2 shots in shots/v12, sheets shots/compare-v12-{1,2,3}.png; tests 24/24; draw 25.6 ms vs v1.1 24.5 ms (same session, swiftshader); bumped to 1.2.0 / versionCode 3; Android build started
+- 2026-10-23 19:41 PDT: signed APK/AAB 1.2.0 (versionCode 3, cert 6e59e14a…d8de matches); committing + tagging v1.2.0

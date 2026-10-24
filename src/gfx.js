@@ -28,6 +28,13 @@ export function tinted(n, color) {
   x.drawImage(G.atlas, s[0], s[1], s[2], s[3], 0, 0, s[2], s[3]); x.globalCompositeOperation = 'source-in'; x.fillStyle = color; x.fillRect(0, 0, s[2], s[3]);
   G.tint.set(k, c); return c;
 }
+// darkened copy of a sprite (cached) — replaces per-frame ctx.filter brightness
+export function shaded(n, k) {
+  const key = n + '@' + k; let c = G.tint.get(key); if (c) return c; const s = G.spr[n]; if (!s) return null;
+  c = document.createElement('canvas'); c.width = s[2]; c.height = s[3]; const x = c.getContext('2d');
+  x.drawImage(G.atlas, s[0], s[1], s[2], s[3], 0, 0, s[2], s[3]); x.globalCompositeOperation = 'source-atop'; x.fillStyle = `rgba(10,8,20,${1 - k})`; x.fillRect(0, 0, s[2], s[3]);
+  G.tint.set(key, c); return c;
+}
 // world-anchored texture pattern (scale = world units per texture pixel)
 export function pattern(g, n, scale) {
   const img = G.img[n]; if (!img) return null; const p = g.createPattern(img, 'repeat');

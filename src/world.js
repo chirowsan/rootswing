@@ -15,7 +15,11 @@ import { lineClear, moveBody } from './physics.js';
 import { WEAPONS } from './weapons.js';
 import { vibrate, input } from './input.js';
 
-export const VIEW_H = 340;
+export const ANCHOR_GLOW = '#5ff2e8'; // v1.2: every hook anchor glows the same cyan
+export const VIEW_H = 340; // v1.0/v1.1 view height (title world)
+// v1.2 camera zoom: fewer world units on screen so the hero/enemies read larger (gameplay units and hitboxes unchanged)
+export const viewHFor = (mode) => mode === 'boss' ? 270 : 250;
+export const heroKFor = (mode) => mode === 'boss' ? 1.28 : 1.22; // hero visual scale; with viewH gives ~1.62-1.66x the v1.1 on-screen height
 export function playerStats() {
   const u = save.progress.unlocks;
   return { maxHp: 100 + (u.vigor1 ? 20 : 0) + (u.vigor2 ? 20 : 0), maxFlasks: 2 + (u.flask1 ? 1 : 0) + (u.flask2 ? 1 : 0), weapon: save.progress.weapon || 'blade', gadgets: (save.progress.gadgets || ['popseed']).slice(0, 2), hookRange: u.vine ? 265 : 220 };
@@ -42,7 +46,7 @@ export class World {
     this.room = this.fullRoom; this.cam = { x: px - 300, y: py - 200 }; this.updateRoom(true); this.snapCamera();
     this.chunkCache = new Map(); this.rs = 0; this.bg = null; this.hazTiles = [];
     for (let y = 0; y < this.map.h; y++) for (let x = 0; x < this.map.w; x++) { const c = this.map.get(x, y); if (c === '^' || c === 'v' || c === '~') this.hazTiles.push({ x, y, c }); }
-    this.bossIntro = mode === 'boss'; this.countdown = mode === 'run' || mode === 'boss' ? 1.6 : 0; this.fade = 1;
+    this.viewH = viewHFor(mode); this.heroK = heroKFor(mode); this.bossIntro = mode === 'boss'; this.countdown = mode === 'run' || mode === 'boss' ? 1.6 : 0; this.fade = 1;
     playSong(mode === 'hub' ? 'hub' : mode === 'boss' ? 'boss' : mode === 'tutorial' ? 'calm' : 'biome');
   }
   spawnEntity(s) {
@@ -87,8 +91,8 @@ export class World {
   onEnterCell(c) { if (this.mode === 'run' && !c.branch) this.game.saveRunState(this, c.index); }
   snapCamera() { const t = this.camTarget(); this.cam.x = t.x; this.cam.y = t.y; }
   camTarget() {
-    const P = this.player, VW = this.viewW || 760, VH = VIEW_H;
-    this.look = lerp(this.look || 0, P.face * 50 + clamp(P.vx * 0.12, -30, 30), 0.04);
+    const P = this.player, VW = this.viewW || 760, VH = this.viewH || VIEW_H;
+    this.look = lerp(this.look || 0, P.face * 60 + clamp(P.vx * 0.14, -36, 36), 0.04);
     let x = P.cx + this.look - VW / 2, y = P.cy - VH * 0.55 + (P.vy > 350 ? 40 : 0);
     const R = this.fight ? this.fight.room : this.room;
     if (R.w <= VW) x = R.x + R.w / 2 - VW / 2; else x = clamp(x, R.x, R.x + R.w - VW);
@@ -112,7 +116,7 @@ export class World {
     for (const p of this.props) if (p.kind === 'trigger' && !p.fired && Math.abs(P.cx - p.x) < 20 && Math.abs(P.cy - p.y) < 120) { p.fired = true; this.emit('trigger', p.n); }
     this.fx.update(dt); this.updateCamera(dt);
     // ambient particles: floating spores
-    if (Math.random() < dt * 6) this.fx.burst(this.cam.x + Math.random() * (this.viewW || 760), this.cam.y + VIEW_H + 10, 1, { color: this.mode === 'boss' ? '#ffb07a' : '#e8ffb0', min: 10, max: 30, g: -20, drag: 0, life: 6, size: 2.2, angle: -Math.PI / 2, spread: 0.5, glow: 1 });
+    if (Math.random() < dt * 6) this.fx.burst(this.cam.x + Math.random() * (this.viewW || 760), this.cam.y + (this.viewH || VIEW_H) + 10, 1, { color: this.mode === 'boss' ? '#ffb07a' : '#e8ffb0', min: 10, max: 30, g: -20, drag: 0, life: 6, size: 2.2, angle: -Math.PI / 2, spread: 0.5, glow: 1 });
   }
   hitstop(t) { this.hs = Math.max(this.hs, t); }
   // ---------------- hook targets ----------------
@@ -337,14 +341,14 @@ export class World {
     const brs = Math.min(rs, 2), scale = rs / brs;
     for (const L of this.bg) {
       const lw = L.c.width * scale, lh = L.c.height * scale; let ox = -((camx * L.f * rs) % lw); if (ox > 0) ox -= lw;
-      const oy = ch - lh + L.y * rs * 0.4 - clamp((camy - (this.map.h * TILE - VIEW_H)) * L.f * rs * 0.25, -ch * 0.3, ch * 0.3);
+      const oy = ch - lh + L.y * rs * 0.4 - clamp((camy - (this.map.h * TILE - (this.viewH || VIEW_H))) * L.f * rs * 0.25, -ch * 0.3, ch * 0.3);
       for (let x = ox; x < cw; x += lw) g.drawImage(L.c, x, oy, lw + 1, lh);
     }
     // god rays
     if (!lo) { g.globalCompositeOperation = 'lighter'; g.fillStyle = B.fog; for (let i = 0; i < 3; i++) { const x = ((i * 0.37 + 0.15) * cw - camx * rs * 0.05) % (cw * 1.2); g.beginPath(); g.moveTo(x, 0); g.lineTo(x + cw * 0.12, 0); g.lineTo(x + cw * 0.32, ch); g.lineTo(x + cw * 0.18, ch); g.fill(); } g.globalCompositeOperation = 'source-over'; }
     }
     g.setTransform(rs, 0, 0, rs, -camx * rs, -camy * rs);
-    const vx0 = camx - 40, vx1 = camx + VW + 40, vy0 = camy - 40, vy1 = camy + VIEW_H + 40;
+    const vx0 = camx - 40, vx1 = camx + VW + 40, vy0 = camy - 40, vy1 = camy + (this.viewH || VIEW_H) + 40;
     // lanterns light behind tiles
     if (!lo) for (const l of this.lights) if (l.x > vx0 - 100 && l.x < vx1 + 100 && l.y > vy0 - 100 && l.y < vy1 + 100) drawGlow(g, l.x, l.y + 10, 110 + Math.sin(this.t * 2 + l.x) * 6, B.light, 0.35);
     // background dark mass behind level (inside rooms only for runs)
@@ -409,25 +413,25 @@ export class World {
       const near = Math.hypot(a.x - P.cx, a.y - P.cy) < P.hookRange; const k = 0.8 + Math.sin(t * 3 + a.pulse) * 0.2;
       const hl = this.highlightAnchor && near;
       if (a.kind === 'swing') {
-        drawGlow(g, a.x, a.y, (near ? 30 : 20) * k * (hl ? 1.6 : 1), PAL.swing, near ? 0.7 : 0.35);
+        drawGlow(g, a.x, a.y, (near ? 32 : 24) * k * (hl ? 1.6 : 1), ANCHOR_GLOW, near ? 0.8 : 0.5);
         if (has('ring')) { g.strokeStyle = '#2a2018'; g.lineWidth = 2; g.setLineDash([3, 2]); g.beginPath(); g.moveTo(a.x, a.y - 9); g.lineTo(a.x, a.y - 30); g.stroke(); g.setLineDash([]);
           g.save(); g.translate(a.x, a.y); g.rotate(Math.sin(t * 1.6 + a.pulse) * 0.12); if (!lo) for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) spr(g, 'ring', dx, dy + 11, 22, 0.5, 1, false, tinted('ring', '#15131f')); spr(g, 'ring', 0, 11, 22, 0.5, 1);
-          if (!lo) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = near ? 0.5 : 0.2; } else g.globalAlpha = 0; spr(g, 'ring', 0, 11, 22, 0.5, 1, false, tinted('ring', '#ffb13b')); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.restore(); }
+          if (!lo) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = near ? 0.6 : 0.35; } else g.globalAlpha = 0; spr(g, 'ring', 0, 11, 22, 0.5, 1, false, tinted('ring', ANCHOR_GLOW)); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.restore(); }
         else {
         g.strokeStyle = '#15131f'; g.lineWidth = 6; g.beginPath(); g.arc(a.x, a.y, 8, 0, 7); g.stroke(); g.strokeStyle = PAL.swing; g.lineWidth = 3.5; g.stroke();
         g.fillStyle = '#fff6c8'; g.beginPath(); g.arc(a.x - 3, a.y - 4, 1.6, 0, 7); g.fill();
         g.strokeStyle = 'rgba(200,180,120,0.5)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(a.x, a.y - 8); g.lineTo(a.x, a.y - 26); g.stroke(); }
       } else {
-        drawGlow(g, a.x, a.y, (near ? 30 : 20) * k * (hl ? 1.6 : 1), PAL.zip, near ? 0.7 : 0.35);
+        drawGlow(g, a.x, a.y, (near ? 32 : 24) * k * (hl ? 1.6 : 1), ANCHOR_GLOW, near ? 0.8 : 0.5);
         if (has('crystal')) { g.save(); g.translate(a.x, a.y + Math.sin(t * 2 + a.pulse) * 1.5); if (!lo) for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) spr(g, 'crystal', dx, dy + 12, 24, 0.5, 1, false, tinted('crystal', '#15131f')); spr(g, 'crystal', 0, 12, 24, 0.5, 1);
-          if (!lo) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = near ? 0.55 : 0.25; } else g.globalAlpha = 0; spr(g, 'crystal', 0, 12, 24, 0.5, 1, false, tinted('crystal', '#5ff2d8')); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.restore(); }
+          if (!lo) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = near ? 0.6 : 0.35; } else g.globalAlpha = 0; spr(g, 'crystal', 0, 12, 24, 0.5, 1, false, tinted('crystal', ANCHOR_GLOW)); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.restore(); }
         else { g.save(); g.translate(a.x, a.y); g.rotate(Math.PI / 4 + Math.sin(t * 2 + a.pulse) * 0.1); g.fillStyle = '#15131f'; g.fillRect(-8, -8, 16, 16); g.fillStyle = PAL.zip; g.fillRect(-6, -6, 12, 12); g.fillStyle = '#e8fffb'; g.fillRect(-3, -3, 6, 6); g.restore(); }
       }
       if (hl) { const p = (t * 1.5) % 1; g.globalAlpha = 1 - p; g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.arc(a.x, a.y, 12 + p * 24, 0, 7); g.stroke(); g.globalAlpha = 1; }
     }
   }
   drawReticle(g, tg) {
-    const t = this.t, r = 15 + Math.sin(t * 10) * 1.5, col = tg.kind === 'zip' ? PAL.zip : tg.kind === 'swing' ? PAL.swing : '#ff8aa0';
+    const t = this.t, r = 15 + Math.sin(t * 10) * 1.5, col = tg.kind === 'zip' || tg.kind === 'swing' ? ANCHOR_GLOW : '#ff8aa0';
     g.strokeStyle = col; g.lineWidth = 2.5; g.save(); g.translate(tg.x, tg.y); g.rotate(t * 2);
     for (let i = 0; i < 4; i++) { g.rotate(Math.PI / 2); g.beginPath(); g.arc(0, 0, r, -0.4, 0.4); g.stroke(); }
     g.restore();

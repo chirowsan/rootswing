@@ -36,7 +36,7 @@ const game = {
   },
   go(mode, opts = {}) {
     UI.close(); this.paused = false; this.bossShown = null; clearAll(); this.state = 'play';
-    const W = new World(this, mode, opts); W.god = this.god; this.world = W; W.viewW = this.cssW && this.cssH ? VIEW_H * this.cssW / this.cssH : 760; W.snapCamera();
+    const W = new World(this, mode, opts); W.god = this.god; this.world = W; W.viewW = this.cssW && this.cssH ? W.viewH * this.cssW / this.cssH : 760; W.snapCamera();
     if (opts.kills) W.player.stats.kills = opts.kills;
     for (const b of ['attack', 'dash', 'hook', 'parry', 'skill1', 'skill2', 'flask']) input.visible[b] = true;
     input.visible.skill2 = W.player.gadgets.length > 1; input.highlight = {};
@@ -91,7 +91,7 @@ function menuInput(dt) {
 function render(dt) {
   const W = game.world, cw = canvas.width, ch = canvas.height;
   if (!W) { titleScene(dt); return; }
-  const rs = ch / VIEW_H; W.draw(g, cw, ch, rs);
+  const rs = ch / (W.viewH || VIEW_H); W.draw(g, cw, ch, rs);
   if (game.tut) { g.setTransform(rs, 0, 0, rs, -W.camx * rs, -W.camy * rs); game.tut.drawWorld(g); }
   const s = game.dpr * Math.max(0.8, Math.min(1.25, game.cssH / 412));
   g.setTransform(1, 0, 0, 1, 0, 0); drawHUD(g, W, cw, ch, s);

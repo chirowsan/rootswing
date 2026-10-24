@@ -29,3 +29,11 @@ cd mobile && npm install && ./build-android.sh   # needs JDK 17, Android SDK, KE
 v1.1 replaces the flat code-drawn look with painted backgrounds, tiles, props, characters, a cutout-rigged hero, a painted HUD and lighting/particle effects. See [docs/ART.md](docs/ART.md). Game-ready WebP atlases are in `assets/gfx/`; source paintings are in `art/src/` (rebuilt with `python3 tools/build-art.py`). The Graphics **Fast** setting (and automatic low-performance mode) turns off the lighting, outlines and particles, and the old code-drawn fallback still works if the images fail to load. All sound and music are made with WebAudio. MIT licensed.
 
 Before/after screenshots: `shots/before/` vs `shots/after/`.
+
+## Art (v1.2): readability pass
+- **Bigger on screen:** the camera is closer (250 world units tall, 270 in the boss arena; it was 340), and the hero rig is drawn 1.22x (1.28x in the boss arena) around the feet. On a 915x412 phone the hero is about 1.6–1.66x taller than in v1.1. Controls, physics and hitboxes are unchanged. The look-ahead was raised a little to fit the narrower view.
+- **Hero rig:** separate hood and leaf sprout, with spring-driven secondary motion on the sprout; a back arm that counter-swings; expressive eyes (blink, angry, focused, hurt, knocked-out); a knee-lift run cycle; and the face now points the way the hero runs.
+- **Separation:** the far and mid paintings are blurred, desaturated and darkened at build time, with cool depth-fog veils between layers. Enemies and bosses get an ink outline plus a red-orange danger rim, and every hook anchor glows the same cyan.
+- **Results screens:** painted victory and death screens with full-bleed key art, a glimmer count-up and progress toward Seedhouse unlocks.
+
+v1.1 vs v1.2 screenshots: `shots/v11/` vs `shots/v12/`; side-by-side sheets: `shots/compare-v12-*.png` (built with `python3 tools/compare.py`).

@@ -9,6 +9,19 @@ def key(name, green=False, extra=()):
     subprocess.run(['python3', 'tools/key.py', S + name + '.jpg', out] + (['--green'] if green else []) + list(extra), check=True, capture_output=True)
     return Image.open(out)
 meta = {'bg': {}, 'tex': {}, 'spr': {}}
+# v1.2 depth separation: [blur px at source res, saturation, brightness, fog rgb, fog mix] baked into far/mid/near layers
+from PIL import ImageFilter
+POST = {'ov_far': (4.0, 0.5, 0.72, (70, 80, 110), 0.30), 'ov_mid': (2.6, 0.6, 0.7, (60, 66, 96), 0.22), 'ov_near': (1.4, 0.72, 0.74, (40, 44, 70), 0.12),
+        'hub_mid': (2.6, 0.62, 0.72, (60, 76, 90), 0.22), 'hub_near': (1.4, 0.75, 0.76, (40, 52, 64), 0.12),
+        'boss_mid': (2.6, 0.6, 0.66, (70, 40, 50), 0.22), 'boss_near': (1.4, 0.72, 0.7, (50, 30, 40), 0.12)}
+def depth(im, blur, sat, bri, fog, mix):
+    im = im.convert('RGBA'); a = np.asarray(im).astype(np.float32) / 255; al = a[..., 3:4]
+    rgb = a[..., :3]; lum = (rgb * [0.299, 0.587, 0.114]).sum(-1, keepdims=True)
+    rgb = (lum + (rgb - lum) * sat) * bri; rgb = rgb * (1 - mix) + np.array(fog, np.float32) / 255 * mix
+    def bl(x): return np.asarray(Image.fromarray((np.clip(x, 0, 1) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(blur))).astype(np.float32) / 255
+    pm = bl(np.concatenate([rgb * al], -1)); ab = bl(al[..., 0])[..., None]
+    rgb = np.where(ab > 1e-3, pm / np.maximum(ab, 1e-3), 0)
+    return Image.fromarray((np.clip(np.concatenate([rgb, ab], -1), 0, 1) * 255).astype(np.uint8), 'RGBA')
 # ---- parallax layers: [file, green, opaque]
 for n, g, opaque in [('ov_sky', 0, 1), ('ov_far', 0, 0), ('ov_mid', 0, 0), ('ov_near', 0, 0), ('fg_vines', 0, 0),
                      ('hub_sky', 0, 1), ('hub_mid', 0, 0), ('hub_near', 0, 0), ('boss_sky', 0, 1), ('boss_mid', 1, 0), ('boss_near', 1, 0), ('title_key', 0, 1)]:
@@ -19,8 +32,12 @@ for n, g, opaque in [('ov_sky', 0, 1), ('ov_far', 0, 0), ('ov_mid', 0, 0), ('ov_
         if n.startswith('fg'): top, bot = 0, bot
         im = im.crop((0, top, W, bot))
     sc = 1 if n == 'title_key' else 1
+    if n in POST: im = depth(im, *POST[n])
     im.save(O + n + '.webp', quality=80 if opaque else 84, method=6)
     meta['bg'][n] = {'w': W, 'h': H, 'top': top, 'ih': im.height}
+# ---- v1.2 results-screen key art (DOM backgrounds, lazy-loaded by CSS, not part of the boot set)
+for n in ['victory_key', 'death_key']:
+    im = Image.open(S + n + '.jpg').convert('RGB'); im = im.resize((1280, round(im.height * 1280 / im.width)), Image.LANCZOS); im.save(O + n + '.webp', quality=78, method=6)
 # ---- seamless tile textures (offset + cross-fade the seams)
 def seamless(im, size=512):
     im = im.convert('RGB').resize((size, size), Image.LANCZOS); a = np.asarray(im).astype(np.float32)
@@ -68,6 +85,8 @@ def single(im):
     return im.crop(im.getchannel('A').point(lambda v: 255 if v > 20 else 0).getbbox())
 hp = split(key('hero_parts'), ['head', 'torso', 'arm', 'leg', 'leg2'])
 t = hp['torso']; hp['torso'] = t.crop((0, int(t.height * 0.25), t.width, t.height)); t = hp['head']; hp['head'] = t.crop((0, 0, t.width, int(t.height * 0.95)))
+hd = hp['head']; cut = int(hd.height * 26 / 128); sp = hd.crop((0, 0, hd.width, cut + 3)); hood = hd.copy(); hood.paste((0, 0, 0, 0), (0, 0, hd.width, cut))
+hp['sprout'] = sp; hp['hood'] = hood
 add(hp, 0.42)
 add({'hero_full': single(key('hero_concept'))}, 0.3)
 add(split(key('weapons'), ['w_blade', 'w_hammer', 'w_bow', 'w_whip']), 0.4)

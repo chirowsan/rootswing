@@ -11,6 +11,10 @@ const settle = (page, n = 90) => page.evaluate((n) => { __RS.manual(true); __RS.
 const FIGHT = (W, P, f, m) => { const live = W.enemies.filter((e) => !e.dead && e.type !== 'dummy' && Math.abs(e.cx - P.cx) < 400 && Math.abs(e.cy - P.cy) < 200); if (!live.length || f > 600) return null;
   let tg = live[0], bd = 1e9; for (const e of live) { const d = Math.hypot(e.cx - P.cx, e.cy - P.cy); if (d < bd) { bd = d; tg = e; } }
   if (P.atk && P.atk.phase === 'active' && bd < 70 && f > 40) return null; const dx = tg.cx - P.cx; return { mx: Math.abs(dx) > 26 ? Math.sign(dx) : 0, b: Math.abs(dx) < 60 && f % 9 < 4 ? ['attack'] : [] }; };
+// death / results screen (v1.2)
+if (want('death')) { const { browser, page } = await open();
+  await page.evaluate(() => { __RS.save.progress.tutorialDone = true; __RS.save.progress.glimmers = 95; __RS.start('run', { seed: 12345 }); }); await settle(page, 30);
+  await page.evaluate(() => { const W = __RS.W, P = W.player; W.runGlim = 48; P.stats.kills = 7; P.iframes = 0; P.hp = 1; P.hurt(W, 99, P.cx + 10, {}); __RS.step(200); __RS.manual(false); }); await sleep(1800); await shot(page, '12-death'); await browser.close(); }
 // title
 if (want('title')) { const { browser, page } = await open(); await page.reload(); await page.waitForFunction(() => !__RS.gfx || __RS.gfx.ready, { timeout: 15000 }).catch(() => {}); await sleep(1200); await shot(page, '01-title'); await browser.close(); }
 // tutorial

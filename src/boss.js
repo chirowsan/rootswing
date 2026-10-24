@@ -9,7 +9,7 @@ import { ENEMY_INFO } from './enemies.js';
 
 const INK = [[-1.2, 0], [1.2, 0], [0, -1.2], [0, 1.2]];
 function paintSprite(g, n, x, y, H, flip, flash, hotK) { // ink outline + sprite + red telegraph tint + white hurt flash
-  const ink = tinted(n, '#0c0a14'); for (const [dx, dy] of INK) spr(g, n, x + dx, y + dy, H, 0.5, 1, flip, ink);
+  const ink = tinted(n, '#0c0a14'), rim = tinted(n, '#ff5a28'); for (const [dx, dy] of INK) spr(g, n, x + dx * 2.2, y + dy * 2.2, H, 0.5, 1, flip, ink); for (const [dx, dy] of INK) spr(g, n, x + dx * 1.1, y + dy * 1.1, H, 0.5, 1, flip, rim);
   spr(g, n, x, y, H, 0.5, 1, flip);
   if (hotK > 0) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(1, hotK); spr(g, n, x, y, H, 0.5, 1, flip, tinted(n, '#ff3040')); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; }
   if (flash > 0) { g.globalAlpha = Math.min(1, flash * 7); spr(g, n, x, y, H, 0.5, 1, flip, tinted(n, '#ffffff')); g.globalAlpha = 1; }
