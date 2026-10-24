@@ -72,7 +72,7 @@ export class Warden extends BigFoe {
   }
 }
 export class Boss extends BigFoe {
-  constructor(x, y) { super(x, y, 76, 104, 720); this.type = 'boss'; this.info = ENEMY_INFO.boss; this.glim = 80; this.phase = 1; this.order = 0; this.pending = []; this.beamT = 0; }
+  constructor(x, y) { super(x, y, 86, 124, 720); this.type = 'boss'; this.info = ENEMY_INFO.boss; this.glim = 80; this.phase = 1; this.order = 0; this.pending = []; this.beamT = 0; }
   update(W, dt) {
     const P = W.player, A = diff().aggro * (this.phase === 3 ? 1.15 : 1); this.t += dt; this.anim += dt; this.flash = Math.max(0, this.flash - dt); this.sq = approach(this.sq, 1, dt * 4);
     const dx = P.cx - this.cx; const floorY = W.room.y + W.room.h - 2 * TILE;
@@ -116,18 +116,19 @@ export class Boss extends BigFoe {
   }
   drawPainted(g) {
     const X = this.cx, Y = this.y + this.h, t = this.anim, tele = this.tele || 0, ph = this.phase, f = this.face;
-    const hot = ph === 3 ? '#ff5a2a' : ph === 2 ? '#ff8a2a' : '#ffb13b', H = 120;
+    const hot = ph === 3 ? '#ff5a2a' : ph === 2 ? '#ff8a2a' : '#ffb13b', H = 150;
     const glow = clamp(0.5 + Math.sin(t * 6) * 0.15 + tele * 0.5 + (this.beamT > 0 ? 0.6 : 0), 0, 1.4);
-    drawGlow(g, X, Y - 50, 110, hot, 0.18 + glow * 0.18);
+    drawGlow(g, X, Y - 70, 190, hot, 0.12 + glow * 0.1); drawGlow(g, X, Y - 60, 120, hot, 0.18 + glow * 0.18); // focal backlight + rim
+    g.fillStyle = 'rgba(5,3,10,0.3)'; g.beginPath(); g.ellipse(X, Y + 2, 60, 5, 0, 0, 7); g.fill();
     if (tele > 0) drawGlow(g, X, Y - 60, 90 + tele * 30, '#ff2a3a', 0.3 + tele * 0.4);
     let armUp = this.st === 'slamTele' ? tele : 0; if (this.st === 'slam') armUp = -0.3;
     g.save(); g.translate(X + (tele > 0 ? Math.sin(t * 45) * 1.5 : 0), Y + 1); g.scale(f / Math.sqrt(this.sq), this.sq * (1 + Math.sin(t * 2) * 0.012));
-    const arm = (s, back) => { g.save(); g.translate(s * 30, -H * 0.66); g.rotate(s * 0.25 - armUp * 2.4 * (s > 0 ? 1 : 0.6) + Math.sin(t * 2 + s) * 0.05); if (back) g.filter = 'brightness(0.6)'; paintSprite(g, 'fist', 0, 50, 52, false, this.flash, tele * 0.4); g.filter = 'none'; g.restore(); };
+    const arm = (s, back) => { g.save(); g.translate(s * 37, -H * 0.66); g.rotate(s * 0.25 - armUp * 2.4 * (s > 0 ? 1 : 0.6) + Math.sin(t * 2 + s) * 0.05); if (back) g.filter = 'brightness(0.6)'; paintSprite(g, 'fist', 0, 62, 64, false, this.flash, tele * 0.4); g.filter = 'none'; g.restore(); };
     arm(-1, true);
     paintSprite(g, 'boss', 0, 0, H, false, this.flash, tele * 0.35);
     // grate fire + eyes (additive, phase-coloured)
-    g.globalCompositeOperation = 'lighter'; drawGlow(g, 0, -H * 0.36, 26 + glow * 10, hot, 0.55 * glow); drawGlow(g, 0, -H * 0.36, 12, '#fff0c0', 0.4 * glow);
-    for (const ex of [-9, 9]) drawGlow(g, ex, -H * 0.6, 8, tele > 0 ? '#ff3a4a' : '#ffd060', 0.9);
+    g.globalCompositeOperation = 'lighter'; drawGlow(g, 0, -H * 0.36, 32 + glow * 12, hot, 0.55 * glow); drawGlow(g, 0, -H * 0.36, 15, '#fff0c0', 0.4 * glow);
+    for (const ex of [-11, 11]) drawGlow(g, ex, -H * 0.6, 10, tele > 0 ? '#ff3a4a' : '#ffd060', 0.9);
     g.globalCompositeOperation = 'source-over';
     arm(1, false);
     g.restore();

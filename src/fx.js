@@ -15,11 +15,23 @@ export class FX {
   }
   ring(x, y, r, color = '#fff', life = 0.35, width = 4) { this.rings.push({ x, y, r, color, life, t: 0, width }); }
   text(x, y, s, color = '#fff', size = 14) { this.texts.push({ x, y, s, color, size, t: 0, life: 0.8 }); }
+  // v1.3 juice: styled damage number - pops in with overshoot, drifts sideways, heavy hits get a warm gradient + spark
+  dmg(x, y, n, o = {}) { const heavy = !!o.heavy, gold = !!o.gold; this.texts.push({ x, y, s: String(n), color: gold ? '#ffe27a' : heavy ? '#ffb347' : '#fff', size: heavy ? 17 : 12.5, t: 0, life: heavy ? 0.95 : 0.75, dmg: 1, heavy, gold, vx: (o.dir || (Math.random() < 0.5 ? -1 : 1)) * (14 + Math.random() * 12) }); }
+  // soft dust puffs (landing / running): grow + fade, drawn as layered translucent circles
+  dust(x, y, n, o = {}) {
+    if (this.p.length > 650) return;
+    for (let i = 0; i < n; i++) { const dir = o.dir !== undefined ? o.dir : (i % 2 ? 1 : -1); const sp = (o.speed || 60) * (0.5 + Math.random() * 0.7);
+      this.p.push({ x: x + dir * Math.random() * 4, y: y - 1 - Math.random() * 2, vx: dir * sp, vy: -(o.rise || 14) * (0.4 + Math.random()), life: (o.life || 0.45) * (0.7 + Math.random() * 0.5), t: 0, size: (o.size || 4) * (0.7 + Math.random() * 0.6), color: o.color || '#d8cdb4', g: -10, drag: 5, glow: 0, kind: 'puff', rot: 0, vr: 0 }); }
+  }
   pop(x, y, scale = 1) { // cartoon enemy pop: ink blobs + sparks + stars, no gore
     this.burst(x, y, 14 * scale, { color: ['#7d5cff', '#a58bff', '#3b2a6b'], min: 60, max: 260 * scale, size: 7 * scale, life: 0.7, g: 300, kind: 'blob' });
     this.burst(x, y, 12 * scale, { color: ['#ffd36b', '#fff4c0', '#ffb13b'], min: 120, max: 380 * scale, size: 3.5, life: 0.5, g: 200, glow: 1, kind: 'spark' });
     this.burst(x, y, 4, { color: ['#fff6d8'], min: 40, max: 120, size: 7, life: 0.8, g: -40, kind: 'star' });
     this.ring(x, y, 34 * scale, '#e9dcff', 0.3, 5);
+    // glimmer arcs: curved light streaks sweeping outward (v1.3)
+    const na = 5 + 2 * scale, a0 = Math.random() * 6.28;
+    for (let i = 0; i < na; i++) { const a = a0 + i * 6.283 / na; this.p.push({ x, y, vx: 0, vy: 0, life: 0.42 + Math.random() * 0.12, t: 0, size: 3, color: i % 2 ? '#ffe9a0' : '#fff6d8', g: 0, drag: 0, glow: 0, kind: 'arc', rot: a, vr: (i % 2 ? 1 : -1) * 3.2, r0: 6, r1: (30 + Math.random() * 14) * scale }); }
+    this.burst(x, y, 6 * scale, { color: ['#fff2a8', '#ffd36b'], min: 30, max: 90, size: 2.5, life: 0.9, g: -30, glow: 1, kind: 'dot' });
   }
   update(dt) {
     this.trauma = Math.max(0, this.trauma - dt * 1.8); this.flash = Math.max(0, this.flash - dt * 4);
@@ -32,6 +44,8 @@ export class FX {
   draw(g) {
     for (const q of this.p) {
       const k = 1 - q.t / q.life; g.globalAlpha = Math.min(1, k * 1.5); g.fillStyle = q.color;
+      if (q.kind === 'puff') { const e = q.t / q.life; g.globalAlpha = 0.42 * (1 - e) * (1 - e); const r = q.size * (0.6 + e * 1.6); g.beginPath(); g.arc(q.x, q.y, r, 0, 7); g.arc(q.x + r * 0.7, q.y + r * 0.2, r * 0.7, 0, 7); g.fill(); continue; }
+      if (q.kind === 'arc') { const e = q.t / q.life, ee = 1 - (1 - e) * (1 - e), R = q.r0 + (q.r1 - q.r0) * ee, a = q.rot + q.vr * e * 0.35; g.save(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = (1 - e) * 0.95; g.strokeStyle = q.color; g.lineCap = 'round'; g.lineWidth = q.size * (1 - e) + 0.6; g.beginPath(); g.arc(q.x, q.y, R, a, a + 0.75 * Math.sign(q.vr), q.vr < 0); g.stroke(); g.globalAlpha *= 0.35; g.lineWidth *= 3; g.stroke(); g.restore(); continue; }
       if (q.kind === 'spark') { g.save(); g.globalCompositeOperation = 'lighter'; g.translate(q.x, q.y); g.rotate(Math.atan2(q.vy, q.vx)); const L = q.size * (1.8 + Math.min(2, Math.hypot(q.vx, q.vy) / 150)); g.beginPath(); g.moveTo(-L, 0); g.lineTo(0, -q.size * 0.45); g.lineTo(L * 0.6, 0); g.lineTo(0, q.size * 0.45); g.fill(); g.fillStyle = '#fff8e0'; g.fillRect(-L * 0.5, -q.size * 0.12, L, q.size * 0.24); g.restore(); }
       else if (q.kind === 'star') { g.save(); g.translate(q.x, q.y); g.rotate(q.rot); const s = q.size * k; g.beginPath(); for (let i = 0; i < 8; i++) { const r = i % 2 ? s * 0.4 : s; g.lineTo(Math.cos(i * Math.PI / 4) * r, Math.sin(i * Math.PI / 4) * r); } g.fill(); g.restore(); }
       else if (q.kind === 'leaf') { g.save(); g.translate(q.x, q.y); g.rotate(q.rot); g.beginPath(); g.ellipse(0, 0, q.size, q.size * 0.45, 0, 0, 7); g.fill(); g.restore(); }
@@ -42,7 +56,14 @@ export class FX {
     for (const r of this.rings) { const k = r.t / r.life; g.globalAlpha = 1 - k; g.strokeStyle = r.color; g.lineWidth = r.width * (1 - k) + 0.5; g.beginPath(); g.arc(r.x, r.y, r.r * (0.3 + k * 0.9), 0, 7); g.stroke(); }
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     g.textAlign = 'center'; g.lineJoin = 'round';
-    for (const t of this.texts) { const k = t.t / t.life; g.globalAlpha = 1 - k * k; g.font = `900 ${t.size}px system-ui,sans-serif`; const y = t.y - 26 * Math.sqrt(k); g.lineWidth = 4; g.strokeStyle = '#15131f'; g.strokeText(t.s, t.x, y); g.fillStyle = t.color; g.fillText(t.s, t.x, y); }
+    for (const t of this.texts) { const k = t.t / t.life;
+      if (t.dmg) { // styled damage number
+        const pop = k < 0.12 ? 0.4 + (k / 0.12) * 1.0 : k < 0.24 ? 1.4 - ((k - 0.12) / 0.12) * 0.4 : 1, x = t.x + t.vx * Math.sqrt(k), y = t.y - 22 * Math.sqrt(k) + (k > 0.6 ? (k - 0.6) * 18 : 0);
+        g.save(); g.translate(x, y); g.scale(pop, pop); if (t.heavy) g.rotate(-0.08); g.globalAlpha = k > 0.65 ? 1 - (k - 0.65) / 0.35 : 1;
+        g.font = `900 ${t.size}px system-ui,sans-serif`; g.lineWidth = t.heavy ? 5.5 : 4.5; g.strokeStyle = '#15131f'; g.strokeText(t.s, 0, 0);
+        const gr = g.createLinearGradient(0, -t.size * 0.8, 0, t.size * 0.1); gr.addColorStop(0, '#fffdf2'); gr.addColorStop(1, t.color); g.fillStyle = t.heavy || t.gold ? gr : t.color; g.fillText(t.s, 0, 0);
+        if (t.heavy && k < 0.3) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = (0.3 - k) * 3; g.fillStyle = '#ffd36b'; g.fillText(t.s, 0, 0); g.globalCompositeOperation = 'source-over'; }
+        g.restore(); continue; } g.globalAlpha = 1 - k * k; g.font = `900 ${t.size}px system-ui,sans-serif`; const y = t.y - 26 * Math.sqrt(k); g.lineWidth = 4; g.strokeStyle = '#15131f'; g.strokeText(t.s, t.x, y); g.fillStyle = t.color; g.fillText(t.s, t.x, y); }
     g.globalAlpha = 1;
   }
 }

@@ -91,7 +91,7 @@ export class Player {
     const r = moveBody(W.map, this, dt, { drop: this.drop > 0 });
     this.onGround = r.ground || (this.vy >= 0 && !!groundBelow(W.map, this) && this.drop <= 0 && this.hook.s !== 'zip');
     if (this.onGround) { this.coyote = diff().coyote; this.airDash = true; this.wallJumping = false; }
-    if (r.ground && !wasGround && prevVy > 160) { this.sy = 0.72; this.sx = 1.25; sfx('land'); W.fx.burst(this.cx, this.y + this.h, 6, { color: '#d9d2c0', min: 30, max: 90, angle: -Math.PI / 2, spread: 1.4, g: 200, life: 0.35 }); }
+    if (r.ground && !wasGround && prevVy > 160) { this.sy = 0.72; this.sx = 1.25; sfx('land'); W.fx.dust(this.cx, this.y + this.h, prevVy > 420 ? 8 : 5, { speed: 50 + Math.min(80, prevVy * 0.12), size: prevVy > 420 ? 5 : 3.8, life: 0.5 }); W.fx.burst(this.cx, this.y + this.h, 4, { color: '#d9d2c0', min: 30, max: 90, angle: -Math.PI / 2, spread: 1.4, g: 200, life: 0.35 }); }
     // ledge assist: pop up onto a ledge we barely missed
     if (!this.onGround && this.hook.s === 'none' && this.dashT <= 0) {
       const dir = (r.wallL ? -1 : r.wallR ? 1 : 0) || (Math.abs(input.mx) > 0.3 && touchingWall(W.map, this, sign(input.mx)) ? sign(input.mx) : 0);
@@ -105,7 +105,7 @@ export class Player {
       if (ok) { this.safe.x = this.x; this.safe.y = this.y; }
     }
     // run anim + footsteps
-    if (this.onGround && Math.abs(this.vx) > 20) { this.runPh += dt * Math.abs(this.vx) * 0.075; this.stepT -= dt; if (this.stepT <= 0) { this.stepT = 0.28; sfx('step'); } }
+    if (this.onGround && Math.abs(this.vx) > 20) { this.runPh += dt * Math.abs(this.vx) * 0.075; this.stepT -= dt; if (this.stepT <= 0) { this.stepT = 0.28; sfx('step'); if (Math.abs(this.vx) > 120) W.fx.dust(this.cx - sign(this.vx) * 4, this.y + this.h, 2, { dir: -sign(this.vx), speed: 40, size: 3.2, life: 0.4 }); } }
     const hz = hazardAt(W.map, this); if (hz && this.respawnT <= 0) W.hazardHit(this, hz);
   }
   tryMantle(W, dir) {
@@ -412,7 +412,10 @@ export class Player {
     g.restore();
   }
   drawVine(g, x0, y0, h, t) { // textured, twisting vine rope with leaves
-    const wob = h.s === 'fly' || h.s === 'miss' ? 6 : 0, mx = (x0 + h.hx) / 2, my = (y0 + h.hy) / 2 + (wob ? Math.sin(t * 40) * wob : Math.min(10, Math.hypot(h.hx - x0, h.hy - y0) * 0.03));
+    const wob = h.s === 'fly' || h.s === 'miss' ? 6 : 0, L0 = Math.hypot(h.hx - x0, h.hy - y0) || 1;
+    // v1.3 tension wobble: a decaying twang across the vine right after it bites, then it pulls taut (less sag while swinging fast)
+    const ht = h.t || 0, twang = !wob && ht < 0.6 ? Math.exp(-ht * 7) * Math.sin(ht * 48) * Math.min(9, L0 * 0.08) : 0, sag = wob ? Math.sin(t * 40) * wob : Math.min(10, L0 * 0.03) * (h.s === 'swing' ? Math.max(0.25, 1 - Math.hypot(this.vx, this.vy) / 420) : 1);
+    const mx = (x0 + h.hx) / 2 - (h.hy - y0) / L0 * twang, my = (y0 + h.hy) / 2 + sag + (h.hx - x0) / L0 * twang;
     const pt = (k) => { const u = 1 - k; return [u * u * x0 + 2 * u * k * mx + k * k * h.hx, u * u * y0 + 2 * u * k * my + k * k * h.hy]; };
     g.lineCap = 'round'; g.strokeStyle = PAL.ink; g.lineWidth = 4.6; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(mx, my, h.hx, h.hy); g.stroke();
     g.strokeStyle = '#3f7a32'; g.lineWidth = 3; g.stroke();

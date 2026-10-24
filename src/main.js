@@ -92,7 +92,7 @@ function render(dt) {
   const W = game.world, cw = canvas.width, ch = canvas.height;
   if (!W) { titleScene(dt); return; }
   const rs = ch / (W.viewH || VIEW_H); W.draw(g, cw, ch, rs);
-  if (game.tut) { g.setTransform(rs, 0, 0, rs, -W.camx * rs, -W.camy * rs); game.tut.drawWorld(g); }
+  if (game.tut) { if (W.wt) g.setTransform(W.wt[0], 0, 0, W.wt[0], W.wt[1], W.wt[2]); else g.setTransform(rs, 0, 0, rs, -W.camx * rs, -W.camy * rs); game.tut.drawWorld(g); }
   const s = game.dpr * Math.max(0.8, Math.min(1.25, game.cssH / 412));
   g.setTransform(1, 0, 0, 1, 0, 0); drawHUD(g, W, cw, ch, s);
   g.setTransform(game.dpr, 0, 0, game.dpr, 0, 0);

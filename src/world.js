@@ -105,6 +105,7 @@ export class World {
     this.t += dt; this.fade = Math.max(0, this.fade - dt * 2.5);
     if (this.countdown > 0) { const before = Math.ceil(this.countdown / 0.5); this.countdown -= dt; const after = Math.ceil(this.countdown / 0.5); if (after !== before && this.countdown > 0 && after <= 3) sfx('beep'); if (this.countdown <= 0) { sfx('go'); this.goT = 0.6; if (this.boss && this.boss.st === 'sleep') { this.boss.go('intro'); this.startFight(this.boss); sfx('roar'); this.fx.shake(0.4); } } this.fx.update(dt); this.updateCamera(dt); return; }
     if (this.goT > 0) this.goT -= dt;
+    if (this.zoomK > 0) this.zoomK = Math.max(0, this.zoomK - dt * 4.5);
     if (this.hs > 0) { this.hs -= dt; this.fx.update(dt * 0.3); return; }
     if (this.slow > 0) { this.slow -= dt; dt *= 0.4; }
     const P = this.player; P.update(this, dt); this.updateRoom(false);
@@ -119,6 +120,7 @@ export class World {
     if (Math.random() < dt * 6) this.fx.burst(this.cam.x + Math.random() * (this.viewW || 760), this.cam.y + (this.viewH || VIEW_H) + 10, 1, { color: this.mode === 'boss' ? '#ffb07a' : '#e8ffb0', min: 10, max: 30, g: -20, drag: 0, life: 6, size: 2.2, angle: -Math.PI / 2, spread: 0.5, glow: 1 });
   }
   hitstop(t) { this.hs = Math.max(this.hs, t); }
+  zoomKick(k) { this.zoomK = Math.max(this.zoomK || 0, k); } // camera micro-zoom on heavy hits / parries (v1.3)
   // ---------------- hook targets ----------------
   findHookTarget(p, mx, my) {
     const R = p.hookRange, px = p.cx, py = p.y + 10, assist = save.settings.hookAssist;
@@ -154,7 +156,7 @@ export class World {
   damagePlayer(dmg, srcX, info) { return this.player.hurt(this, dmg, srcX, info); }
   enemyAttack(box, dmg, src, info) { if (this.overlapPlayer(box, 4)) return this.damagePlayer(dmg, src.cx ?? box.x + box.w / 2, { ...info, src }); return null; }
   onParry(p, info) {
-    sfx('parry'); vibrate(30); this.hitstop(0.1); this.slow = 0.35; p.iframes = Math.max(p.iframes, 0.45); this.fx.shake(0.3);
+    sfx('parry'); vibrate(30); this.hitstop(0.1); this.zoomKick(1); this.slow = 0.35; p.iframes = Math.max(p.iframes, 0.45); this.fx.shake(0.3);
     this.fx.ring(p.cx + p.face * 14, p.cy, 60, '#bff2ff', 0.4, 7); this.fx.burst(p.cx + p.face * 16, p.cy, 18, { color: ['#fff', '#bff2ff', '#ffe27a'], min: 150, max: 420, kind: 'spark', glow: 1, life: 0.4 });
     this.fx.text(p.cx, p.y - 10, 'PARRY!', '#bff2ff', 18);
     const e = info.src; if (e && e.cx !== undefined && !e.shot) { e.stun = Math.max(e.stun, e.boss ? 1.5 : 1.8); e.parried = 2.2; e.tele = 0; if (e.st) e.st = e.boss ? 'idle' : 'idle'; if (e.boss) e.cd = 1.4; e.vx = sign(e.cx - p.cx) * (e.boss ? 60 : 200); }
@@ -194,15 +196,15 @@ export class World {
     dmg = Math.max(1, Math.round(dmg)); e.hp -= dmg; e.flash = 0.12;
     if (!e.boss) { const k = (hit.kb || 0) * (e.light ? 1 : 0.4); e.vx = sign(e.cx - srcX || 1) * k; if (e.light && k > 0) e.vy = -Math.min(220, k * 0.5); if (e.light || hit.breaks) { e.stun = Math.max(e.stun, hit.stun || 0.22); e.tele = 0; if (e.st !== 'hop') e.st = 'idle'; } }
     if (hit.stun && e.boss) e.stun = Math.max(e.stun, 0.2);
-    this.hitstop(hit.hs || 0.03); this.fx.shake(hit.shake || 0.08); sfx(dmg >= 25 ? 'hitHeavy' : 'hit');
+    const heavy = dmg >= 25 || !!hit.breaks; this.hitstop(Math.max(hit.hs || 0.035, heavy ? 0.065 : 0)); this.fx.shake(hit.shake || 0.08); sfx(heavy ? 'hitHeavy' : 'hit'); if (heavy) this.zoomKick(0.6);
     this.fx.burst(lerp(e.cx, srcX, 0.3), e.cy, dmg >= 25 ? 12 : 7, { color: ['#fff', '#ffe27a', PAL.inkPop], kind: 'spark', min: 120, max: 360, glow: 1, life: 0.3 });
-    this.fx.text(e.cx + rand.range(-6, 6), e.y - 4, String(dmg), e.parried > 0 ? '#ffe27a' : '#fff', dmg >= 25 ? 16 : 12);
+    this.fx.dmg(e.cx + rand.range(-4, 4), e.y - 4, dmg, { heavy, gold: e.parried > 0, dir: sign(e.cx - srcX || 1) });
     if (e.hp <= 0) this.killEnemy(e, p);
     return true;
   }
   killEnemy(e, p) {
     if (e.type === 'boss') { e.hp = 0; e.go('dying'); sfx('roar'); this.fx.shake(0.8); this.slow = 1.0; return; }
-    e.dead = true; this.fx.pop(e.cx, e.cy, e.boss ? 2 : 1); sfx('pop'); vibrate(15);
+    e.dead = true; this.fx.pop(e.cx, e.cy, e.boss ? 2 : 1); if (e.boss) this.zoomKick(0.8); sfx('pop'); vibrate(15);
     const lucky = save.progress.unlocks.lucky ? 1.25 : 1; this.dropGlims(e.cx, e.cy, Math.round(e.glim * lucky));
     if (!e.boss && rand.chance(0.08)) this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy, vx: rand.range(-50, 50), vy: -220, t: 0 });
     this.player.stats.kills++; this.emit('kill', e);
@@ -228,7 +230,7 @@ export class World {
       for (const gx of [0, CW - 1]) for (let y = 14; y <= 17; y++) if (this.map.get(ox + gx, oy + y) === '.') { this.setTile(ox + gx, oy + y, 'G'); this.gates.push([ox + gx, oy + y]); }
       // never trap the player inside a gate tile
       const P = this.player; if (this.map.solidPx(P.cx, P.cy)) P.x = c.room.x + TILE * 2;
-      sfx('door'); this.game.bossBar(e); playSong('boss');
+      sfx('door'); this.game.bossBar(e); playSong('mini');
     } else { this.fight = { e, room: this.fullRoom }; this.game.bossBar(e); }
   }
   onMinibossDefeated(e) {
@@ -347,7 +349,8 @@ export class World {
     // god rays
     if (!lo) { g.globalCompositeOperation = 'lighter'; g.fillStyle = B.fog; for (let i = 0; i < 3; i++) { const x = ((i * 0.37 + 0.15) * cw - camx * rs * 0.05) % (cw * 1.2); g.beginPath(); g.moveTo(x, 0); g.lineTo(x + cw * 0.12, 0); g.lineTo(x + cw * 0.32, ch); g.lineTo(x + cw * 0.18, ch); g.fill(); } g.globalCompositeOperation = 'source-over'; }
     }
-    g.setTransform(rs, 0, 0, rs, -camx * rs, -camy * rs);
+    const zk = this.zoomK || 0, z = 1 + 0.045 * zk * zk * (3 - 2 * zk), zr = rs * z, tox = -camx * zr + cw * 0.5 * (1 - z), toy = -camy * zr + ch * 0.5 * (1 - z); this.wt = [zr, tox, toy];
+    g.setTransform(zr, 0, 0, zr, tox, toy);
     const vx0 = camx - 40, vx1 = camx + VW + 40, vy0 = camy - 40, vy1 = camy + (this.viewH || VIEW_H) + 40;
     // lanterns light behind tiles
     if (!lo) for (const l of this.lights) if (l.x > vx0 - 100 && l.x < vx1 + 100 && l.y > vy0 - 100 && l.y < vy1 + 100) drawGlow(g, l.x, l.y + 10, 110 + Math.sin(this.t * 2 + l.x) * 6, B.light, 0.35);
@@ -444,7 +447,14 @@ export class World {
       g.save();
       if (m.kind === 'circle') { g.globalAlpha = blink * 0.6; g.fillStyle = '#ff3d6e'; g.beginPath(); g.ellipse(m.x, m.y, m.r, m.r * 0.32, 0, 0, 7); g.fill(); g.globalAlpha = 0.95; g.strokeStyle = '#ffd0dc'; g.lineWidth = 2; g.beginPath(); g.ellipse(m.x, m.y, m.r * (1 - k * 0.7), m.r * 0.32 * (1 - k * 0.7), 0, 0, 7); g.stroke(); g.beginPath(); g.ellipse(m.x, m.y, m.r, m.r * 0.32, 0, 0, 7); g.stroke(); }
       else if (m.kind === 'shadow') { g.globalAlpha = 0.35 + k * 0.5; g.fillStyle = '#15131f'; g.beginPath(); g.ellipse(m.x + m.w / 2, m.y + 4, m.w / 2 * (0.5 + k * 0.6), 6, 0, 0, 7); g.fill(); g.globalAlpha = blink * 0.7; g.strokeStyle = '#ff3d6e'; g.lineWidth = 2; g.stroke(); g.globalAlpha = 0.25 * k; g.fillStyle = '#ff3d6e'; g.fillRect(m.x + m.w / 2 - 2, this.room.y + 30, 4, m.y - this.room.y - 30); }
-      else { g.globalAlpha = blink * (m.kind === 'beam' ? 0.45 : 0.4); g.fillStyle = '#ff3d6e'; g.fillRect(m.x, m.y, m.w, m.h); g.globalAlpha = 0.9; g.strokeStyle = '#ffd0dc'; g.lineWidth = 2; g.setLineDash([8, 6]); g.lineDashOffset = -t * 40; g.strokeRect(m.x + 1, m.y + 1, m.w - 2, m.h - 2); g.setLineDash([]);
+      else { // v1.3 telegraph: red floor-up gradient that fills as the attack nears, glowing floor line + chevrons (no white box)
+        const by = m.y + m.h, gr = g.createLinearGradient(0, m.y, 0, by); gr.addColorStop(0, 'rgba(255,40,70,0)'); gr.addColorStop(0.55, 'rgba(255,40,70,0.28)'); gr.addColorStop(1, 'rgba(255,60,80,0.62)');
+        g.globalAlpha = 0.55 + blink * 0.45; g.fillStyle = gr; g.fillRect(m.x, m.y, m.w, m.h);
+        g.globalAlpha = 0.35 + 0.5 * k; g.fillStyle = 'rgba(255,70,90,0.55)'; const fh = m.h * k; g.fillRect(m.x, by - fh, m.w, fh);
+        g.globalAlpha = 1; drawGlow(g, m.x + m.w / 2, by - 2, m.w * 0.55, '#ff2a4a', 0.35 + blink * 0.3); g.fillStyle = '#ff5a70'; g.fillRect(m.x, by - 3, m.w, 3); g.fillStyle = '#ffd0d8'; g.fillRect(m.x, by - 3, m.w, 1);
+        g.fillStyle = '#ff2040'; g.fillRect(m.x, m.y + 4, 2, m.h - 4); g.fillRect(m.x + m.w - 2, m.y + 4, 2, m.h - 4);
+        g.strokeStyle = 'rgba(255,220,225,' + (0.5 + blink * 0.5) + ')'; g.lineWidth = 2.4; g.lineJoin = 'round';
+        const step = m.kind === 'beam' ? 120 : 40; for (let x = m.x + step / 2; x < m.x + m.w; x += step) { const yy = by - 12 - ((t * 30 + x) % 14); g.beginPath(); g.moveTo(x - 7, yy + 5); g.lineTo(x, yy - 2); g.lineTo(x + 7, yy + 5); g.stroke(); }
         if (m.kind === 'beam') { g.globalAlpha = blink; for (let x = m.x + 60; x < m.x + m.w; x += 120) drawIcon(g, 'up', x, m.y + m.h / 2, 26, '#fff'); } }
       g.restore();
     }

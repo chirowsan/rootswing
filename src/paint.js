@@ -35,6 +35,13 @@ export function drawPaintedBg(W, g, cw, ch, rs, camx, camy, lo) {
   }
   if (!lo) { g.fillStyle = S.haze; g.fillRect(0, ch * 0.45, cw, ch * 0.55); drawFog(W, g, cw, ch, rs, camx, S, 0.55); }
   g.fillStyle = S.dim; g.fillRect(0, 0, cw, ch);
+  // v1.3 calmer boss arena: heavy dark veil over the busy factory art, then one warm focal pool behind the boss
+  if (W.biome.key === 'boss') {
+    g.fillStyle = 'rgba(14,8,22,0.42)'; g.fillRect(0, 0, cw, ch);
+    const B = W.boss && !W.boss.dead ? W.boss : null, fx = B ? (B.cx - camx) * rs : cw * 0.65, fy = B ? (B.cy - camy) * rs : ch * 0.6, pulse = 0.85 + 0.15 * Math.sin(W.t * 1.6);
+    const fr = g.createRadialGradient(fx, fy, 0, fx, fy, ch * 0.95); fr.addColorStop(0, `rgba(255,120,60,${0.26 * pulse})`); fr.addColorStop(0.45, 'rgba(160,50,40,0.1)'); fr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.globalCompositeOperation = 'lighter'; g.fillStyle = fr; g.fillRect(0, 0, cw, ch); g.globalCompositeOperation = 'source-over';
+  }
 }
 function drawShafts(W, g, cw, ch, rs, camx, S, a) {
   g.globalCompositeOperation = 'lighter';

@@ -22,3 +22,4 @@
 - 20:10 PDT: P1 hero anim DONE: 26 painted frames (art/src/anim/*.jpg -> tools/build-anim.py -> assets/gfx/hero.webp/json), player.js heroPose/drawFrames (rig = fallback), sheets shots/v13/anim-contact*.png, anim-compare.png
 - 20:11 PDT: tests 24/24 after anim. Next: P2 painted tiles (paint.js renderPaintedChunk)
 - 20:19 PDT: P2 painted tiles DONE (tex_rock fill, painted lip strip w/ curled ends, hanging-root strip, crumbly ledge teeth, side vine drapes, 8 decor props, readable one-way planks). Fixed canvas filter+clip pixel-clearing bug (pre-baked toned sprites).
+- 20:20 PDT: P3 boss arena DONE (dark veil + focal warm pool on boss, boss 150 tall w/ hitbox 86x124, backlight glow, red fill-up telegraphs w/ chevrons)
