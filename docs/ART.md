@@ -51,3 +51,11 @@ What reads as cheap in v1.0:
   - HUD: `leaf`, `leafdry`, `glim`, `flask`, `dew`, `bomb`.
 - Raw sources: `art/src/*.jpg`. Keyed intermediates: `art/out/` (ignored).
 - Rebuild with `python3 tools/build-art.py`.
+
+## 7. v1.6 all-forest theme: nothing floats
+Owner feedback: "I don't like hanging piece without connection. May be make the entire theme in the forest".
+- **Rule:** every solid piece connects to something you can see. One-way planks are branch boards resting on a trunk's Y-fork (trunk drawn down into the earth or off the bottom of the screen), growing out of a wall through a bark collar, wedged as a log between two walls, or hung from the canopy on two vines. Hooks hang from a leafy vine that grows out of the canopy (or out of the branch above). Trap mounts sit on the ground, hang from vine ropes (falling log), run on a branch rail with trunk posts (seed-pod blade), or are carved into bark (thorn shooter). `src/supports.js` decides the chain and `tests/run-all.mjs` checks it.
+- **Biomes:** sunny glade (stage 1 runs, warm earth `tex_earth`), deep mossy root woods (stage 2 runs, teal-moss `tex_rootcave`), mossy clearing with the hollow tree house (hub), dusk firefly woods with the sawmill shack (boss, `tex_dusk`).
+- **Wood palette:** bark `#6e4a2a` / dark `#3c2515` / light `#a8794a`; caverns are cooler (`#4c3c2c`, teal leaves `#46d0b0`); boss is dusk (`#45302c`, olive leaves). Board tops `#e8b070 -> #4e2e1a`, cut ends `#d8a868` with a ring.
+- **Hazards keep the red `#ff3d6e` telegraph language:** thorns, spore mouths, log teeth and seed-pod hubs turn red before they strike.
+- **Depth:** background canopies are fogged and desaturated so they never read as platforms; supports are painted behind the earth tiles so trunks sink into the ground.

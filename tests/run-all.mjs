@@ -221,5 +221,20 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
   ok('v1.5 objective: gate locked with 0 seeds -> 3 seeds collected (1,2,3) -> gate opens -> boss', ob.seeds === 3 && ob.locked && ob.got.join() === '1,2,3' && ob.opened === 1 && ob.mode === 'boss', JSON.stringify(ob));
   ok('v1.5 objective: boss beaten -> victory screen with stars, best time saved, stars banked', v.hp <= 0 && vs.ui === 'victory' && vs.html === 3 && vs.best > 0 && vs.stars >= 1, JSON.stringify({ v, ...vs }));
   ok('no page errors (v1.5)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
+// ---------- v1.6: forest theme, nothing floats ----------
+{ const { generateRun, buildFixed } = await import('../src/level.js'); const { HUB, TUTORIAL, BOSS_ROOM } = await import('../src/chunks.js'); const { computeSupports, auditSupports } = await import('../src/supports.js');
+  const anc = (sp) => sp.filter((s) => s.c === 'o' || s.c === 'z').map((s) => ({ x: s.x * 24 + 12, y: s.y * 24 + 12, kind: s.c === 'o' ? 'swing' : 'zip' }));
+  const maps = [['hub', buildFixed(HUB)], ['tutorial', buildFixed(TUTORIAL)], ['boss', buildFixed(BOSS_ROOM)]]; for (let i = 0; i < 20; i++) for (const b of ['overpass', 'caverns']) maps.push([b + ':' + (900 + i * 13), generateRun(900 + i * 13, b)]);
+  let pieces = 0; const bad = [], kinds = {};
+  for (const [n, L] of maps) { const sp = computeSupports(L.map, anc(L.spawns), L.traps || []); pieces += sp.pieces.length; for (const p of sp.pieces) kinds[p.kind] = (kinds[p.kind] || 0) + 1; for (const p of auditSupports(L.map, sp)) bad.push(`${n} ${p.kind}/${p.sub || ''}@${p.x0},${p.y}`); }
+  ok(`v1.6 no floating pieces (data): every plank/branch, crumble branch, hook, trap mount and solid island in ${maps.length} maps chains to ground, wall, canopy or screen edge`, bad.length === 0 && kinds.plank > 0 && kinds.anchor > 0 && kinds.trap > 0, `pieces ${pieces} ${JSON.stringify(kinds)} bad ${bad.slice(0, 4).join(' | ')}`); }
+{ const { browser, page, errors } = await fresh();
+  const r = await E(page, async () => { const out = []; for (let i = 0; i < 60 && !__RS.gfx.ready; i++) await new Promise((r) => setTimeout(r, 100));
+    const cases = [['run', { seed: 2026, stage: 0 }], ['run', { seed: 2026, stage: 1 }], ['run', { seed: 77, stage: 0 }], ['hub', {}], ['boss', { seed: 2026, stage: 0 }], ['boss', { seed: 2026, stage: 1 }], ['tutorial', {}]];
+    for (const [m, o] of cases) { __RS.start(m, o); __RS.manual(true); const a = __RS.supports(); out.push({ m, st: o.stage || 0, n: a.pieces, bad: a.bad.slice(0, 3), undrawn: a.undrawn.slice(0, 3), nb: a.bad.length, nu: a.undrawn.length + a.unknown.length, painted: a.painted }); } return out; });
+  ok('v1.6 no floating pieces (drawn): in runs, hub, boss rooms and tutorial the painter draws a support chain for every piece', r.every((c) => c.painted && c.n > 0 && c.nb === 0 && c.nu === 0), JSON.stringify(r.map((c) => `${c.m}${c.st}:${c.n}/${c.nb}/${c.nu}${c.nb + c.nu ? JSON.stringify([c.bad, c.undrawn]) : ''}`)));
+  const th = await E(page, () => { const o = {}; for (const m of ['run', 'hub', 'boss']) { __RS.start(m, { seed: 5, stage: 0 }); o[m] = { biome: __RS.W.biome.key, tex: ['tex_earth', 'tex_rootcave', 'tex_dusk'].filter((k) => __RS.gfx.img[k]).length }; } return o; });
+  ok('v1.6 forest skins load (earth / root-cave / dusk textures) for runs, hub and boss', th.run.tex === 3, JSON.stringify(th));
+  ok('no page errors (v1.6)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
 server.close(); const fail = results.filter((r) => !r.pass);
 console.log(`\n${results.length - fail.length}/${results.length} passed`); process.exit(fail.length ? 1 : 0);

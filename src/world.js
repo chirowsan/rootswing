@@ -15,6 +15,7 @@ import { lineClear, moveBody } from './physics.js';
 import { WEAPONS } from './weapons.js';
 import { vibrate, input } from './input.js';
 import { Traps } from './traps.js';
+import { computeSupports, auditSupports } from './supports.js';
 import { buildGuides, drawGuidesBack, drawGuidesFront } from './guides.js';
 import { initSeeds, spawnSeed, updateSeeds, drawSeeds, drawGate, bumpGate } from './objective.js';
 
@@ -51,6 +52,8 @@ export class World {
     if (opts.cellIndex !== undefined && this.cells[opts.cellIndex]) { const c = this.cells[opts.cellIndex]; this.lastCheckpoint = opts.cellIndex; for (const o of this.props) if (o.kind === 'shrine' && this.cellAt(o.x + o.w / 2, o.y + o.h - 4) === c) o.lit = true; }
     this.room = this.fullRoom; this.cam = { x: px - 300, y: py - 200 }; this.updateRoom(true); this.snapCamera();
     this.chunkCache = new Map(); this.rs = 0; this.bg = null; this.hazTiles = []; this.traps = new Traps(this, L.traps || []); this.guides = buildGuides(this);
+    // v1.6: nothing floats - every plank/anchor/trap mount/island gets a drawn support chain to ground, wall, canopy or edge
+    this.map.sup = computeSupports(this.map, this.anchors, L.traps || []);
     for (let y = 0; y < this.map.h; y++) for (let x = 0; x < this.map.w; x++) { const c = this.map.get(x, y); if (c === '^' || c === 'v' || c === '~') this.hazTiles.push({ x, y, c }); }
     this.viewH = viewHFor(mode); this.heroK = heroKFor(mode); this.bossIntro = mode === 'boss'; this.countdown = mode === 'run' || mode === 'boss' ? 1.6 : 0; this.fade = 1;
     playSong(mode === 'hub' ? 'hub' : mode === 'boss' ? 'boss' : mode === 'tutorial' ? 'calm' : this.stage ? 'caverns' : 'biome');
@@ -435,10 +438,12 @@ export class World {
       const X = h.x * TILE, Y = h.y * TILE; if (X < vx0 - 24 || X > vx1 || Y < vy0 - 24 || Y > vy1) continue;
       if (h.c === '^' || h.c === 'v') {
         const up = h.c === '^'; const base = up ? Y + TILE : Y, dir = up ? -1 : 1;
-        g.fillStyle = PAL.hazardDk; g.fillRect(X, up ? Y + TILE - 5 : Y, TILE, 5);
+        // v1.6 bramble: a thorny vine stem lying along the ground/ceiling with curved red thorns
+        g.fillStyle = '#15131f'; g.fillRect(X - 1, up ? Y + TILE - 6 : Y, TILE + 2, 6); g.fillStyle = '#3a4a26'; g.fillRect(X - 1, up ? Y + TILE - 5 : Y + 1, TILE + 2, 4);
+        g.fillStyle = '#5f8a3a'; g.beginPath(); g.ellipse(X + 5 + (h.x % 3) * 5, base + dir * 3, 3.4, 1.5, 0.4, 0, 7); g.fill();
         if (G.ready) { const gr = g.createLinearGradient(0, base, 0, base + dir * 18); gr.addColorStop(0, '#5a1420'); gr.addColorStop(0.55, '#d4283c'); gr.addColorStop(1, '#ff9aa8'); g.fillStyle = gr; g.lineWidth = 2.4; } else { g.fillStyle = PAL.hazard; g.lineWidth = 1.8; }
         g.strokeStyle = '#15131f'; g.beginPath();
-        for (let i = 0; i < 3; i++) { const x = X + i * 8; g.moveTo(x, base); g.lineTo(x + 4, base + dir * (15 + (i % 2) * 3)); g.lineTo(x + 8, base); }
+        for (let i = 0; i < 3; i++) { const x = X + i * 8, hh = 15 + (i % 2) * 3, bend = (i - 1) * 1.5; g.moveTo(x, base + dir * 3); g.quadraticCurveTo(x + 2 + bend, base + dir * hh * 0.6, x + 4 + bend * 1.6, base + dir * hh); g.quadraticCurveTo(x + 5.5 + bend, base + dir * hh * 0.5, x + 8, base + dir * 3); }
         g.fill(); g.stroke();
         g.fillStyle = '#ffd0dc'; for (let i = 0; i < 3; i++) { const x = X + i * 8 + 4; g.fillRect(x - 0.6, base + dir * (12 + (i % 2) * 3), 1.2, 3); }
         if (G.ready || (h.x + h.y) % 2 === 0) drawGlow(g, X + 12, base + dir * 8, 22, PAL.hazardGlow, (G.ready ? 0.3 : 0.35) * pulse);
@@ -451,6 +456,15 @@ export class World {
       }
     }
   }
+  // v1.6 test hook: audit support chains + paint every chunk (offscreen, rs 0.25) and report pieces the painter never drew
+  auditSupports() {
+    const sup = this.map.sup; sup.drawn.clear(); const bad = auditSupports(this.map, sup);
+    if (G.ready) for (let cy = 0; cy * CHUNK_T < this.map.h; cy++) for (let cx = 0; cx * CHUNK_T < this.map.w; cx++) renderPaintedChunk(this.map, cx, cy, 0.25, this.biome);
+    const undrawn = G.ready ? sup.pieces.filter((p) => !sup.drawn.has(p.id)) : [];
+    const kinds = {}; for (const p of sup.pieces) { const k = p.kind + ':' + p.sup.type; kinds[k] = (kinds[k] || 0) + 1; }
+    const fmt = (p) => `${p.kind}/${p.sub || ''}@${p.x0},${p.y}:${p.sup.type}`;
+    return { pieces: sup.pieces.length, bad: bad.map(fmt), undrawn: undrawn.map(fmt), unknown: sup.pieces.filter((p) => p.kind === 'trap' && p.sup.type === 'embedded' && p.sup.ends[0].on !== 'solid').map(fmt), kinds, painted: G.ready };
+  }
   drawAnchors(g) {
     const t = this.t, P = this.player, lo = (this.game && this.game.lowPerf) || save.settings.quality === 'low';
     for (const a of this.anchors) {
@@ -459,16 +473,16 @@ export class World {
       const hl = this.highlightAnchor && near;
       if (a.kind === 'swing') {
         drawGlow(g, a.x, a.y, (near ? 32 : 24) * k * (hl ? 1.6 : 1), ANCHOR_GLOW, near ? 0.8 : 0.5);
-        if (has('ring')) { g.strokeStyle = '#2a2018'; g.lineWidth = 2; g.setLineDash([3, 2]); g.beginPath(); g.moveTo(a.x, a.y - 9); g.lineTo(a.x, a.y - 30); g.stroke(); g.setLineDash([]);
+        if (has('ring')) { g.strokeStyle = '#15131f'; g.lineWidth = 4; g.beginPath(); g.moveTo(a.x, a.y - 15); g.lineTo(a.x, a.y - 8); g.stroke(); g.strokeStyle = '#3f8a3a'; g.lineWidth = 2; g.stroke(); // vine tie (vine itself is painted with the tiles)
           g.save(); g.translate(a.x, a.y); g.rotate(Math.sin(t * 1.6 + a.pulse) * 0.12); if (!lo) for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) spr(g, 'ring', dx, dy + 11, 22, 0.5, 1, false, tinted('ring', '#15131f')); spr(g, 'ring', 0, 11, 22, 0.5, 1);
           if (!lo) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = near ? 0.6 : 0.35; } else g.globalAlpha = 0; spr(g, 'ring', 0, 11, 22, 0.5, 1, false, tinted('ring', ANCHOR_GLOW)); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.restore(); }
         else {
         g.strokeStyle = '#15131f'; g.lineWidth = 6; g.beginPath(); g.arc(a.x, a.y, 8, 0, 7); g.stroke(); g.strokeStyle = PAL.swing; g.lineWidth = 3.5; g.stroke();
         g.fillStyle = '#fff6c8'; g.beginPath(); g.arc(a.x - 3, a.y - 4, 1.6, 0, 7); g.fill();
-        g.strokeStyle = 'rgba(200,180,120,0.5)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(a.x, a.y - 8); g.lineTo(a.x, a.y - 26); g.stroke(); }
+        g.strokeStyle = '#3f8a3a'; g.lineWidth = 2; g.beginPath(); g.moveTo(a.x, a.y - 8); g.lineTo(a.x, a.y - 15); g.stroke(); }
       } else {
         drawGlow(g, a.x, a.y, (near ? 32 : 24) * k * (hl ? 1.6 : 1), ANCHOR_GLOW, near ? 0.8 : 0.5);
-        if (has('crystal')) { g.save(); g.translate(a.x, a.y + Math.sin(t * 2 + a.pulse) * 1.5); if (!lo) for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) spr(g, 'crystal', dx, dy + 12, 24, 0.5, 1, false, tinted('crystal', '#15131f')); spr(g, 'crystal', 0, 12, 24, 0.5, 1);
+        if (has('crystal')) { g.strokeStyle = '#15131f'; g.lineWidth = 4; g.beginPath(); g.moveTo(a.x, a.y - 15); g.lineTo(a.x, a.y - 9 + Math.sin(t * 2 + a.pulse) * 1.5); g.stroke(); g.strokeStyle = '#3f8a3a'; g.lineWidth = 2; g.stroke(); g.save(); g.translate(a.x, a.y + Math.sin(t * 2 + a.pulse) * 1.5); if (!lo) for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) spr(g, 'crystal', dx, dy + 12, 24, 0.5, 1, false, tinted('crystal', '#15131f')); spr(g, 'crystal', 0, 12, 24, 0.5, 1);
           if (!lo) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = near ? 0.6 : 0.35; } else g.globalAlpha = 0; spr(g, 'crystal', 0, 12, 24, 0.5, 1, false, tinted('crystal', ANCHOR_GLOW)); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.restore(); }
         else { g.save(); g.translate(a.x, a.y); g.rotate(Math.PI / 4 + Math.sin(t * 2 + a.pulse) * 0.1); g.fillStyle = '#15131f'; g.fillRect(-8, -8, 16, 16); g.fillStyle = PAL.zip; g.fillRect(-6, -6, 12, 12); g.fillStyle = '#e8fffb'; g.fillRect(-3, -3, 6, 6); g.restore(); }
       }

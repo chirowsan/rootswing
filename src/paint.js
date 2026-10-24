@@ -2,6 +2,7 @@
 import { G, pattern } from './gfx.js';
 import { TILE, clamp } from './util.js';
 import { PAL, drawGlow, CHUNK_T, isSolidCh } from './art.js';
+import { drawSupport, supportBox } from './supportsDraw.js';
 const hash2 = (x, y) => { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); };
 // parallax sets per biome: [image, parallax factor, zoom, extra y (fraction of screen)]
 const SETS = {
@@ -92,23 +93,27 @@ function toned(m, filt) {
 }
 // per-biome tile skin: fill texture, lip strip, hanging strip height, props [sprite, height, glow]
 const SKIN = {
-  overpass: { fill: 'tex_rock', fs: 0.3, lip: 'lip', lipH: 19, lipUp: 0.3, rim: 'rgba(255,236,170,0.55)', lipF: 'saturate(0.8) brightness(0.86)', hang: 42, propP: 0.16, propF: 'brightness(0.9)',
-    props: [['d_mush', 15], ['d_fern', 18], ['d_rubble', 13], ['d_grass', 16], ['d_grass', 14], ['d_stump', 17], ['d_pillar', 26], ['d_lamp', 30, '#ffc070']] },
-  caverns: { fill: 'tex_cave', fs: 0.3, tint: 'rgba(8,62,74,0.42)', lip: 'lip', lipH: 19, lipUp: 0.3, rim: 'rgba(140,255,240,0.5)', lipF: 'hue-rotate(95deg) saturate(1.35) brightness(1.0)', hang: 46, hangF: 'hue-rotate(60deg) brightness(0.8)', propP: 0.17, propF: 'hue-rotate(35deg) brightness(0.9)',
-    props: [['d_mush', 16], ['d_crys', 18], ['d_fern', 16], ['d_rubble', 13], ['d_mush', 20], ['d_lamp', 28, '#7ff0ff'], ['d_crys', 22]] },
-  hub: { fill: 'tex_rock', fs: 0.3, lip: 'lip', lipH: 19, lipUp: 0.3, rim: 'rgba(255,236,170,0.55)', lipF: 'saturate(0.85) brightness(0.92)', hang: 36, propP: 0.1, props: [['d_fern', 18], ['d_grass', 16], ['d_mush', 14]] },
-  boss: { fill: 'tex_metal', fs: 0.36, lip: 'moss', lipH: 10, lipUp: 0.32, rim: 'rgba(255,150,90,0.4)', lipF: 'saturate(0.45) brightness(0.7)', hang: 0, propP: 0, props: [] },
+  overpass: { fill: 'tex_earth', fs: 0.3, lip: 'lip', lipH: 19, lipUp: 0.3, rim: 'rgba(255,236,170,0.55)', lipF: 'saturate(0.8) brightness(0.86)', hang: 42, propP: 0.16, propF: 'brightness(0.9)',
+    props: [['d_mush', 15], ['d_fern', 18], ['d_grass', 16], ['d_grass', 14], ['d_stump', 17], ['d_fern', 22], ['d_mush', 19, '#fff0a0']] },
+  caverns: { fill: 'tex_rootcave', fs: 0.3, tint: 'rgba(8,62,74,0.22)', lip: 'lip', lipH: 19, lipUp: 0.3, rim: 'rgba(140,255,240,0.5)', lipF: 'hue-rotate(95deg) saturate(1.35) brightness(1.0)', hang: 46, hangF: 'hue-rotate(60deg) brightness(0.8)', propP: 0.17, propF: 'hue-rotate(35deg) brightness(0.9)',
+    props: [['d_mush', 16], ['d_fern', 16], ['d_mush', 20, '#7ff0ff'], ['d_stump', 16], ['d_grass', 14], ['d_crys', 16]] },
+  hub: { fill: 'tex_earth', fs: 0.3, lip: 'lip', lipH: 19, lipUp: 0.3, rim: 'rgba(255,236,170,0.55)', lipF: 'saturate(0.85) brightness(0.92)', hang: 36, propP: 0.1, props: [['d_fern', 18], ['d_grass', 16], ['d_mush', 14]] },
+  boss: { fill: 'tex_dusk', fs: 0.32, lip: 'lip', lipH: 17, lipUp: 0.3, rim: 'rgba(255,170,110,0.45)', lipF: 'saturate(0.6) brightness(0.72) hue-rotate(-12deg)', hang: 30, hangF: 'brightness(0.7)', propP: 0.08, propF: 'brightness(0.75)', props: [['d_fern', 16], ['d_mush', 15, '#ffb070'], ['d_grass', 14]] },
 };
 export function renderPaintedChunk(map, cx, cy, rs, biome) {
   const Wd = CHUNK_T * TILE, c = document.createElement('canvas');
   c.width = Math.ceil(Wd * rs); c.height = Math.ceil(Wd * rs); const g = c.getContext('2d');
   g.scale(rs, rs); g.translate(-cx * Wd, -cy * Wd);
   const x0 = cx * CHUNK_T, y0 = cy * CHUNK_T, at = (x, y) => map.get(x, y), S = (x, y) => isSolidCh(at(x, y));
-  const boss = biome.key === 'boss';
+  const boss = biome.key === 'boss', DBG0 = globalThis.__tileDbg || {};
   const SK = SKIN[biome.key] || SKIN.overpass, pStone = pattern(g, G.img[SK.fill] ? SK.fill : 'tex_stone', SK.fs), pRoot = pattern(g, 'tex_root', 0.4);
   const path = (X, Y, tl, tr, br, bl) => { g.beginPath(); g.moveTo(X + tl, Y); g.lineTo(X + TILE - tr, Y); g.quadraticCurveTo(X + TILE, Y, X + TILE, Y + tr); g.lineTo(X + TILE, Y + TILE - br); g.quadraticCurveTo(X + TILE, Y + TILE, X + TILE - br, Y + TILE); g.lineTo(X + bl, Y + TILE); g.quadraticCurveTo(X, Y + TILE, X, Y + TILE - bl); g.lineTo(X, Y + tl); g.quadraticCurveTo(X, Y, X + tl, Y); g.closePath(); };
   const each = (fn) => { for (let ty = y0 - 1; ty < y0 + CHUNK_T + 1; ty++) for (let tx = x0 - 1; tx < x0 + CHUNK_T + 1; tx++) { const ch = at(tx, ty); if (isSolidCh(ch)) fn(tx, ty, ch); } };
   const corners = (tx, ty) => { const up = !S(tx, ty - 1), dn = !S(tx, ty + 1), lf = !S(tx - 1, ty), rt = !S(tx + 1, ty), r = 6; return [up, dn, lf, rt, up && lf ? r : 0, up && rt ? r : 0, dn && rt ? r : 0, dn && lf ? r : 0]; };
+  // v1.6 support chains (trunks, struts, vines, collars) behind the tiles so they grow out of / sink into the earth
+  const sup = map.sup;
+  if (sup && !DBG0.noSup) { const L0 = x0 * TILE, T0 = y0 * TILE, R0 = L0 + Wd, B0 = T0 + Wd;
+    for (const p of sup.pieces) { const b = p.box || (p.box = supportBox(p, map)); if (b[2] < L0 || b[0] > R0 || b[3] < T0 || b[1] > B0) continue; g.save(); drawSupport(g, p, map, biome.key); g.restore(); sup.drawn.add(p.id); } }
   // ink rim
   each((tx, ty) => { const [up, dn, lf, rt, a, b, cc, d] = corners(tx, ty); if (!(up || dn || lf || rt)) return; g.fillStyle = g.strokeStyle = PAL.ink; path(tx * TILE, ty * TILE, a, b, cc, d); g.lineWidth = 4; g.stroke(); });
   // textured fill
@@ -181,17 +186,17 @@ export function renderPaintedChunk(map, cx, cy, rs, biome) {
     if (k[2]) drawGlow(g, X, Y - ph * 0.6, ph * 0.9, k[2], 0.4);
     g.save(); g.translate(X, Y); if (fl) g.scale(-1, 1); g.drawImage(toned(q, TS.propF), 0, 0, q[2], q[3], -pw / 2, -ph, pw, ph); g.restore();
   }
-  // one-way planks: warm wood with bright top edge, vine lashings and rope hangers so they never read as solid stone
+  // one-way planks (v1.6): split-branch boards resting on their trunk forks / wall collars / vines; cut-log ring ends
   for (let ty = y0 - 1; ty < y0 + CHUNK_T + 1; ty++) for (let tx = x0 - 1; tx < x0 + CHUNK_T + 1; tx++) {
     if (at(tx, ty) !== '=') continue; const X = tx * TILE, Y = ty * TILE, h = hash2(tx, ty), L = at(tx - 1, ty) !== '=', R = at(tx + 1, ty) !== '=';
     g.fillStyle = 'rgba(5,4,12,0.35)'; g.fillRect(X, Y + 9, TILE, 4);
-    g.fillStyle = PAL.ink; g.beginPath(); g.roundRect(X - (L ? 2 : 0), Y - 1.5, TILE + (L ? 2 : 0) + (R ? 2 : 0), 11, L || R ? 3 : 0); g.fill();
-    const wg = g.createLinearGradient(0, Y, 0, Y + 8); wg.addColorStop(0, '#f0b878'); wg.addColorStop(0.25, '#b9793f'); wg.addColorStop(1, '#5c3520'); g.fillStyle = wg; g.fillRect(X + (L ? 0 : 0.5), Y, TILE - 1, 8);
-    g.fillStyle = '#ffe2a8'; g.fillRect(X, Y, TILE, 1.4);
-    g.fillStyle = 'rgba(60,28,10,0.5)'; g.fillRect(X + 4 + h * 8, Y + 3, 7, 1); g.fillRect(X + 2 + h * 3, Y + 5.5, 5, 1);
-    g.fillStyle = '#2a1a14'; g.fillRect(X + TILE - 1, Y, 1, 8);
-    if (h > 0.55) { g.strokeStyle = '#2f6a3a'; g.lineWidth = 2; g.beginPath(); g.moveTo(X + 8, Y - 1); g.bezierCurveTo(X + 10, Y + 4, X + 13, Y + 3, X + 14, Y + 9); g.stroke(); g.fillStyle = '#6fcf5a'; g.beginPath(); g.ellipse(X + 15, Y + 11, 3, 1.6, 0.5, 0, 7); g.fill(); }
-    for (const [e, px] of [[L, X + 4], [R, X + TILE - 4]]) if (e) { g.strokeStyle = '#2a1f1a'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(px, Y); g.lineTo(px, Y - 34); g.stroke(); g.strokeStyle = '#b08a5a'; g.lineWidth = 1.1; g.stroke(); g.fillStyle = '#d9b07a'; g.fillRect(px - 2, Y + 2, 4, 3); }
+    g.fillStyle = PAL.ink; g.beginPath(); g.roundRect(X - (L ? 2 : 0), Y - 1.5, TILE + (L ? 2 : 0) + (R ? 2 : 0), 11, L || R ? 5 : 0); g.fill();
+    const wg = g.createLinearGradient(0, Y, 0, Y + 8); wg.addColorStop(0, boss ? '#c08a64' : '#e8b070'); wg.addColorStop(0.3, boss ? '#7a4e3a' : '#a46c3a'); wg.addColorStop(1, boss ? '#3a2220' : '#4e2e1a'); g.fillStyle = wg; g.fillRect(X, Y, TILE, 8);
+    g.fillStyle = 'rgba(255,226,168,0.75)'; g.fillRect(X, Y, TILE, 1.4);
+    g.strokeStyle = 'rgba(50,24,10,0.55)'; g.lineWidth = 1; g.beginPath(); g.moveTo(X, Y + 3 + h * 2); g.bezierCurveTo(X + 8, Y + 2 + h * 3, X + 16, Y + 6 - h * 2, X + TILE, Y + 4 + h); g.stroke(); // grain
+    if (h > 0.78) { g.fillStyle = '#3a2214'; g.beginPath(); g.ellipse(X + 6 + h * 10, Y + 4.5, 2, 1.6, 0, 0, 7); g.fill(); }
+    if (h > 0.5) { g.fillStyle = '#5fae4a'; g.beginPath(); g.ellipse(X + 5 + h * 12, Y, 5, 1.8, 0, 0, 7); g.fill(); } // moss tuft
+    for (const [e, px] of [[L, X - 1], [R, X + TILE + 1]]) if (e) { g.fillStyle = PAL.ink; g.beginPath(); g.ellipse(px, Y + 4, 4.2, 5.8, 0, 0, 7); g.fill(); g.fillStyle = '#d8a868'; g.beginPath(); g.ellipse(px, Y + 4, 3, 4.4, 0, 0, 7); g.fill(); g.strokeStyle = '#8a5a30'; g.lineWidth = 0.8; g.beginPath(); g.ellipse(px, Y + 4, 1.5, 2.3, 0, 0, 7); g.stroke(); }
   }
   return c;
 }

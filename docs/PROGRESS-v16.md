@@ -1,0 +1,11 @@
+# v1.6 progress (all-forest, nothing floats)
+- 08:48 start v1.6
+- before shots (v1.5 code) in shots/v16/before-*.png: stage 0 seed 2026 rooms 0/4/6/13/16/20/25/32, hub, boss; stage 1 rooms 0/5/12
+- forest art generated (original, no real people/things): ov_sky/far/mid/near (sunny glade), hub_sky/mid/near (mossy clearing + hollow tree house), boss_sky/mid/near (dusk firefly woods + sawmill shack), textures tex_earth / tex_rootcave / tex_dusk; caverns keep cv_* as the deep mossy root woods. tools/build-art.py rebuilt assets (ov_mid/hub_mid fogged extra so background canopies never read as platforms)
+- src/supports.js: computeSupports(map, anchors, traps) -> a support chain per plank run, crumble branch, detached solid island, swing/zip anchor and trap mount (trunk to ground / wall collar / log between walls / canopy vines / rope / embedded), ends only on permanent '#'/'G', the map edge, or a lower supported plank; auditSupports() verifies it recursively
+- src/supportsDraw.js + paint.js: chains painted behind the tiles in each cached chunk (tapered trunks with root flare + Y-fork, leafy vines from the canopy, bark collars); old 34 px rope hangers removed; planks restyled as branch boards with cut-log ends; skins -> tex_earth (glade/hub), tex_rootcave (caverns), tex_dusk (boss); urban props (pillar, rubble, lamp) dropped
+- world.js: map.sup built at world creation, auditSupports() test hook (renders every chunk, reports pieces never drawn); dashed hook line -> vine tie; spike tiles -> bramble
+- traps.js reskins (same shapes/timings/telegraphs): thorn bramble on a root knot, spore-vent fungus mouth, falling log with knot-hole eyes on two vine ropes, seed-pod blade on a branch rail, rotten branch crumble, bark knot-hole thorn shooter
+- tests: +3 v1.6 tests (data audit over 43 maps, drawn audit over runs/hub/boss/tutorial in the browser, forest textures load)
+- 09:03 after shots taken (shots/v16/after-*.png), full suite running
+- 09:12 PDT bumped to 1.6.0/versionCode 8; signed APK (7,299,574 B) + AAB (7,109,694 B) built, apksigner cert SHA-256 6e59e14a…35d8de matches, AAB jar verified

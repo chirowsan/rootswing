@@ -100,53 +100,65 @@ export class Traps {
     }
     for (const s of this.thorns) { g.save(); g.translate(s.x, s.y); g.scale(Math.sign(s.vx) || 1, 1); g.fillStyle = HAZ; g.strokeStyle = '#15131f'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(8, 0); g.lineTo(-6, -4); g.lineTo(-3, 0); g.lineTo(-6, 4); g.closePath(); g.fill(); g.stroke(); g.restore(); drawGlow(g, s.x, s.y, 14, HAZ, 0.5); }
   }
-  draw_spike(g, o, X, Y, t) {
+  // v1.6 forest skins: same shapes, hitboxes, timings and red telegraphs as v1.5
+  draw_spike(g, o, X, Y, t) { // thorn bramble growing from a root knot
     const p = trapPhase('spike', t + o.off), base = Y + TILE;
     const h = p.st === 'on' ? 16 : p.st === 'warn' ? 3 + 3 * Math.abs(Math.sin(p.k * 18)) : p.st === 'down' ? 16 * (1 - p.k) : 2;
-    g.fillStyle = '#3a2a34'; g.fillRect(X + 1, base - 4, TILE - 2, 4); // socket plate always visible
+    g.fillStyle = '#15131f'; g.beginPath(); g.ellipse(X + 12, base - 2, 13, 4.5, 0, 0, 7); g.fill(); g.fillStyle = '#5a3a24'; g.beginPath(); g.ellipse(X + 12, base - 2.5, 11.5, 3.2, 0, 0, 7); g.fill(); // root knot, always visible
+    g.fillStyle = '#3f7a3a'; g.beginPath(); g.ellipse(X + 5, base - 4, 3, 1.4, -0.5, 0, 7); g.ellipse(X + 19, base - 4, 3, 1.4, 0.5, 0, 7); g.fill();
     g.fillStyle = p.st === 'idle' ? '#7a5060' : HAZ; g.strokeStyle = '#15131f'; g.lineWidth = 1.6; g.beginPath();
-    for (let i = 0; i < 3; i++) { const x = X + 1 + i * 7.3; g.moveTo(x, base - 4); g.lineTo(x + 3.6, base - 4 - h); g.lineTo(x + 7.3, base - 4); }
+    for (let i = 0; i < 3; i++) { const x = X + 1 + i * 7.3, c = (i - 1) * 1.6; g.moveTo(x, base - 4); g.quadraticCurveTo(x + 2 + c, base - 4 - h * 0.6, x + 3.6 + c, base - 4 - h); g.quadraticCurveTo(x + 5 + c, base - 4 - h * 0.5, x + 7.3, base - 4); }
     g.fill(); g.stroke();
     if (p.st === 'warn') { drawGlow(g, X + 12, base - 6, 26, HAZ, 0.45 + 0.4 * Math.abs(Math.sin(p.k * 14))); g.fillStyle = '#fff'; g.fillRect(X + 4 + ((p.k * 40) % 16), base - 8, 2, 2); }
     if (p.st === 'on') drawGlow(g, X + 12, base - 10, 22, HAZ, 0.35);
   }
-  draw_vent(g, o, X, Y, t) {
+  draw_vent(g, o, X, Y, t) { // spore vent: a fungus mouth in the earth that puffs a spore plume
     const p = trapPhase('vent', t + o.off), base = Y + TILE;
-    g.fillStyle = '#2c2630'; g.strokeStyle = '#15131f'; g.lineWidth = 2; g.beginPath(); g.roundRect(X + 1, base - 7, TILE - 2, 7, 2); g.fill(); g.stroke();
-    g.fillStyle = p.st === 'idle' ? '#5a4650' : HAZ; for (let i = 0; i < 3; i++) g.fillRect(X + 4 + i * 6, base - 5, 3, 3);
-    if (p.st === 'warn') { drawGlow(g, X + 12, base - 6, 24, HAZ, 0.3 + 0.5 * p.k); if (Math.random() < 0.3) this.W.fx.burst(X + 12, base - 8, 1, { color: '#ffd0dc', min: 30, max: 80, g: -60, life: 0.4, size: 3, angle: -Math.PI / 2, spread: 0.5 }); }
-    if (p.st === 'on') { const a = Math.min(1, p.k * 6) * Math.min(1, (1 - p.k) * 6); g.globalAlpha = 0.55 * a; const gr = g.createLinearGradient(0, base, 0, base - 104); gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.4, '#ffd0dc'); gr.addColorStop(1, 'rgba(255,61,110,0)'); g.fillStyle = gr; g.beginPath(); g.moveTo(X + 4, base - 6); g.quadraticCurveTo(X - 6 + Math.sin(t * 20) * 3, base - 60, X - 2, base - 104); g.lineTo(X + 26, base - 104); g.quadraticCurveTo(X + 30 + Math.sin(t * 17) * 3, base - 60, X + 20, base - 6); g.fill(); g.globalAlpha = 1; drawGlow(g, X + 12, base - 30, 36, HAZ, 0.3 * a); }
+    g.fillStyle = '#15131f'; g.beginPath(); g.ellipse(X + 12, base - 3, 13, 6, 0, Math.PI, 0); g.fill();
+    g.fillStyle = '#7a5a6a'; g.beginPath(); g.ellipse(X + 12, base - 3, 11, 4.6, 0, Math.PI, 0); g.fill(); // cap rim
+    g.fillStyle = '#c8a8b0'; for (const dx of [-7, 0, 7]) { g.beginPath(); g.arc(X + 12 + dx, base - 5, 1.3, 0, 7); g.fill(); } // spots
+    g.fillStyle = p.st === 'idle' ? '#3a2a34' : HAZ; g.beginPath(); g.ellipse(X + 12, base - 3, 6, 2.2, 0, 0, 7); g.fill(); // mouth (glows red when about to puff)
+    if (p.st === 'warn') { drawGlow(g, X + 12, base - 6, 24, HAZ, 0.3 + 0.5 * p.k); if (Math.random() < 0.3) this.W.fx.burst(X + 12, base - 8, 1, { color: '#f0e0b0', min: 30, max: 80, g: -60, life: 0.4, size: 3, angle: -Math.PI / 2, spread: 0.5 }); }
+    if (p.st === 'on') { const a = Math.min(1, p.k * 6) * Math.min(1, (1 - p.k) * 6); g.globalAlpha = 0.55 * a; const gr = g.createLinearGradient(0, base, 0, base - 104); gr.addColorStop(0, '#fff6d8'); gr.addColorStop(0.4, '#f0d8a0'); gr.addColorStop(1, 'rgba(255,61,110,0)'); g.fillStyle = gr; g.beginPath(); g.moveTo(X + 4, base - 6); g.quadraticCurveTo(X - 6 + Math.sin(t * 20) * 3, base - 60, X - 2, base - 104); g.lineTo(X + 26, base - 104); g.quadraticCurveTo(X + 30 + Math.sin(t * 17) * 3, base - 60, X + 20, base - 6); g.fill();
+      g.fillStyle = '#fff2c0'; for (let i = 0; i < 6; i++) { const yy = base - ((t * 90 + i * 17) % 100), xx = X + 12 + Math.sin(t * 6 + i * 2) * 8; g.beginPath(); g.arc(xx, yy, 1.8, 0, 7); g.fill(); } g.globalAlpha = 1; drawGlow(g, X + 12, base - 30, 36, HAZ, 0.3 * a); }
   }
-  draw_crusher(g, o, X, Y, t) {
+  draw_crusher(g, o, X, Y, t) { // falling log on two vine ropes from the canopy (ropes are painted to the trap tile; these reach the log)
     const p = trapPhase('crusher', t + o.off), y = this.crusherY(o, t), cx = X + 12, sh = p.st === 'warn' ? Math.sin(t * 60) * 2 : 0;
-    // chain to the ceiling
-    g.strokeStyle = '#5a5268'; g.lineWidth = 3; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(cx, Y - 2); g.lineTo(cx, y); g.stroke(); g.setLineDash([]);
-    // shadow / landing marker grows while it is about to drop
+    for (const dx of [-6, 6]) { g.strokeStyle = '#15131f'; g.lineWidth = 4.4; g.beginPath(); g.moveTo(cx + dx, Y - 2); g.lineTo(cx + dx + sh, y + 2); g.stroke(); g.strokeStyle = '#4f7a3a'; g.lineWidth = 2.2; g.stroke(); }
     const sk = p.st === 'warn' ? p.k : p.st === 'fall' ? 1 : p.st === 'idle' ? 0.15 : p.st === 'on' ? 1 : 1 - p.k;
     g.globalAlpha = 0.25 + 0.55 * sk; g.fillStyle = sk > 0.2 ? HAZ : '#15131f'; g.beginPath(); g.ellipse(cx, o.ground - 2, 10 + 12 * sk, 3 + 2 * sk, 0, 0, 7); g.fill(); g.globalAlpha = 1;
     if (p.st === 'warn') drawGlow(g, cx, o.ground - 4, 30, HAZ, 0.5 * p.k);
-    g.fillStyle = '#4a4258'; g.strokeStyle = '#15131f'; g.lineWidth = 2.5; g.beginPath(); g.roundRect(cx - 20 + sh, y, 40, 30, 4); g.fill(); g.stroke();
-    g.fillStyle = p.st === 'warn' || p.st === 'fall' ? HAZ : '#8a3048'; for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(cx - 18 + i * 10 + sh, y + 30); g.lineTo(cx - 13 + i * 10 + sh, y + 37); g.lineTo(cx - 8 + i * 10 + sh, y + 30); g.fill(); }
-    g.fillStyle = p.st === 'warn' ? '#ffe0e8' : '#2a2434'; g.fillRect(cx - 9 + sh, y + 9, 5, 5); g.fillRect(cx + 4 + sh, y + 9, 5, 5); // eyes light up when it is about to slam
+    // the log: bark body, cut ring ends, red thorn teeth underneath
+    g.fillStyle = '#6a4428'; g.strokeStyle = '#15131f'; g.lineWidth = 2.5; g.beginPath(); g.roundRect(cx - 20 + sh, y, 40, 30, 9); g.fill(); g.stroke();
+    g.strokeStyle = '#3c2416'; g.lineWidth = 1.2; for (const yy of [8, 15, 22]) { g.beginPath(); g.moveTo(cx - 16 + sh, y + yy); g.bezierCurveTo(cx - 6 + sh, y + yy - 2, cx + 6 + sh, y + yy + 2, cx + 16 + sh, y + yy); g.stroke(); }
+    for (const ex of [-20, 20]) { g.fillStyle = '#15131f'; g.beginPath(); g.ellipse(cx + ex + sh, y + 15, 5, 14, 0, 0, 7); g.fill(); g.fillStyle = '#d8a868'; g.beginPath(); g.ellipse(cx + ex + sh, y + 15, 3.6, 12.4, 0, 0, 7); g.fill(); g.strokeStyle = '#8a5a30'; g.lineWidth = 0.8; g.beginPath(); g.ellipse(cx + ex + sh, y + 15, 1.8, 7, 0, 0, 7); g.stroke(); }
+    g.fillStyle = '#5fae4a'; g.beginPath(); g.ellipse(cx - 4 + sh, y + 1, 10, 3, 0, 0, 7); g.fill(); // moss on top
+    g.fillStyle = p.st === 'warn' || p.st === 'fall' ? HAZ : '#8a3048'; g.strokeStyle = '#15131f'; g.lineWidth = 1;
+    for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(cx - 18 + i * 10 + sh, y + 30); g.lineTo(cx - 13 + i * 10 + sh, y + 37); g.lineTo(cx - 8 + i * 10 + sh, y + 30); g.fill(); g.stroke(); }
+    g.fillStyle = p.st === 'warn' ? '#ffe0e8' : '#2a1a14'; g.beginPath(); g.ellipse(cx - 6.5 + sh, y + 12, 3, 3.4, 0, 0, 7); g.ellipse(cx + 6.5 + sh, y + 12, 3, 3.4, 0, 0, 7); g.fill(); // knot-hole eyes light up before the slam
   }
-  draw_saw(g, o, X, Y, t) {
+  draw_saw(g, o, X, Y, t) { // spinning seed-pod on a branch rail (rail ends sit on trunk posts painted with the tiles)
     const y = Y + 12, x0 = o.x * TILE + 12, x1 = o.x2 * TILE + 12;
-    g.strokeStyle = '#15131f'; g.lineWidth = 5; g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.strokeStyle = '#7a5060'; g.lineWidth = 2; g.stroke();
-    for (const x of [x0, x1]) { g.fillStyle = HAZ; g.beginPath(); g.arc(x, y, 4, 0, 7); g.fill(); }
-    g.save(); g.translate(o.px, y); g.rotate(t * 12 * o.dir); g.fillStyle = '#d8d0e0'; g.strokeStyle = '#15131f'; g.lineWidth = 2; g.beginPath();
+    g.strokeStyle = '#15131f'; g.lineWidth = 6; g.lineCap = 'round'; g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.strokeStyle = '#8a5e36'; g.lineWidth = 3; g.stroke(); g.strokeStyle = '#c09060'; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, y - 1); g.lineTo(x1, y - 1); g.stroke();
+    for (const x of [x0, x1]) { g.fillStyle = '#15131f'; g.beginPath(); g.arc(x, y, 5.5, 0, 7); g.fill(); g.fillStyle = HAZ; g.beginPath(); g.arc(x, y, 4, 0, 7); g.fill(); }
+    g.save(); g.translate(o.px, y); g.rotate(t * 12 * o.dir); g.fillStyle = '#e8d8b0'; g.strokeStyle = '#15131f'; g.lineWidth = 2; g.beginPath();
     for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2, r = i % 2 ? 9 : 13; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); g.fill(); g.stroke();
-    g.fillStyle = HAZ; g.beginPath(); g.arc(0, 0, 4, 0, 7); g.fill(); g.restore(); drawGlow(g, o.px, y, 26, HAZ, 0.3);
+    g.fillStyle = '#7a5030'; g.beginPath(); g.arc(0, 0, 7, 0, 7); g.fill(); g.fillStyle = HAZ; g.beginPath(); g.arc(0, 0, 4, 0, 7); g.fill(); g.restore(); drawGlow(g, o.px, y, 26, HAZ, 0.3);
   }
-  draw_crumble(g, o, X, Y, t) {
+  draw_crumble(g, o, X, Y, t) { // rotten branch: grey-green wood with cracks and fungus, shakes red before it snaps
     if (o.st === 'gone') { const k = o.t / TRAP_TIMING.crumble.gone; if (k > 0.6) { g.globalAlpha = (k - 0.6) * 1.2; g.strokeStyle = '#a6e47a'; g.setLineDash([3, 3]); g.strokeRect(X + 1, Y + 1, o.n * TILE - 2, 8); g.setLineDash([]); g.globalAlpha = 1; } return; }
     const sh = o.st === 'shake' ? Math.sin(t * 70) * 1.6 : 0;
-    for (let i = 0; i < o.n; i++) { const x = X + i * TILE + sh; g.fillStyle = '#8a6a50'; g.strokeStyle = '#15131f'; g.lineWidth = 1.6; g.beginPath(); g.roundRect(x + 1, Y, TILE - 2, 9, 2); g.fill(); g.stroke(); g.strokeStyle = o.st === 'shake' ? HAZ : '#5a4030'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(x + 6, Y + 1); g.lineTo(x + 10, Y + 5); g.lineTo(x + 8, Y + 8); g.moveTo(x + 16, Y + 1); g.lineTo(x + 14, Y + 6); g.stroke(); }
+    g.fillStyle = '#15131f'; g.beginPath(); g.roundRect(X - 1 + sh, Y - 1.5, o.n * TILE + 2, 11, 5); g.fill();
+    for (let i = 0; i < o.n; i++) { const x = X + i * TILE + sh; g.fillStyle = i % 2 ? '#7a6a52' : '#84745a'; g.fillRect(x, Y, TILE, 8); g.fillStyle = 'rgba(200,220,170,0.35)'; g.fillRect(x, Y, TILE, 1.4);
+      g.strokeStyle = o.st === 'shake' ? HAZ : '#3a2e22'; g.lineWidth = 1.3; g.beginPath(); g.moveTo(x + 6, Y + 1); g.lineTo(x + 10, Y + 5); g.lineTo(x + 8, Y + 8); g.moveTo(x + 16, Y + 1); g.lineTo(x + 14, Y + 6); g.stroke();
+      if ((i + o.x) % 2 === 0) { g.fillStyle = '#e0c890'; g.beginPath(); g.ellipse(x + 18, Y + 9, 3.2, 1.6, 0, 0, Math.PI); g.fill(); } } // bracket fungus underneath
     if (o.st === 'shake') drawGlow(g, X + o.n * 12, Y + 4, 24 + o.n * 6, HAZ, 0.4);
   }
-  draw_shooter(g, o, X, Y, t) {
+  draw_shooter(g, o, X, Y, t) { // knot-hole in the bark that spits thorns
     const p = trapPhase('shooter', t + o.off), mx = X + 12 + o.dir * 10, my = Y + 12;
-    g.fillStyle = '#4a3a48'; g.strokeStyle = '#15131f'; g.lineWidth = 2; g.beginPath(); g.arc(mx, my, 8, 0, 7); g.fill(); g.stroke();
-    g.fillStyle = p.st === 'warn' ? HAZ : '#2a2030'; g.beginPath(); g.arc(mx + o.dir * 3, my, 3.5 + (p.st === 'warn' ? p.k * 2 : 0), 0, 7); g.fill();
+    g.fillStyle = '#5a3a24'; g.strokeStyle = '#15131f'; g.lineWidth = 2; g.beginPath(); g.ellipse(mx, my, 7, 9, 0, 0, 7); g.fill(); g.stroke();
+    g.strokeStyle = '#8a6040'; g.lineWidth = 1; g.beginPath(); g.ellipse(mx, my, 5, 7, 0, 0, 7); g.stroke();
+    g.fillStyle = p.st === 'warn' ? HAZ : '#1e140e'; g.beginPath(); g.arc(mx + o.dir * 2, my, 3.5 + (p.st === 'warn' ? p.k * 2 : 0), 0, 7); g.fill();
     if (p.st === 'warn') drawGlow(g, mx + o.dir * 4, my, 18 + 12 * p.k, HAZ, 0.4 + 0.4 * p.k);
   }
 }

@@ -11,8 +11,8 @@ def key(name, green=False, extra=()):
 meta = {'bg': {}, 'tex': {}, 'spr': {}}
 # v1.2 depth separation: [blur px at source res, saturation, brightness, fog rgb, fog mix] baked into far/mid/near layers
 from PIL import ImageFilter
-POST = {'ov_far': (4.0, 0.5, 0.72, (70, 80, 110), 0.30), 'ov_mid': (2.6, 0.6, 0.7, (60, 66, 96), 0.22), 'ov_near': (1.4, 0.72, 0.74, (40, 44, 70), 0.12),
-        'hub_mid': (2.6, 0.62, 0.72, (60, 76, 90), 0.22), 'hub_near': (1.4, 0.75, 0.76, (40, 52, 64), 0.12),
+POST = {'ov_far': (3.0, 0.6, 0.92, (190, 214, 180), 0.38), 'ov_mid': (2.6, 0.55, 0.9, (172, 198, 184), 0.42), 'ov_near': (1.0, 0.85, 0.8, (50, 64, 44), 0.10),
+        'hub_mid': (2.4, 0.6, 0.88, (168, 190, 160), 0.34), 'hub_near': (1.0, 0.85, 0.8, (48, 62, 44), 0.10),
         'boss_mid': (2.6, 0.6, 0.66, (70, 40, 50), 0.22), 'boss_near': (1.4, 0.72, 0.7, (50, 30, 40), 0.12),
         'cv_mid': (2.6, 0.7, 0.72, (30, 60, 80), 0.24), 'cv_near': (1.4, 0.8, 0.78, (20, 40, 56), 0.12)}
 def depth(im, blur, sat, bri, fog, mix):
@@ -25,7 +25,7 @@ def depth(im, blur, sat, bri, fog, mix):
     return Image.fromarray((np.clip(np.concatenate([rgb, ab], -1), 0, 1) * 255).astype(np.uint8), 'RGBA')
 # ---- parallax layers: [file, green, opaque]
 for n, g, opaque in [('ov_sky', 0, 1), ('ov_far', 0, 0), ('ov_mid', 0, 0), ('ov_near', 0, 0), ('fg_vines', 0, 0),
-                     ('hub_sky', 0, 1), ('hub_mid', 0, 0), ('hub_near', 0, 0), ('boss_sky', 0, 1), ('boss_mid', 1, 0), ('boss_near', 1, 0), ('title_key', 0, 1),
+                     ('hub_sky', 0, 1), ('hub_mid', 0, 0), ('hub_near', 0, 0), ('boss_sky', 0, 1), ('boss_mid', 0, 0), ('boss_near', 0, 0), ('title_key', 0, 1),
                      ('cv_sky', 0, 1), ('cv_mid', 0, 0), ('cv_near', 0, 0)]:
     im = Image.open(S + n + '.jpg').convert('RGB') if opaque else key(n, g)
     W, H = im.size; top = 0
@@ -48,7 +48,7 @@ def seamless(im, size=512):
     # m=1 near edges of the original -> use shifted copy (whose centre is the seam-free original edge)
     out = a * (1 - m) + sh * m
     return Image.fromarray(out.astype(np.uint8))
-for n in ['tex_stone', 'tex_metal', 'tex_root', 'tex_rock', 'tex_cave']:
+for n in ['tex_stone', 'tex_metal', 'tex_root', 'tex_rock', 'tex_cave', 'tex_earth', 'tex_rootcave', 'tex_dusk']:
     seamless(Image.open(S + n + '.jpg'), 384).save(O + n + '.webp', quality=82, method=6)
 # ---- sprite sheets split by empty-column gaps
 def split(im, names, gap=None, ds=4):

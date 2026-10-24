@@ -155,7 +155,7 @@ addEventListener('rs-pausemap', () => game.drawPauseMap());
 window.__RS = {
   foes: { Enemy, Warden, TideGolem, Boss, DrownedBloom }, trapPhase, TRAP_TIMING, TRAP_DMG,
   game, save, input, TILE, gfx: G, writeSave, loadSave, continueRun: () => document.querySelector('[data-act="continueRun"]').click(), layout: () => input.layout,
-  get W() { return game.world; },
+  get W() { return game.world; }, supports() { return game.world ? game.world.auditSupports() : null; },
   drawMap, mapInfo, renderNow() { if (game.world) render(0); },
   start(mode, opts) { initAudio(); game.go(mode, opts); },
   press(b) { simButton(b, true); }, release(b) { simButton(b, false); }, axes(x, y) { simAxes(x, y); },
