@@ -131,7 +131,7 @@ export function showDeath(info, kept, found, stats) {
 }
 export function showVictory(glim, stats) {
   const first = save.progress.wins === 1;
-  show('victory', `<div class="res-art win-art"></div><div class="res win"><h2>The furnace is calm!</h2><p class="big-t">Flowers bloom across Rustvine Overpass.${first ? ' <b class="first">First victory!</b>' : ''}</p>
+  show('victory', `<div class="res-art win-art"></div><div class="res win"><h2>${stats.final ? 'The Drowned Bloom rests!' : 'The furnace is calm!'}</h2><p class="big-t">${stats.final ? 'Light returns to the Glowroots and the Overpass.' : 'Flowers bloom across Rustvine Overpass.'}${first ? ' <b class="first">First victory!</b>' : ''}</p>
   <div class="res-glim">${ic('glimmer', '#ffe27a', 30)}<b data-count="${glim}">0</b><span>glimmers banked</span></div>
   <div class="stats"><div><b data-count="${stats.kills}">0</b>baddies popped</div><div><b>${stats.time}</b>run time</div><div><b>${save.progress.wins}</b>total wins</div></div>
   ${unlockHtml()}

@@ -7,13 +7,22 @@ A small, original 2D action platformer for Android and the web. You play a littl
 
 ## What's in it
 - **Moves:** run, jump (hold for higher), wall-slide and wall-jump, dash (you can't be hit mid-dash), and a vine hook to **swing** or **zip** to rings. Coyote time, jump buffering, ledge help and hook aim-assist make it forgiving.
-- **Fighting:** combo attacks, a heavy attack (hold attack), parry, 4 weapons (Rustblade, Vinelash, Gearhammer, Thornbow), 2 skills (Popseed, Thornling), and Dew Flasks for healing. Enemies pop into sparks.
-- **World:** a calm hub garden, then *Rustvine Overpass*: 15–25 randomly arranged rooms with hidden secret rooms, a mini-boss (the Warden) and a 3-phase boss (the Furnace).
-- **Keep what you earn:** glimmers buy permanent unlocks in the hub. Progress, settings and a mid-run checkpoint are saved on the device.
+- **Fighting:** combo attacks, a heavy attack (hold attack), parry, 6 weapons (Rustblade, Vinelash, Gearhammer, Thornbow, plus Tidespear and Glowsickle from biome 2), 2 skills (Popseed, Thornling), and Dew Flasks for healing. Enemies pop into sparks.
+- **World (v1.3, much bigger):** a calm hub garden, then two biomes. Each has 40–60 randomly arranged rooms, including wide rooms, tall shafts, arenas, branching side paths with treasure and secret rooms, and drop shortcuts.
+  1. *Rustvine Overpass*: mini-boss the Warden, boss the Furnace.
+  2. *Drowned Glowroots*, a flooded, glowing cavern: new enemies (Lurefish, Glowjelly, Shellback), mini-boss the Tide Golem, and the final boss, the Drowned Bloom.
+- **Map and saves:** a minimap, plus a full map in the pause menu that shows explored rooms, where you are, checkpoints and the boss door. Glowing checkpoint shrines (every 8–12 rooms) and the start of each biome save your run, so you can quit and Continue later.
+- **Run length:** about **30–40 minutes** for a full run on Easy. That is roughly 47 rooms per biome at ~20 s each on the main path, plus side rooms and three or four boss fights. It is an estimate from the room count and test pacing, not measured on a phone.
+- **Keep what you earn:** glimmers buy permanent unlocks in the hub. Progress, settings and your run checkpoint are saved on the device. The hub skill *Ember Heart* revives you once per biome.
 - **Gentle by default:** game speed 0.8 and Easy difficulty (both adjustable). There's an option to reduce screen shake, plus music and sound toggles.
 - **Controls:** touch (stick on the left, buttons on the right), keyboard, or a gamepad.
 
 Free. No accounts, no ads, no network calls. Everything runs locally.
+
+## v1.3
+- **Engine:** render chunks stream in and out with the camera (an LRU cache of 40), and enemies only simulate near you, so the bigger maps don't use more memory or CPU.
+- **Tests:** the generator is checked for reachability over many seeds in both biomes (`node tools/reach.mjs 300`). It confirms 40–60 rooms and checkpoint spacing.
+- **Comparison:** v1.2 vs v1.3 sheets are in `shots/compare-v13-*.png`.
 
 ## Keyboard
 Arrows/WASD move · Space/Z jump · X attack (hold for heavy) · Shift/C dash · V hook · F parry · Q/1 and R/2 skills · H/3 flask · Esc pause

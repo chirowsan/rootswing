@@ -36,7 +36,7 @@ const game = {
       this.go('run', { seed: W.seed, stage: 1, player: { hp: P.maxHp, flasks: P.maxFlasks, weapon: P.weapon }, glim: W.runGlim, kills: P.stats.kills }); save.run.t = t; writeSave(); this.world.fx.text(this.world.player.cx, this.world.player.y - 40, 'Biome 2: Drowned Glowroots', '#bffcff', 18); return;
     }
     const glim = W.runGlim; save.progress.glimmers += glim; save.progress.totalGlimmers += glim; save.progress.wins++; save.progress.bossBeaten++; save.run = null; writeSave();
-    const t = Math.round(this.runTime()); this.paused = true; UI.showVictory(glim, { kills: W.player.stats.kills, time: Math.floor(t / 60) + 'm ' + String(t % 60).padStart(2, '0') + 's' });
+    const t = Math.round(this.runTime()); this.paused = true; UI.showVictory(glim, { final: (W.stage || 0) >= 1, kills: W.player.stats.kills, time: Math.floor(t / 60) + 'm ' + String(t % 60).padStart(2, '0') + 's' });
   },
   go(mode, opts = {}) {
     UI.close(); this.paused = false; this.bossShown = null; clearAll(); this.state = 'play';

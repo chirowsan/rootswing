@@ -24,3 +24,8 @@
 - 20:19 PDT: P2 painted tiles DONE (tex_rock fill, painted lip strip w/ curled ends, hanging-root strip, crumbly ledge teeth, side vine drapes, 8 decor props, readable one-way planks). Fixed canvas filter+clip pixel-clearing bug (pre-baked toned sprites).
 - 20:20 PDT: P3 boss arena DONE (dark veil + focal warm pool on boss, boss 150 tall w/ hitbox 86x124, backlight glow, red fill-up telegraphs w/ chevrons)
 - P3+P4 committed: calmer boss arena; juice pass (dust, vine twang, glimmer arcs, damage numbers, micro-zoom, hit-stop, layered SFX, crossfading per-area music incl. mini-boss track). Tests 24/24.
+- 20:37 PDT: reach fixed via auto hook blooms at vertical doors; 0 problems over 200 maps
+- 20:42 PDT: biome-2 enemies (lurefish/jelly/shellback), Tide Golem, Drowned Bloom final boss, stages, checkpoint shrines, pause map wired
+- 20:43 PDT: tests 25/25 (biome-2 flow, final boss, checkpoint resume); reach 600 maps 0 problems avg 47.1 rooms
+- 20:52 PDT: weapons spear/sickle (new art), Ember Heart hub skill, LRU chunk streaming (40 chunks), pause map; tests 46/46
+- 20:54 PDT: resumed after interrupt; shots/v13 caverns set (11-16) taken, 0 page errors; README v1.3 section + run-length estimate
