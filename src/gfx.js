@@ -1,6 +1,7 @@
 // Painted art loader (v1.1). Everything degrades to the procedural v1.0 drawing when assets are missing.
 export const G = { ready: false, ver: 0, img: {}, spr: {}, atlas: null, meta: null, tint: new Map(), hero: null, en: null };
-const loadImg = (src) => new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
+G.prog = 0; let nWant = 0, nGot = 0; /* v2.3: load progress for the title loading bar */
+const loadImg = (src) => new Promise((res) => { nWant++; const i = new Image(); const done = (v) => { nGot++; G.prog = Math.max(G.prog, nGot / Math.max(nWant, 12)); res(v); }; i.onload = () => done(i); i.onerror = () => done(null); i.src = src; });
 export async function loadGfx(base = 'gfx/') {
   try {
     const meta = await (await fetch(base + 'atlas.json')).json(); G.meta = meta;
@@ -10,7 +11,7 @@ export async function loadGfx(base = 'gfx/') {
     try { const [hm, hi] = await Promise.all([fetch(base + 'hero.json').then((r) => r.json()), loadImg(base + 'hero.webp')]); if (hi && hm) G.hero = { img: hi, f: hm.f, gait: hm.gait || {}, hand: hm.hand || {}, cache: new Map() }; } catch (e) { G.hero = null; }
     try { const [em, ei] = await Promise.all([fetch(base + 'enemies.json').then((r) => r.json()), loadImg(base + 'enemies.webp')]); if (ei && em) G.en = { img: ei, f: em.f, cache: new Map() }; } catch (e) { G.en = null; }
     loadStory(base); // v2.1 story sprites (Moss, Great Root, Blight) stream in after the core art; never blocks boot
-    G.atlas = imgs[0]; names.forEach((n, i) => { if (imgs[i + 1]) G.img[n] = imgs[i + 1]; }); G.spr = meta.spr; G.ready = true; G.ver++;
+    G.atlas = imgs[0]; names.forEach((n, i) => { if (imgs[i + 1]) G.img[n] = imgs[i + 1]; }); G.spr = meta.spr; G.prog = 1; G.ready = true; G.ver++;
     return true;
   } catch (e) { return false; }
 }

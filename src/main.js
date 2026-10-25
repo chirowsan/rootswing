@@ -1,4 +1,5 @@
 // Boot, game flow and the fixed-step loop.
+import * as POL from './polish23.js';
 import { save, loadSave, writeSave, diff } from './save.js';
 import { initAudio, sfx, playSong, applyVolumes, director, stinger, audio, initAudio as _ia } from './audio.js';
 import { input, initInput, pollInput, endStep, pressed, held, computeLayout, drawTouch, clearAll, simButton, simAxes } from './input.js';
@@ -33,7 +34,7 @@ const STEP = 1 / 60;
 const canvas = document.getElementById('c'); const g = canvas.getContext('2d', { alpha: false });
 const game = {
   state: 'title', chapter: 0, ngRun: 0, world: null, tut: null, bossShown: null, paused: false, dpr: 1, cssW: 0, cssH: 0, perf: { frames: 0, slow: 0, ms: [] }, runStart: 0, god: false,
-  bossBar(e) { this.bossShown = e; },
+  bossBar(e) { if (e && e !== this.bossShown) POL.introCard(this.world, e); this.bossShown = e; },
   saveRunState(W, cellIndex) { save.run = { seed: W.seed, stage: W.stage || 0, cellIndex, hp: W.player.hp, flasks: W.player.flasks, weapon: W.player.weapon, glim: W.runGlim, cleared: [...W.cleared], visited: [...W.visited], opened: [...W.opened], seeds: [...(W.seedsGot || [])], treasures: this.treasures || 0, boss: false, kills: W.player.stats.kills, t: this.runTime(), daily: this.daily || null, af: !!this.areaFlask, ch: W.chapter || 0, ng: this.ngRun || 0, sp: SP.persist(W) }; this.runStart = performance.now(); writeSave(); },
   runTime() { return (save.run && save.run.t || 0) + (performance.now() - this.runStart) / 1000; },
   openStation(n) { this.paused = true; clearAll(); if (n === 1) UI.showShop(); else if (n === 2) UI.showLoadout(); else if (n === 4) UI.showBoard(); else UI.showJournal(); UI.ui.back = 'game'; },
@@ -166,22 +167,44 @@ function render(dt, alpha = 1) {
 }
 let titleWorld = null;
 let titleMotes = null;
-function paintedTitle(dt) { // v1.1: painted key art with a slow drift, sun bloom and drifting pollen
-  const img = G.img.title_key, cw = canvas.width, ch = canvas.height, lo = game.lowPerf || save.settings.quality === 'low';
-  const tt = (game.titleT = (game.titleT || 0) + dt), z = 1.06 + (lo ? 0 : Math.sin(tt * 0.07) * 0.025), sc = Math.max(cw / img.width, ch / img.height) * z;
-  const w = img.width * sc, h = img.height * sc, x = (cw - w) / 2 + (lo ? 0 : Math.sin(tt * 0.05) * cw * 0.01) - cw * 0.03, y = (ch - h) / 2 + (lo ? 0 : Math.cos(tt * 0.06) * ch * 0.006);
+let tGrad = null, tPar = { x: 0, y: 0, tx: 0, ty: 0 }; /* v2.3: cached title gradients + pointer/tilt parallax */
+addEventListener('pointermove', (e) => { tPar.tx = (e.clientX / innerWidth - 0.5) * 2; tPar.ty = (e.clientY / innerHeight - 0.5) * 2; }, { passive: true });
+addEventListener('deviceorientation', (e) => { if (e.gamma == null) return; tPar.tx = Math.max(-1, Math.min(1, e.beta / 25)); tPar.ty = Math.max(-1, Math.min(1, (e.gamma + 40) / 30 - 1)); }, { passive: true });
+function frond(g, x, y, len, ang, w, col) { g.save(); g.translate(x, y); g.rotate(ang); g.fillStyle = col; g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(len * 0.5, -w, len, 0); g.quadraticCurveTo(len * 0.5, w * 0.6, 0, 0); g.fill();
+  for (let i = 1; i < 7; i++) { const t = i / 7, px = len * t, s = (1 - t) * w * 1.6; g.beginPath(); g.moveTo(px, -w * 0.3 * (1 - t)); g.quadraticCurveTo(px + s * 0.5, -s, px + s * 0.9, -s * 1.1); g.quadraticCurveTo(px + s * 0.3, -s * 0.3, px, 0); g.fill(); g.beginPath(); g.moveTo(px, 0); g.quadraticCurveTo(px + s * 0.5, s * 0.9, px + s, s); g.quadraticCurveTo(px + s * 0.3, s * 0.2, px, 0); g.fill(); }
+  g.restore(); }
+function paintedTitle(dt) { // v1.1 painted key art; v2.3 adds parallax layers, foreground fronds, cached gradients
+  const img = G.img.title_key, cw = canvas.width, ch = canvas.height, lo = game.lowPerf || save.settings.quality === 'low', calm = save.settings.shake === 'off' || save.settings.flash === 'reduced';
+  const tt = (game.titleT = (game.titleT || 0) + dt), k = Math.min(1, dt * 3); if (lo || calm) { tPar.x = tPar.y = 0; } else { tPar.x += (tPar.tx + Math.sin(tt * 0.21) * 0.25 - tPar.x) * k; tPar.y += (tPar.ty * 0.6 - tPar.y) * k; }
+  const z = 1.08 + (lo ? 0 : Math.sin(tt * 0.07) * 0.02), sc = Math.max(cw / img.width, ch / img.height) * z;
+  const w = img.width * sc, h = img.height * sc, x = (cw - w) / 2 + (lo ? 0 : Math.sin(tt * 0.05) * cw * 0.008) - cw * 0.03 - tPar.x * cw * 0.012, y = (ch - h) / 2 + (lo ? 0 : Math.cos(tt * 0.06) * ch * 0.005) - tPar.y * ch * 0.01;
   g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(img, x, y, w, h);
-  const lg = g.createLinearGradient(0, 0, cw * 0.62, 0); lg.addColorStop(0, 'rgba(8,10,22,0.78)'); lg.addColorStop(0.55, 'rgba(8,10,22,0.35)'); lg.addColorStop(1, 'rgba(8,10,22,0)'); g.fillStyle = lg; g.fillRect(0, 0, cw, ch);
-  const vg = g.createRadialGradient(cw / 2, ch / 2, ch * 0.4, cw / 2, ch / 2, Math.max(cw, ch) * 0.75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(6,4,14,0.55)'); g.fillStyle = vg; g.fillRect(0, 0, cw, ch);
+  if (!tGrad || tGrad.cw !== cw || tGrad.ch !== ch) { const lg = g.createLinearGradient(0, 0, cw * 0.62, 0); lg.addColorStop(0, 'rgba(8,10,22,0.78)'); lg.addColorStop(0.55, 'rgba(8,10,22,0.35)'); lg.addColorStop(1, 'rgba(8,10,22,0)');
+    const vg = g.createRadialGradient(cw / 2, ch / 2, ch * 0.4, cw / 2, ch / 2, Math.max(cw, ch) * 0.75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(6,4,14,0.55)'); tGrad = { cw, ch, lg, vg }; }
+  g.fillStyle = tGrad.lg; g.fillRect(0, 0, cw, ch); g.fillStyle = tGrad.vg; g.fillRect(0, 0, cw, ch);
   if (lo) return;
   g.globalCompositeOperation = 'lighter'; drawGlow(g, x + w * 0.28, y + h * 0.6, ch * 0.35, '#ffc070', 0.22 + Math.sin(tt * 0.8) * 0.04);
   if (!titleMotes) titleMotes = Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random(), s: 0.6 + Math.random() * 1.6, v: 0.01 + Math.random() * 0.03, p: Math.random() * 7, c: Math.random() < 0.3 ? '#7ff6e0' : '#ffe9a8' }));
   for (const m of titleMotes) { m.y -= m.v * dt; m.x += Math.sin(tt * 0.6 + m.p) * 0.0006; if (m.y < -0.02) { m.y = 1.02; m.x = Math.random(); }
-    const a = 0.35 + Math.sin(tt * 2 + m.p) * 0.3, r = m.s * ch / 412; g.globalAlpha = Math.max(0, a); drawGlow(g, m.x * cw, m.y * ch, r * 5, m.c, 0.6); g.fillStyle = m.c; g.fillRect(m.x * cw - r / 2, m.y * ch - r / 2, r, r); }
+    const d = m.s / 2.2, a = 0.35 + Math.sin(tt * 2 + m.p) * 0.3, r = m.s * ch / 412, mx = m.x * cw - tPar.x * cw * 0.03 * d, my = m.y * ch - tPar.y * ch * 0.02 * d; g.globalAlpha = Math.max(0, a); drawGlow(g, mx, my, r * 5, m.c, 0.6); g.fillStyle = m.c; g.fillRect(mx - r / 2, my - r / 2, r, r); }
   g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  const u = ch / 412, fx = -tPar.x * cw * 0.035, fy = -tPar.y * ch * 0.025, sw = Math.sin(tt * 0.9) * 0.04; /* near layer: dark fronds framing the corners */
+  frond(g, -20 * u + fx, ch + 10 * u + fy, 210 * u, -0.75 + sw, 26 * u, 'rgba(6,14,10,0.92)'); frond(g, 30 * u + fx, ch + 20 * u + fy, 160 * u, -1.15 + sw * 0.7, 20 * u, 'rgba(10,22,16,0.85)');
+  frond(g, cw + 20 * u + fx, ch + 14 * u + fy, 230 * u, -2.35 - sw, 28 * u, 'rgba(6,14,10,0.92)'); frond(g, cw + 10 * u + fx * 1.2, -10 * u + fy, 150 * u, 2.5 + sw * 0.6, 20 * u, 'rgba(8,16,12,0.8)');
 }
+const TIPS = ['Hold the hook button to swing, let go at the top to fly!', 'A glowing foe is about to attack: jump, dash or parry.', 'Parry spit right back at the thrower!', 'Shields block hits. Try a heavy hit or hit from behind.', 'Shrines and merchants hide in every chapter.', 'Cracked walls hide secrets. Smash them!', 'Lost? Follow the green arrow to the exit.', 'Take a break any time: the game saves for you.'];
+let tipI = Math.floor(Math.random() * TIPS.length), tipT = 0, tFade = 0;
+function loadingBar(dt) { /* v2.3: kind loading bar + rotating tip while the painted art streams in */
+  const cw = canvas.width, ch = canvas.height, u = ch / 412; tipT += dt; if (tipT > 4) { tipT = 0; tipI = (tipI + 1) % TIPS.length; }
+  const w = Math.min(cw * 0.5, 320 * u), x = cw - w - 24 * u, y = 52 * u; g.setTransform(1, 0, 0, 1, 0, 0);
+  g.fillStyle = 'rgba(8,6,16,0.55)'; g.beginPath(); g.roundRect(x - 12 * u, y - 34 * u, w + 24 * u, 52 * u, 12 * u); g.fill();
+  g.fillStyle = 'rgba(255,255,255,0.15)'; g.beginPath(); g.roundRect(x, y, w, 6 * u, 3 * u); g.fill(); g.fillStyle = '#b7f06a'; g.beginPath(); g.roundRect(x, y, Math.max(6 * u, w * (G.prog || 0)), 6 * u, 3 * u); g.fill();
+  g.fillStyle = '#fff4dc'; g.font = `700 ${12 * u}px system-ui,sans-serif`; g.textAlign = 'left'; g.globalAlpha = Math.min(1, tipT * 3, (4 - tipT) * 3); g.fillText(TIPS[tipI], x, y - 12 * u, w); g.globalAlpha = 1; }
 function titleScene(dt) { // the title screen shows a live, idle hub behind the menu
-  if (G.ready && G.img.title_key) return paintedTitle(dt);
+  if (G.ready && G.img.title_key) { paintedTitle(dt); if (tFade < 1) { tFade = Math.min(1, tFade + dt * 1.6); g.fillStyle = `rgba(8,6,16,${1 - tFade})`; g.fillRect(0, 0, canvas.width, canvas.height); } return; }
+  titleSceneHub(dt); if (!G.ready) loadingBar(dt);
+}
+function titleSceneHub(dt) {
   if (!titleWorld) { titleWorld = new World(game, 'hub', {}); titleWorld.countdown = 0; titleWorld.fade = 0; }
   titleWorld.viewW = VIEW_H * game.cssW / game.cssH; titleWorld.t += dt; titleWorld.fx.update(dt); titleWorld.player.t += dt;
   titleWorld.cam.x = titleWorld.player.cx - titleWorld.viewW / 2 + Math.sin(titleWorld.t * 0.1) * 80; titleWorld.cam.y = titleWorld.player.cy - VIEW_H * 0.66;

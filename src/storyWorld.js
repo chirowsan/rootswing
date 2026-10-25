@@ -1,5 +1,6 @@
 // v2.1 story inside the world: chapter wardens/bosses, Memory Leaf pickups, the hub's Elder Moss + Great Root + freed Wardens,
 // chapter tint/weather, and the warden "freed" story beat. Kept out of world.js so v2.0 code stays put.
+import * as POL from './polish23.js';
 import { Warden, Boss, TideGolem, DrownedBloom, Blight, HollowKing } from './boss.js';
 import { WARDENS } from './gauntlet.js';
 import { G, sImg } from './gfx.js';
@@ -99,7 +100,9 @@ export function drawScreen(g, W, cw, ch, s) {
       g.restore(); } }
   const S = W.story; if (!S) return;
   g.textAlign = 'center';
-  if (C && S.banner > 0) { const a = Math.min(1, S.banner, (4 - S.banner) * 3); g.globalAlpha = a; g.fillStyle = 'rgba(10,8,18,0.6)'; g.beginPath(); g.roundRect(cw / 2 - 190 * s, ch * 0.2 - 30 * s, 380 * s, 58 * s, 16 * s); g.fill();
+  POL.drawIntro(g, W, cw, ch, s);
+  if (C && S.banner > 0 && !W.icard) POL.drawChapter(g, W, C, n, S, cw, ch, s);
+  if (false) { const a = Math.min(1, S.banner, (4 - S.banner) * 3); g.globalAlpha = a; g.fillStyle = 'rgba(10,8,18,0.6)'; g.beginPath(); g.roundRect(cw / 2 - 190 * s, ch * 0.2 - 30 * s, 380 * s, 58 * s, 16 * s); g.fill();
     g.fillStyle = C.col; g.font = `900 ${13 * s}px system-ui,sans-serif`; g.fillText('CHAPTER ' + n + (W.mode === 'boss' ? ' - BOSS' : ''), cw / 2, ch * 0.2 - 10 * s);
     g.fillStyle = '#fff'; g.font = `900 ${22 * s}px system-ui,sans-serif`; g.fillText(W.mode === 'boss' ? C.boss : C.name, cw / 2, ch * 0.2 + 16 * s); g.globalAlpha = 1; }
   if (S.toast) { const a = Math.min(1, S.toast.t * 2), w = Math.min(cw * 0.8, 560 * s); g.globalAlpha = a; g.fillStyle = 'rgba(16,30,14,0.82)'; g.beginPath(); g.roundRect(cw / 2 - w / 2, ch - 110 * s, w, 54 * s, 14 * s); g.fill();

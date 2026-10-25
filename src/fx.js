@@ -27,16 +27,16 @@ export class FX {
     const near = this.texts.filter((t) => Math.abs(t.x - x) < 70 && t.t < 0.6 && Math.abs(t.y - y) < 50);
     const nw = near.filter((t) => !t.dmg); if (nw.length >= 2) { const old = nw[0]; this.texts.splice(this.texts.indexOf(old), 1); } // max 2 callouts per spot
     let top = y; for (const t of near) top = Math.min(top, t.y - (t.dmg ? t.size + 6 : 0) - (t.dmg ? 0 : t.size + 5)); // stack above numbers + words (no overlap)
-    this.texts.push({ x, y: Math.max(top, y - 64), s, color, size, t: 0, life: 0.8 });
+    size *= (globalThis.RS_A11Y && RS_A11Y.tk) || 1; this.texts.push({ x, y: Math.max(top, y - 64), s, color, size, t: 0, life: 0.8 });
     const words = this.texts.filter((t) => !t.dmg); if (words.length > 8) this.texts.splice(this.texts.indexOf(words[0]), 1); }
   liftWords(x, y, size) { let top = y - size - 14; const ws = this.texts.filter((w) => !w.dmg && Math.abs(w.x - x) < 80 && w.t < 0.6 && w.y > y - size - 30 - 60).sort((a, b) => b.y - a.y); for (const w of ws) { const h = (w.size || 14); if (w.y > top - h * 0.5) w.y = top - h * 0.5; top = w.y - h - 5; } } // v2.0: callout words never sit under a number or each other
   // v1.3 juice: styled damage number - pops in with overshoot, drifts sideways, heavy hits get a warm gradient + spark
   dmg(x, y, n, o = {}) { const heavy = !!o.heavy, gold = !!o.gold;
     if (o.key) { const t = this.texts.find((q) => q.dmg && q.key === o.key && q.t < 0.55); // v2.0: hits on the same foe merge into one growing number
-      if (t) { t.n += n; t.hits++; t.s = String(t.n); t.x = x; t.y = y; t.t = 0.06; t.bump = 1; t.heavy = t.heavy || heavy || t.n >= 30; t.gold = t.gold || gold; t.crit = t.crit || o.crit; t.tag = o.tag || t.tag; t.size = 12.5 + Math.min(13, Math.sqrt(t.n) * 1.5); t.color = t.gold ? '#ffe27a' : t.heavy ? '#ffb347' : '#fff'; t.life = t.heavy ? 0.95 : 0.8; this.liftWords(x, y, t.size); return; } }
+      if (t) { t.n += n; t.hits++; t.s = String(t.n); t.x = x; t.y = y; t.t = 0.06; t.bump = 1; t.heavy = t.heavy || heavy || t.n >= 30; t.gold = t.gold || gold; t.crit = t.crit || o.crit; t.tag = o.tag || t.tag; t.size = (12.5 + Math.min(13, Math.sqrt(t.n) * 1.5)) * ((globalThis.RS_A11Y && RS_A11Y.tk) || 1); t.color = t.gold ? '#ffe27a' : t.heavy ? '#ffb347' : '#fff'; t.life = t.heavy ? 0.95 : 0.8; this.liftWords(x, y, t.size); return; } }
     this.liftWords(x, y, 12.5 + Math.min(13, Math.sqrt(n) * 1.5) + (heavy ? 2 : 0));
     if (this.texts.filter((q) => q.dmg).length > 10) this.texts.splice(this.texts.findIndex((q) => q.dmg), 1);
-    this.texts.push({ key: o.key, n, hits: 1, crit: !!o.crit, tag: o.tag, bump: 0, x, y, s: String(n), color: gold ? '#ffe27a' : heavy ? '#ffb347' : '#fff', size: 12.5 + Math.min(13, Math.sqrt(n) * 1.5) + (heavy ? 2 : 0), t: 0, life: heavy ? 0.95 : 0.8, dmg: 1, heavy, gold, vx: (o.dir || (Math.random() < 0.5 ? -1 : 1)) * (14 + Math.random() * 12) }); }
+    this.texts.push({ key: o.key, n, hits: 1, crit: !!o.crit, tag: o.tag, bump: 0, x, y, s: String(n), color: gold ? '#ffe27a' : heavy ? '#ffb347' : '#fff', size: (12.5 + Math.min(13, Math.sqrt(n) * 1.5) + (heavy ? 2 : 0)) * ((globalThis.RS_A11Y && RS_A11Y.tk) || 1), t: 0, life: heavy ? 0.95 : 0.8, dmg: 1, heavy, gold, vx: (o.dir || (Math.random() < 0.5 ? -1 : 1)) * (14 + Math.random() * 12) }); }
   // soft dust puffs (landing / running): grow + fade, drawn as layered translucent circles
   dust(x, y, n, o = {}) {
     if (this.p.length > (this.cap || 650)) return;

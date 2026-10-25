@@ -1,0 +1,289 @@
+{
+ "small": {
+  "00-firstboot": {
+   "bad": [],
+   "small": [],
+   "open": "title"
+  },
+  "01-title": {
+   "bad": [],
+   "small": [],
+   "open": "title"
+  },
+  "02-settings": {
+   "bad": [],
+   "small": [
+    "button.focus[set] \"Very calm\" 93x35",
+    "button.on[set] \"Calm\" 59x35",
+    "button[set] \"Steady\" 71x35",
+    "button[set] \"Full\" 49x35",
+    "button[set] \"Relaxed\" 79x35",
+    "button.on[set] \"Normal\" 77x35",
+    "button[set] \"Hard\" 58x35",
+    "button[set] \"Nightmare\" 100x35",
+    "button.on[set] \"Auto\" 58x35",
+    "button[set] \"On\" 44x35",
+    "button[set] \"Off\" 46x35",
+    "button.on[set] \"On\" 44x35",
+    "button.on[set] \"Low\" 52x35",
+    "button.on[set] \"Stick\" 58x35",
+    "button[set] \"◀ ▶ Buttons\" 108x35",
+    "button.on[set] \"Floating\" 81x35",
+    "button[set] \"Fixed\" 61x35",
+    "button[set] \"Small\" 62x35",
+    "button.on[set] \"Medium\" 81x35",
+    "button[set] \"Large\" 64x35",
+    "button[editLayout] \"Move buttons\" 104x22",
+    "button[set] \"Sharp\" 64x35",
+    "button[set] \"Fast\" 53x35",
+    "button.danger[reset] \"Erase progress\" 145x38"
+   ],
+   "open": "settings"
+  },
+  "03-shop": {
+   "bad": [],
+   "small": [
+    "button.focus[buy] \"60\" 63x38",
+    "button[buy] \"70\" 63x38",
+    "button[buy] \"60\" 63x38",
+    "button[buy] \"90\" 63x38",
+    "button[buy] \"50\" 63x38",
+    "button[buy] \"120\" 72x38",
+    "button[buy] \"100\" 72x38",
+    "button[buy] \"130\" 72x38"
+   ],
+   "open": "shop"
+  },
+  "04-loadout": {
+   "bad": [],
+   "small": [],
+   "open": "loadout"
+  },
+  "05-journal": {
+   "bad": [],
+   "small": [],
+   "open": "journal"
+  },
+  "06-hub": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "07-worldmap": {
+   "bad": [],
+   "small": [],
+   "open": "map"
+  },
+  "08-comic": {
+   "bad": [
+    "offscreen div.cm-art \"\" -32,-21,681,380"
+   ],
+   "small": [],
+   "open": "comic"
+  },
+  "09-ch1-start": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "10-combat": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "11-pause": {
+   "bad": [],
+   "small": [],
+   "open": "pause"
+  },
+  "12-death": {
+   "bad": [
+    "offscreen div.res-art \"\" -22,-12,662,372"
+   ],
+   "small": [
+    "button.big[continueRun] \"Try again (2 left)\" 333x39",
+    "button.big[giveUp] \"Give up\" 333x39"
+   ],
+   "open": "death"
+  },
+  "13-victory": {
+   "bad": [
+    "offscreen div.res-art \"\" -21,-12,661,372"
+   ],
+   "small": [
+    "button.big[toHub] \"Home to the Seedhouse\" 333x39"
+   ],
+   "open": "victory"
+  },
+  "14-boss-intro": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "15-boss-fight": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "16-ending": {
+   "bad": [
+    "offscreen div.cm-art \"\" -34,-22,682,381"
+   ],
+   "small": [],
+   "open": "comic"
+  },
+  "17-tutorial": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "errors": []
+ },
+ "wide": {
+  "00-firstboot": {
+   "bad": [],
+   "small": [],
+   "open": "title"
+  },
+  "01-title": {
+   "bad": [],
+   "small": [],
+   "open": "title"
+  },
+  "02-settings": {
+   "bad": [],
+   "small": [
+    "button.focus[set] \"Very calm\" 93x35",
+    "button.on[set] \"Calm\" 59x35",
+    "button[set] \"Steady\" 71x35",
+    "button[set] \"Full\" 49x35",
+    "button[set] \"Relaxed\" 79x35",
+    "button.on[set] \"Normal\" 77x35",
+    "button[set] \"Hard\" 58x35",
+    "button[set] \"Nightmare\" 100x35",
+    "button.on[set] \"Auto\" 58x35",
+    "button[set] \"On\" 44x35",
+    "button[set] \"Off\" 46x35",
+    "button.on[set] \"On\" 44x35",
+    "button.on[set] \"Low\" 52x35",
+    "button.on[set] \"Stick\" 58x35",
+    "button[set] \"◀ ▶ Buttons\" 108x35",
+    "button.on[set] \"Floating\" 81x35",
+    "button[set] \"Fixed\" 61x35",
+    "button[set] \"Small\" 62x35",
+    "button.on[set] \"Medium\" 81x35",
+    "button[set] \"Large\" 64x35",
+    "button[editLayout] \"Move buttons\" 104x22",
+    "button[set] \"Sharp\" 64x35",
+    "button[set] \"Fast\" 53x35",
+    "button.danger[reset] \"Erase progress\" 145x38"
+   ],
+   "open": "settings"
+  },
+  "03-shop": {
+   "bad": [],
+   "small": [
+    "button.focus[buy] \"60\" 63x38",
+    "button[buy] \"70\" 63x38",
+    "button[buy] \"60\" 63x38",
+    "button[buy] \"90\" 63x38",
+    "button[buy] \"50\" 63x38",
+    "button[buy] \"120\" 72x38",
+    "button[buy] \"100\" 72x38",
+    "button[buy] \"130\" 72x38"
+   ],
+   "open": "shop"
+  },
+  "04-loadout": {
+   "bad": [],
+   "small": [],
+   "open": "loadout"
+  },
+  "05-journal": {
+   "bad": [],
+   "small": [],
+   "open": "journal"
+  },
+  "06-hub": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "07-worldmap": {
+   "bad": [],
+   "small": [],
+   "open": "map"
+  },
+  "08-comic": {
+   "bad": [
+    "offscreen div.cm-art \"\" -56,-28,976,437"
+   ],
+   "small": [],
+   "open": "comic"
+  },
+  "09-ch1-start": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "10-combat": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "11-pause": {
+   "bad": [],
+   "small": [],
+   "open": "pause"
+  },
+  "12-death": {
+   "bad": [
+    "offscreen div.res-art \"\" -28,-13,943,425"
+   ],
+   "small": [],
+   "open": "death"
+  },
+  "13-victory": {
+   "bad": [
+    "offscreen div.res-art \"\" -27,-12,942,424"
+   ],
+   "small": [],
+   "open": "victory"
+  },
+  "14-boss-intro": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "15-boss-fight": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "16-ending": {
+   "bad": [
+    "offscreen div.cm-art \"\" -61,-29,977,438"
+   ],
+   "small": [],
+   "open": "comic"
+  },
+  "17-tutorial": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "errors": []
+ },
+ "portrait": {
+  "00-firstboot": {
+   "bad": [],
+   "small": [],
+   "open": "title"
+  },
+  "01-title": {
+   "bad": [],
+   "small": [],
+   "open": "title"
+  }
+ }
+}

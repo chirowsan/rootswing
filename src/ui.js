@@ -17,11 +17,11 @@ export function initUI(handlers) {
   root.addEventListener('input', (e) => { const r = e.target.closest('input[type=range]'); if (!r) return; save.settings[r.dataset.k] = +r.value; applyVolumes(); writeSave(); input.layout && onAct.relayout && onAct.relayout(); });
 }
 export const ui = { open: null };
-export function applyA11y() { const s = save.settings; document.documentElement.classList.toggle('big-text', !!s.bigText); document.documentElement.classList.toggle('gentle', s.flash === 'reduced'); }
+export function applyA11y() { const s = save.settings; document.documentElement.classList.toggle('big-text', !!s.bigText); document.documentElement.classList.toggle('gentle', s.flash === 'reduced'); globalThis.RS_A11Y = { gentle: s.flash === 'reduced', tk: s.bigText ? 1.22 : 1 }; }
 export function isOpen() { return !!ui.open; }
 export function close() { root.innerHTML = ''; root.className = ''; ui.open = null; }
 export const hooks = {}; // v2.1: story screens (comic, map, moss, control prompt) claim their own button actions
-export function show(name, html, cls = '') { ui.open = name; root.className = 'show ' + cls; root.innerHTML = html; focusIdx = 0; paintIcons(); markFocus(); }
+export function show(name, html, cls = '') { const fresh = ui.open !== name; ui.open = name; root.className = 'show ' + cls + (fresh ? ' enter' : ''); /* v2.3: entrance only when the screen changes */ root.innerHTML = html; focusIdx = 0; paintIcons(); markFocus(); }
 function paintIcons() { root.querySelectorAll('canvas[data-icon]').forEach((c) => { const s = +c.dataset.size || 28, d = Math.min(2, devicePixelRatio || 1); c.width = c.height = s * d; c.style.width = c.style.height = s + 'px'; const g = c.getContext('2d'); g.scale(d, d); const n = c.dataset.icon; if (n.startsWith('spr:') && has(n.slice(4))) spr(g, n.slice(4), s / 2, s * 0.94, s * 0.86, 0.5, 1); else if (n.startsWith('hero:')) drawHeroPreview(g, s, n.slice(5)); else if (n.startsWith('hatx:')) drawHat(g, n.slice(5), s / 2, s * 0.68, s / 19, 1); else drawIcon(g, n.startsWith('spr:') ? 'pet' : n, s / 2, s / 2, s * 0.8, c.dataset.color || '#fff'); }); }
 function drawHeroPreview(g, s, spec) { const H = G.hero; if (!H) return; const [cape, hat] = spec.split(','), F = H.f.idle0, k = s * 0.9 / F[3]; g.save(); g.translate(s / 2 - F[2] * k / 2, s * 0.05); g.scale(k, k); g.drawImage(capeSheet(H, cape) || H.img, F[0], F[1], F[2], F[3], 0, 0, F[2], F[3]); drawHat(g, hat, F[4] - 12, F[5] - 47, 4.4, 1); g.restore(); }
 export const ic = (name, color = '#fff', size = 28) => `<canvas data-icon="${name}" data-color="${color}" data-size="${size}"></canvas>`;
@@ -52,7 +52,7 @@ export function menuNav(dir, confirm, back) {
 // ---- screens ----
 export function showTitle() {
   const hasRun = !!save.run;
-  show('title', `<div class="title-wrap"><div class="logo"><span>ROOT</span><span class="sw">SWING</span></div>
+  show('title', `<div class="title-wrap"><div class="logo" aria-label="Rootswing"><span class="rt"><i style="--i:0">R</i><i style="--i:1">O</i><i style="--i:2">O</i><i style="--i:3">T</i><b class="sprout"></b></span><span class="lw2"><i style="--i:4">S</i><i style="--i:5">W</i><i style="--i:6">I</i><i style="--i:7">N</i><i style="--i:8">G</i><b class="lvine"></b></span></div>
   <div class="tag">${ic('hook', PAL.swing, 22)} swing · fight · grow ${ic('blade', '#bfe8ff', 22)}</div>
   <div class="col">${hasRun ? `<button class="big primary" data-act="continueRun">${ic('right', '#15131f', 22)} Continue run</button>` : ''}
   <button class="big ${hasRun ? '' : 'primary'}" data-act="play">${ic('jump', hasRun ? '#fff' : '#15131f', 22)} ${save.progress.tutorialDone ? 'Play' : 'Start'}</button>

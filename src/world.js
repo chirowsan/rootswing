@@ -411,7 +411,7 @@ export class World {
       if (k.t > 0.45 && d < (k.kind === 'glim' ? 90 : 40) && !P.dead) { const sp = 520; k.vx = dx / d * sp; k.vy = dy / d * sp; k.x += k.vx * dt; k.y += k.vy * dt; }
       else if (!k.float) { k.vy = Math.min(k.vy + 900 * dt, 400); k.vx *= 1 - 2 * dt; const nx = k.x + k.vx * dt, ny = k.y + k.vy * dt; if (this.map.solidPx(nx, k.y)) k.vx = -k.vx * 0.3; else k.x = nx; const c = this.map.get(Math.floor(k.x / TILE), Math.floor((ny + 4) / TILE)); if (k.vy > 0 && (c === '#' || c === 'B' || c === 'G' || c === '=')) { k.vy = -k.vy * 0.3; if (Math.abs(k.vy) < 40) { k.vy = 0; k.vx *= 0.8; } } else if (this.map.solidPx(k.x, ny - 4)) k.vy = 0; else k.y = ny; }
       if (d < 18 && !P.dead) { k.dead = true;
-        if (k.kind === 'glim') { this.runGlim++; this.emit('glim'); sfx('pickup', 0.03); this.fx.burst(k.x, k.y, 3, { color: PAL.glimmer, max: 60, g: 0, life: 0.3, glow: 1 }); }
+        if (k.kind === 'glim') { this.runGlim++; this.emit('glim'); sfx('pickup', 0.03); this.fx.burst(k.x, k.y, 3, { color: PAL.glimmer, max: 60, g: 0, life: 0.3, glow: 1 }); this.fx.ring(P.cx, P.cy - 6, 16, PAL.glimmer, 0.2, 2); this.glimPulse = 1; }
         else if (k.kind === 'lore') SW.pickLore(this, k);
         else { const h = k.big ? P.maxHp * 0.5 : P.maxHp * 0.15; P.healLeft += h; sfx('flask'); this.fx.text(P.cx, P.y - 8, '+' + Math.round(h), '#9ff0b0', 14); } }
     }
@@ -490,7 +490,7 @@ export class World {
     if (!this.vig || this.vigW !== cw) { const v = g.createRadialGradient(cw / 2, ch / 2, ch * 0.45, cw / 2, ch / 2, cw * 0.75); v.addColorStop(0, 'rgba(10,8,20,0)'); v.addColorStop(1, 'rgba(10,8,20,0.55)'); this.vig = v; this.vigW = cw; }
     if (!lo) { if (painted) drawGrade(this, g, cw, ch); else { g.fillStyle = this.vig; g.fillRect(0, 0, cw, ch); } }
     if (this.special) CB.drawSpecial(g, this, cw, ch);
-    if (this.fx.flash > 0) { g.globalAlpha = this.fx.flash * 0.35; g.fillStyle = this.fx.flashColor; g.fillRect(0, 0, cw, ch); g.globalAlpha = 1; }
+    if (this.fx.flash > 0) { g.globalAlpha = Math.min(1, this.fx.flash) * 0.35 * (globalThis.RS_A11Y && RS_A11Y.gentle ? 0.25 : 1); g.fillStyle = this.fx.flashColor; g.fillRect(0, 0, cw, ch); g.globalAlpha = 1; }
     // low health edge pulse
     const P = this.player; if (P.hp / P.maxHp < 0.3 && !P.dead) { g.globalAlpha = 0.18 + Math.sin(this.t * 5) * 0.08; g.strokeStyle = '#ff3d6e'; g.lineWidth = ch * 0.05; g.strokeRect(0, 0, cw, ch); g.globalAlpha = 1; }
     if (this.fade > 0) { g.globalAlpha = this.fade; g.fillStyle = '#0d0b16'; g.fillRect(0, 0, cw, ch); g.globalAlpha = 1; }

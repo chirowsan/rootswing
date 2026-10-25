@@ -1,7 +1,7 @@
 // Original synthesized sound effects + music loops (WebAudio only, no files).
 import { save } from './save.js';
 let ctx = null, master, comp, sfxBus, musBus, noiseBuf, pv = 1, duckG, tensBus, ambBus, stingBus;
-const last = {};
+const last = {}; let pchain = 0, plast = 0;
 export const audio = { ready: false, song: null, muted: false };
 
 export function initAudio() {
@@ -88,7 +88,7 @@ const SFX = {
   hookMiss: () => tone('triangle', 600, 300, 0.12, 0.06),
   parry: () => { tone('sine', 180, 60, 0.18, 0.28); noise(0.03, 7000, 0.14, { type: 'highpass', a: 0.001 }); [1568, 2093, 2637].forEach((f, i) => tone('sine', f, f, 0.5, 0.13, { when: i * 0.03 })); noise(0.1, 5000, 0.12, { q: 2 }); noise(0.5, 3000, 0.03, { q: 8, f1: 6000, when: 0.05 }); },
   block: () => tone('square', 500, 420, 0.07, 0.07, { filter: 2000 }),
-  pickup: () => { const f = 1300 + Math.random() * 500; tone('sine', f, f * 1.5, 0.09, 0.07); },
+  pickup: () => { const now = ctx.currentTime; pchain = now - plast < 0.4 ? Math.min(10, pchain + 1) : 0; plast = now; const f = 1250 * Math.pow(2, pchain / 12 * 2); tone('sine', f, f * 1.5, 0.09, 0.07); if (pchain >= 4) tone('triangle', f * 2, f * 2, 0.08, 0.02, { when: 0.03 }); }, // v2.3 chained pickups climb in pitch
   flask: () => { [523, 659, 784, 1046].forEach((f, i) => tone('sine', f, f, 0.25, 0.1, { when: i * 0.06 })); noise(0.3, 1200, 0.04, { q: 6, f1: 3000 }); },
   chest: () => { [392, 523, 659, 784, 1046].forEach((f, i) => tone('triangle', f, f, 0.3, 0.11, { when: i * 0.07 })); },
   ui: () => tone('sine', 880, 1100, 0.06, 0.08),
