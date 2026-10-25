@@ -41,4 +41,20 @@ COMBAT = {
   'c_charge': dict(hip_h=31, lean=6, feet=[(18, 0, -6), (-16, 0, 8)], arms=[(-70, 60), (40, 50)], cape=4, sprout=-8),
   # bloom special: arms raised to the sky
   'c_bloom':  dict(hip_h=43, lean=-8, feet=[(12, 0, -4), (-12, 0, 4)], arms=[(160, -10), (200, 10)], cape=14, sprout=-20),
+  # ---- v2.4 feel pass ----
+  # hook swing: hang at the bottom, legs trailing on the down-swing, legs leading on the up-swing, release tuck (game spins it into a flip)
+  'c_swing_m': dict(hip_h=40, lean=2, feet=[(4, 12, -8), (-6, 8, 8)], arms=[(178, 6), (150, 24)], cape=-16, sprout=-10),
+  'c_swing_b': dict(hip_h=40, lean=16, feet=[(-8, 16, 24), (-18, 10, 34)], arms=[(170, 4), (135, 30)], cape=-28, sprout=14),
+  'c_swing_f': dict(hip_h=38, lean=-14, feet=[(22, 22, -30), (12, 16, -16)], arms=[(186, 0), (160, 14)], cape=-12, sprout=-16),
+  'c_tuck':    dict(hip_h=30, lean=28, feet=[(12, 22, -30), (4, 20, -20)], arms=[(50, 70), (40, 80)], cape=-22, sprout=18),
+  # vine whip: cock overhead-back -> throw over the top -> follow-through/recoil ; up lash ; air down lash
+  'c_whip_a':  dict(hip_h=37, lean=-12, feet=[(16, 0, -6), (-17, 0, 8)], arms=[(-150, -40), (50, 30)], cape=10, sprout=-12),
+  'c_whip_s':  dict(hip_h=35, lean=10, feet=[(22, 0, -8), (-17, 0, 8)], arms=[(125, 0), (-35, 40)], cape=-10, sprout=8, smear=[-165, 175, 150]),
+  'c_whip_f':  dict(hip_h=34, lean=16, feet=[(24, 0, -8), (-19, 2, 14)], arms=[(62, 12), (-50, 40)], cape=-16, sprout=12),
+  'c_whipup_s': dict(hip_h=40, lean=-6, feet=[(14, 0, -4), (-14, 0, 6)], arms=[(172, 0), (-40, 30)], cape=6, sprout=-14, smear=[60, 110, 150]),
+  'c_whipdn_s': dict(hip_h=38, lean=18, feet=[(12, 18, -16), (-8, 12, 14)], arms=[(38, 0), (-60, 30)], cape=-18, sprout=14, smear=[140, 100, 70]),
+  # thornbow: nock (arrow to the string) -> full draw -> release (string hand flies back)
+  'c_bow_nock': dict(hip_h=36, lean=2, feet=[(18, 0, -6), (-16, 0, 8)], arms=[(88, 0), (70, 40)], cape=2, sprout=-4),
+  'c_bow_draw': dict(hip_h=36, lean=-4, feet=[(19, 0, -6), (-17, 0, 8)], arms=[(90, 0), (80, 150)], cape=4, sprout=-6),
+  'c_bow_rel':  dict(hip_h=36, lean=-8, feet=[(19, 0, -6), (-18, 1, 10)], arms=[(92, 0), (-100, 30)], cape=8, sprout=-10),
 }

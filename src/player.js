@@ -3,9 +3,9 @@ import { capeSheet, drawHat } from './missionsWorld.js';
 import { missions } from './missions.js';
 // Sprig, the hero: movement, grappling vine, combat, drawing.
 import { TILE, clamp, approach, sign, lerp } from './util.js';
-import { moveBody, groundBelow, touchingWall, hazardAt, HERO, isPlank } from './physics.js';
+import { moveBody, groundBelow, touchingWall, hazardAt, HERO, isPlank, swingInit, swingStep, swingRelease } from './physics.js';
 import { input, pressed, held, released, vibrate } from './input.js';
-import { sfx } from './audio.js';
+import { sfx, sfxV } from './audio.js';
 import { WEAPONS, GADGETS } from './weapons.js';
 import { diff, save } from './save.js';
 import { PAL, drawGlow } from './art.js';
@@ -49,7 +49,8 @@ export class Player {
   get busy() { return this.dead || this.respawnT > 0; }
   update(W, dt) {
     this.t += dt; const D = diff();
-    for (const k of ['coyote', 'jumpBuf', 'wallCoyote', 'wallLock', 'dashCd', 'iframes', 'hurtT', 'flash', 'parryT', 'parryLock', 'comboT', 'freeJump', 'drop', 'mantleT', 'hookBuf', 'critT', 'counterT', 'dashEnd', 'perfCd', 'airStepT', 'dashBuf', 'atkBuf', 'skidT', 'turnT']) this[k] = Math.max(0, this[k] - dt);
+    for (const k of ['coyote', 'jumpBuf', 'wallCoyote', 'wallLock', 'dashCd', 'iframes', 'hurtT', 'flash', 'parryT', 'parryLock', 'comboT', 'freeJump', 'drop', 'mantleT', 'hookBuf', 'critT', 'counterT', 'dashEnd', 'perfCd', 'airStepT', 'dashBuf', 'atkBuf', 'skidT', 'turnT', 'rehookBuf', 'flipT', 'whooshT']) this[k] = Math.max(0, this[k] - dt);
+    if (this.onGround || this.atk || this.dashT > 0 || this.hurtT > 0) this.flipT = 0;
     this.gcd = this.gcd.map((v) => Math.max(0, v - dt));
     this.sx = lerp(this.sx, 1, Math.min(1, dt * 12)); this.sy = lerp(this.sy, 1, Math.min(1, dt * 12));
     { // v2.1 animation layer: smoothed lean that reads acceleration (leans into a start, back on a skid) + a damped spring for hat/cape secondary motion
@@ -73,6 +74,7 @@ export class Player {
     if (this.flaskT > 0) this.flaskT -= dt;
     // aim for hook (assist picks the best target)
     this.hookTarget = W.findHookTarget(this, mx, my);
+    if (this.rehookBuf > 0 && (this.hook.s === 'none' || this.hook.s === 'miss') && this.hookTarget && !(this.lastAnchor && Math.abs(this.hookTarget.x - this.lastAnchor.x) < 1 && Math.abs(this.hookTarget.y - this.lastAnchor.y) < 1) && this.hookTarget.kind !== 'enemy' && !this.onGround) { this.rehookBuf = 0; this.hookBuf = 0; this.hook = { s: 'none' }; this.atk = null; this.fireHook(W, mx, my); } // v2.4 buffered re-hook
     if (this.hook.s !== 'none') { this.updateHook(W, dt, mx, my); if (this.hook.s === 'swing' || this.hook.s === 'none') this.updateAttack(W, dt, mx, my); this.postMove(W, dt); return; }
     // actions
     if (this.hookBuf > 0 && this.canCancel()) { this.atk = null; this.queued = false; this.hookBuf = 0; this.fireHook(W, mx, my); } // v1.4: hook cancels attack recovery / air attacks
@@ -180,8 +182,8 @@ export class Player {
   fireHook(W, mx, my) {
     const t = this.hookTarget; this.stats.hooks++;
     const hx = this.cx + this.face * 6, hy = this.y + 12;
-    if (t) { this.hook = { s: 'fly', tgt: t, hx, hy, t: 0 }; sfx('hookThrow'); W.emit('hookThrow'); }
-    else { let ax = Math.abs(mx) > 0.2 ? sign(mx) : this.face, ay = my < 0 ? -1 : -0.7; const l = Math.hypot(ax, ay); this.hook = { s: 'miss', hx, hy, dx: ax / l, dy: ay / l, t: 0 }; sfx('hookThrow'); }
+    if (t) { this.hook = { s: 'fly', tgt: t, hx, hy, t: 0 }; sfx('hookThrow'); W.emit('hookThrow'); this.flipT = 0; }
+    else { let ax = Math.abs(mx) > 0.2 ? sign(mx) : this.face, ay = my < 0 ? -1 : -0.7; const l = Math.hypot(ax, ay); this.hook = { s: 'miss', hx, hy, dx: ax / l, dy: ay / l, t: 0 }; sfx('hookThrow'); this.rehookBuf = 0.18; this.lastAnchor = null; }
   }
   updateHook(W, dt, mx, my) {
     const h = this.hook; h.t += dt; const ox = this.cx, oy = this.y + 10;
@@ -195,23 +197,17 @@ export class Player {
       this.freeMove(W, dt, mx); return;
     }
     if (h.s === 'swing') {
-      const ax = h.tgt.x, ay = h.tgt.y;
+      const ax = h.tgt.x, ay = h.tgt.y; h.ax = ax; h.ay = ay;
       if (pressed('jump')) { this.releaseSwing(W, true); return; }
-      if (pressed('hook')) { this.hookBuf = 0; const t2 = this.hookTarget; if (t2 && t2 !== h.tgt) { this.hook = { s: 'fly', tgt: t2, hx: h.hx, hy: h.hy, t: 0 }; sfx('hookThrow'); this.stats.hooks++; W.emit('hookThrow'); return; } this.releaseSwing(W, false); return; } // v1.4: re-hook chains straight to the next anchor
+      if (pressed('hook')) { this.hookBuf = 0; const t2 = this.hookTarget; if (t2 && t2 !== h.tgt) { this.hook = { s: 'fly', tgt: t2, hx: h.hx, hy: h.hy, t: 0 }; sfx('hookThrow'); this.stats.hooks++; W.emit('hookThrow'); return; } this.lastAnchor = h.tgt; this.rehookBuf = 0.22; this.releaseSwing(W, false); return; } // v2.4: no new target yet -> buffered re-hook fires the moment one lines up; v1.4: re-hook chains straight to the next anchor
       if (pressed('dash')) { this.releaseSwing(W, false); this.startDash(W, mx); return; }
       // v1.4: attacking no longer drops the swing (updateAttack runs after this branch)
-      if (h.pop > 0) { const k = Math.min(h.pop, dt); this.vy -= 3000 * k; h.pop -= k; }
-      // reel: auto-shorten toward a comfy length; up/down adjusts
-      const want = my < 0 ? 56 : my > 0 ? this.hookRange : Math.min(118, Math.max(64, h.len0 * 0.7));
-      h.len = approach(h.len, want, (h.t < 0.35 && h.len > want ? 480 : my ? 200 : 150) * dt); // quick initial reel lifts Sprig off the ground into the arc
-      this.vy += C.GRAV * dt; this.vx += mx * 520 * dt; this.vx *= 1 - 0.15 * dt;
-      const rx = ox - ax, ry = oy - ay, rl = Math.hypot(rx, ry) || 1;
-      // pump: input along the tangent gives energy
+      // v2.4: shared integrator (physics.js swingStep) — tangent-projected pump, accel-limited reel, near-lossless pendulum, soft taut catch
+      const r = swingStep(W.map, this, h, mx, my, dt);
       this.face = this.vx > 15 ? 1 : this.vx < -15 ? -1 : this.face;
-      moveBody(W.map, this, dt);
-      const nx = this.cx - ax, ny = this.y + 10 - ay, nl = Math.hypot(nx, ny);
-      if (nl > h.len) { const ux = nx / nl, uy = ny / nl; this.x = ax + ux * h.len - this.w / 2; this.y = ay + uy * h.len - 10; const vr = this.vx * ux + this.vy * uy; if (vr > 0) { this.vx -= vr * ux; this.vy -= vr * uy; } }
-      const sp = Math.hypot(this.vx, this.vy); if (sp > 560) { const k = Math.max(560 / sp, 1 - 4 * dt); this.vx *= k; this.vy *= k; } // soft speed cap (no snap)
+      const sp = Math.hypot(this.vx, this.vy);
+      if (r.crossed && sp > 170) { sfxV('swingWhoosh', clamp((sp - 170) / 360, 0.3, 1.1), 0.25); this.whooshT = 0.3; }
+      if (sp > 300 && Math.random() < (sp - 300) / 600) { const hd = this.handPt || [this.cx, this.y + 8]; W.fx.burst(hd[0] + (h.hx - hd[0]) * Math.random(), hd[1] + (h.hy - hd[1]) * Math.random(), 1, { color: Math.random() < 0.5 ? '#7bd389' : '#a8e66a', min: 10, max: 50, g: 120, life: 0.5, size: 3 }); }
       h.hx = ax; h.hy = ay; this.airDash = true;
       if (h.t > 0.25 && groundBelow(W.map, this) && Math.abs(this.vx) < 30 && my >= 0) { this.hook = { s: 'none' }; }
       if (h.t > 6) this.releaseSwing(W, false);
@@ -234,7 +230,7 @@ export class Player {
   freeMove(W, dt, mx) { if (!this.onGround && Math.abs(this.vx) > C.RUN && sign(mx || this.vx) === sign(this.vx)) this.vx = approach(this.vx, sign(this.vx) * C.RUN, 160 * dt); else this.vx = approach(this.vx, mx * C.RUN, (this.onGround ? C.ACC_G : C.ACC_A) * dt); this.vy = Math.min(this.vy + C.GRAV * dt, C.MAXFALL); }
   attachHook(W, tg) {
     sfx('hookAttach'); vibrate(8); W.emit('hookAttach', tg.kind); W.fx.burst(tg.x, tg.y, 8, { color: tg.kind === 'zip' ? PAL.zip : PAL.swing, min: 40, max: 140, g: 0, life: 0.3, glow: 1 });
-    if (tg.kind === 'swing') { const l = Math.hypot(this.cx - tg.x, this.y + 10 - tg.y); this.hook = { s: 'swing', tgt: tg, len: Math.max(48, l), len0: Math.max(48, l), hx: tg.x, hy: tg.y, t: 0 }; if (this.onGround) { this.hook.pop = 0.08; this.vy = Math.min(this.vy, -40); this.onGround = false; this.vx += sign(tg.x - this.cx) * 40; } W.emit('swing'); }
+    if (tg.kind === 'swing') { this.hook = { s: 'swing', tgt: tg, hx: tg.x, hy: tg.y, ...swingInit(this, tg.x, tg.y, this.onGround, this.hookRange), t: 0 }; this.onGround = false; this.flipT = 0; sfx('thwip'); const hd = this.handPt || [this.cx, this.y + 8]; W.fx.burst(hd[0], hd[1], 5, { color: '#a8e66a', min: 20, max: 80, g: 60, life: 0.3, size: 3 }); W.emit('swing'); }
     else if (tg.kind === 'zip') { this.hook = { s: 'zip', tgt: tg, hx: tg.x, hy: tg.y, t: 0 }; W.emit('zip'); }
     else if (tg.kind === 'enemy') {
       const e = tg.ent;
@@ -252,7 +248,9 @@ export class Player {
     if (slash) { this.atk = { kind: 'air', step: 2, phase: 'active', t: 0, wind: 0, def: { ...WEAPONS[this.weapon].air, mv: 'airspin', both: true }, hit: new Set([h.tgt.ent]), slash: true }; this.stats.attacks++; }
   }
   releaseSwing(W, boost) {
-    if (boost) { this.vy = Math.min(this.vy - 240, -430); this.vx *= 1.15; sfx('jump'); this.sy = 1.3; this.sx = 0.8; W.emit('swingRelease'); }
+    const h = this.hook;
+    if (boost && h.s === 'swing') { const r = swingRelease(this, h, true); sfx('jump'); sfxV(r.sweet ? 'swingSweet' : 'swingWhoosh', r.sweet ? 1 : 0.6, 0.1); this.sy = 1.3; this.sx = 0.8; this.flipDur = r.sweet ? 0.46 : 0.34; this.flipT = this.flipDur; this.flipDir = sign(this.vx) || this.face; this.sweetRel = r.sweet;
+      W.fx.burst(this.cx, this.cy, r.sweet ? 10 : 5, { color: '#a8e66a', min: 40, max: 140, g: 160, life: 0.5, size: 3 }); if (r.sweet) { W.fx.ring(this.cx, this.cy, 22, '#bffaf0', 0.22, 3); W.zoomKick && W.zoomKick(0.25); } W.emit('swingRelease', r.sweet); this.lastAnchor = h.tgt; }
     this.hook = { s: 'none' }; this.airDash = true; this.wallJumping = true;
   }
   // ---------------- combat ----------------
@@ -429,7 +427,7 @@ export class Player {
     const h = this.hook;
     const pose = G.hero ? this.heroPose(W) : null;
     if (h.s !== 'none' && h.hx !== undefined) {
-      let hx0 = X + f * 7, hy0 = this.y + 16; if (pose && pose.hand) [hx0, hy0] = pose.hand;
+      let hx0 = X + f * 7, hy0 = this.y + 16; if (pose && pose.hand) [hx0, hy0] = pose.hand; this.handPt = [hx0, hy0];
       this.drawVine(g, hx0, hy0, h, t);
       g.fillStyle = '#d9a35a'; g.beginPath(); g.arc(h.hx, h.hy, 4, 0, 7); g.fill(); g.strokeStyle = PAL.ink; g.lineWidth = 1.5; g.stroke();
     }
@@ -526,11 +524,15 @@ export class Player {
     const t = this.t, h = this.hook, atk = this.atk, wpn = this.weapon, air = !this.onGround;
     const run = this.onGround && Math.abs(this.vx) > 20, dash = this.dashT > 0;
     const wall = air && this.wallDir && this.vy > 0 && Math.sign(input.mx) === this.wallDir;
-    let n = 'idle0', wa = null, rot = 0, face = this.face, shake = 0;
+    let n = 'idle0', wa = null, rot = 0, face = this.face, shake = 0, pivC = false;
     const sweep = (a0, a1) => { const d = atk.def || {}; const k = atk.phase === 'wind' ? 0 : atk.phase === 'active' ? Math.min(1, atk.t / Math.max(0.01, d.active || 0.1)) : 1; const e = 1 - (1 - k) * (1 - k); return a0 + (a1 - a0) * e; };
     if (this.dead) n = this.deadT < 0.28 ? 'hurt' : 'dead';
     else if (this.hurtT > 0) n = 'hurt';
-    else if (h.s === 'swing') { n = 'swing'; rot = Math.atan2(h.hx - this.cx, -(h.hy - this.cy)) * 0.85; }
+    else if (h.s === 'swing' && !(atk && this.combatPose(atk, wpn))) { // v2.4: lean with the rope; legs trail on the down-swing, lead on the up-swing; hang when slow
+      const dx = this.cx - h.hx, sp = Math.hypot(this.vx, this.vy); rot = Math.atan2(h.hx - this.cx, -(h.hy - this.cy)) * 0.85; n = 'swing';
+      if (G.hero.f.c_swing_m) n = sp < 130 ? 'c_swing_m' : Math.sign(dx) === Math.sign(this.vx) && Math.abs(dx) > 10 ? 'c_swing_f' : 'c_swing_b'; }
+    else if (h.s === 'swing') { const cp = this._cp; n = cp.n; wa = cp.wa; face = cp.face; rot = cp.rot || Math.atan2(h.hx - this.cx, -(h.hy - this.cy)) * 0.4; }
+    else if (this.flipT > 0 && air && !atk && h.s === 'none' && G.hero.f.c_tuck) { const k = 1 - this.flipT / (this.flipDur || 0.34), e = k * k * (3 - 2 * k); n = e > 0.85 ? 'jump' : 'c_tuck'; rot = this.flipDir * Math.PI * 2 * e; pivC = true; } // v2.4 release flip
     else if (h.s !== 'none') n = 'throw';
     else if (atk && this.combatPose(atk, wpn)) { const cp = this._cp; n = cp.n; wa = cp.wa; face = cp.face; rot = cp.rot; }
     else if (atk) {
@@ -558,7 +560,7 @@ export class Player {
     else if (G.hero.f.start0 && Math.abs(input.mx) > 0.05) n = 'start0'; // pushing off but not moving yet (e.g. right after a standing turn): lean in, no idle flicker
     else n = (t % 2.6) > 1.9 ? 'idle1' : 'idle0';
     if (this.dead) rot = 0;
-    const F = G.hero.f[n] || G.hero.f.idle0, K = HERO_PX * (W.heroK || HERO_K), pvx = F.length > 6 ? F[6] : F[4] - 22, X = this.cx, Y = this.y + this.h;
+    const F = G.hero.f[n] || G.hero.f.idle0, K = HERO_PX * (W.heroK || HERO_K), pvx = F.length > 6 ? F[6] : F[4] - 22; let X = this.cx, Y = this.y + this.h; if (pivC) { X -= Math.sin(rot) * 20; Y += -20 + Math.cos(rot) * 20; } // flip spins about the body centre
     const sx = (1 + (this.sx - 1) * 0.45) * face, sy = 1 + (this.sy - 1) * 0.45 + (n.startsWith('idle') ? Math.sin(t * 2.4) * 0.012 : 0);
     const pose = { n, F, K, pvx, pvy: F.length > 7 ? F[7] : F[3], X, Y, sx, sy, rot, face, wa, shake: shake ? Math.sin(t * 50) * shake : 0, hand: null };
     const fi = this.fist(n); if (fi) pose.hand = this.framePt(pose, fi[0], fi[1]);
@@ -608,18 +610,22 @@ export class Player {
     else { const L = (w === 'whip' ? 20 : 27) * u; spr(g, n, 0, 0, L / sprAspect(n), w === 'whip' ? 0.05 : 0.08, 0.5); }
     g.restore();
   }
-  drawVine(g, x0, y0, h, t) { // textured, twisting vine rope with leaves
-    const wob = h.s === 'fly' || h.s === 'miss' ? 6 : 0, L0 = Math.hypot(h.hx - x0, h.hy - y0) || 1;
-    // v1.3 tension wobble: a decaying twang across the vine right after it bites, then it pulls taut (less sag while swinging fast)
-    const ht = h.t || 0, twang = !wob && ht < 0.6 ? Math.exp(-ht * 7) * Math.sin(ht * 48) * Math.min(9, L0 * 0.08) : 0, sag = wob ? Math.sin(t * 40) * wob : Math.min(10, L0 * 0.03) * (h.s === 'swing' ? Math.max(0.25, 1 - Math.hypot(this.vx, this.vy) / 420) : 1);
-    const mx = (x0 + h.hx) / 2 - (h.hy - y0) / L0 * twang, my = (y0 + h.hy) / 2 + sag + (h.hx - x0) / L0 * twang;
-    const pt = (k) => { const u = 1 - k; return [u * u * x0 + 2 * u * k * mx + k * k * h.hx, u * u * y0 + 2 * u * k * my + k * k * h.hy]; };
-    g.lineCap = 'round'; g.strokeStyle = PAL.ink; g.lineWidth = 4.6; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(mx, my, h.hx, h.hy); g.stroke();
-    const VC = vineColors(); if (VC.rainbow) { const gr = g.createLinearGradient(x0, y0, h.hx, h.hy); for (let i = 0; i <= 6; i++) gr.addColorStop(i / 6, `hsl(${(i * 55 + t * 120) % 360},85%,58%)`); g.strokeStyle = gr; } else g.strokeStyle = VC.dark; g.lineWidth = 3; g.stroke();
-    const L = Math.hypot(h.hx - x0, h.hy - y0), n = Math.max(4, Math.floor(L / 7)), dx = (h.hx - x0) / (L || 1), dy = (h.hy - y0) / (L || 1);
+  drawVine(g, x0, y0, h, t) { // v2.4: tapered vine (thick at the anchor, thin at the hand) that lands slack, then snaps taut with a decaying twang
+    const wob = h.s === 'fly' || h.s === 'miss' ? 6 : 0, L = Math.hypot(h.hx - x0, h.hy - y0) || 1, dx = (h.hx - x0) / L, dy = (h.hy - y0) / L;
+    const ht = h.t || 0, sp = Math.hypot(this.vx, this.vy), sw = h.s === 'swing';
+    const slack = sw ? Math.min(16, L * 0.1) * Math.exp(-ht * 11) + (h.taut === false ? 8 : 0) : 0; // lands loose, pulls straight in ~0.2 s
+    const twang = sw && ht < 0.7 ? Math.exp(-ht * 6) * Math.sin(ht * 46) * Math.min(7, L * 0.06) : 0;
+    const sag = wob ? Math.sin(t * 40) * wob : (sw ? Math.max(0.15, 1 - sp / 380) * Math.min(6, L * 0.02) : Math.min(10, L * 0.03)) + slack;
+    const n = Math.max(8, Math.min(28, Math.floor(L / 6))), P = [];
+    for (let i = 0; i <= n; i++) { const k = i / n, bend = Math.sin(Math.PI * k), o = twang * bend + (wob ? Math.sin(k * 9 + t * 30) * wob * bend : 0); P.push([x0 + dx * L * k - dy * o, y0 + dy * L * k + dx * o + sag * bend]); }
+    const VC = vineColors(); let gr = null; if (VC.rainbow) { gr = g.createLinearGradient(x0, y0, h.hx, h.hy); for (let i = 0; i <= 6; i++) gr.addColorStop(i / 6, `hsl(${(i * 55 + t * 120) % 360},85%,58%)`); }
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    for (let i = 0; i < n; i++) { const k = (i + 0.5) / n, wd = 2.2 + 2.6 * k; g.strokeStyle = PAL.ink; g.lineWidth = wd + 1.8; g.beginPath(); g.moveTo(P[i][0], P[i][1]); g.lineTo(P[i + 1][0], P[i + 1][1]); g.stroke(); }
+    for (let i = 0; i < n; i++) { const k = (i + 0.5) / n, wd = 2.2 + 2.6 * k; g.strokeStyle = gr || VC.dark; g.lineWidth = wd; g.beginPath(); g.moveTo(P[i][0], P[i][1]); g.lineTo(P[i + 1][0], P[i + 1][1]); g.stroke(); }
     g.strokeStyle = VC.light; g.lineWidth = 1.1; g.beginPath(); // twisting highlight strand
-    for (let i = 0; i <= n; i++) { const k = i / n, [px, py] = pt(k), o = Math.sin(k * L * 0.35 + t * 6) * 1.1; i ? g.lineTo(px - dy * o, py + dx * o) : g.moveTo(px - dy * o, py + dx * o); } g.stroke();
-    if (has('leaf')) for (let i = 1; i < n; i += 3) { const k = i / n, [px, py] = pt(k), side = (i % 2 ? 1 : -1); g.save(); g.translate(px, py); g.rotate(Math.atan2(dy, dx) + side * 1.1 + Math.sin(t * 5 + i) * 0.2); spr(g, 'leaf', 0, 0, 6, 0.1, 0.9); g.restore(); }
+    for (let i = 0; i <= n; i++) { const k = i / n, o = Math.sin(k * L * 0.35 + t * 6) * (0.6 + 0.9 * k); i ? g.lineTo(P[i][0] - dy * o, P[i][1] + dx * o) : g.moveTo(P[i][0] - dy * o, P[i][1] + dx * o); } g.stroke();
+    if (has('leaf')) for (let i = 2; i < n; i += 3) { const [px, py] = P[i], side = (i % 2 ? 1 : -1); g.save(); g.translate(px, py); g.rotate(Math.atan2(dy, dx) + side * 1.1 + Math.sin(t * 5 + i) * 0.2 + side * Math.min(0.5, sp / 900)); spr(g, 'leaf', 0, 0, 5 + 2 * i / n, 0.1, 0.9); g.restore(); }
+    if (sw) { g.fillStyle = VC.dark; g.strokeStyle = PAL.ink; g.lineWidth = 1.4; g.beginPath(); g.ellipse(x0, y0, 3.6, 3, Math.atan2(dy, dx), 0, 7); g.fill(); g.stroke(); } // wrapped grip at the hand
   }
   drawRig(g, W) {
     const HK = W.heroK || HERO_K, rs = (W.rs || 3) * HK, U = 110, Sz = Math.ceil(U * rs); const t = this.t, f = this.face, X = this.cx, Y = this.y + this.h, h = this.hook;

@@ -129,11 +129,11 @@ export class World {
   snapCamera() { this.camYT = undefined; const t = this.camTarget(); this.cam.x = t.x; this.cam.y = t.y; this.cam.vx = this.cam.vy = 0; }
   camTarget() {
     const P = this.player, VW = this.viewW || 760, VH = this.viewH || VIEW_H;
-    const lt = P.face * 44 + clamp(P.vx * 0.2, -56, 56); this.look = (this.look || 0) + (lt - (this.look || 0)) * (Math.abs(P.vx) > 150 ? 0.05 : 0.03); // eased, velocity-led look-ahead (v2.1: catches up faster at full run)
+    const swg = P.hook.s === 'swing' || (P.flipT > 0), lt = swg ? clamp(P.vx * 0.32, -96, 96) + P.face * 20 : P.face * 44 + clamp(P.vx * 0.2, -56, 56); this.look = (this.look || 0) + (lt - (this.look || 0)) * (swg ? 0.075 : Math.abs(P.vx) > 150 ? 0.05 : 0.03); // v2.4: swings lead the camera further, along the swing velocity // eased, velocity-led look-ahead (v2.1: catches up faster at full run)
     let x = P.cx + this.look - VW / 2;
     const want = P.cy - VH * 0.55 + (P.vy > 380 ? 36 : 0); // vertical deadzone: hold height through jumps, follow on landing, band exit or long falls
     if (this.camYT === undefined || P.onGround || P.hook.s === 'swing' || P.hook.s === 'zip') this.camYT = want; else { const B = 46; if (want < this.camYT - B) this.camYT = want + B; else if (want > this.camYT + B * 0.5) this.camYT = want - B * 0.5; }
-    let y = this.camYT;
+    let y = this.camYT; if (P.hook.s === 'swing') { this.swY = (this.swY || 0) + ((P.hook.ay - P.cy) * 0.3 - (this.swY || 0)) * 0.08; } else this.swY = (this.swY || 0) * 0.92; y += this.swY; // v2.4: frame the anchor a bit while swinging
     { // v2.1 look down / up: hold down (or up) while standing still to peek; long falls lead the camera downward
       const still = P.onGround && Math.abs(P.vx) < 20 && !P.atk; const ly = still && input.my > 0.5 ? 1 : still && input.my < -0.5 ? -1 : 0;
       this.peekT = ly ? (this.peekT || 0) + 1 / 60 : 0; const pt = this.peekT > 0.35 ? ly * (ly > 0 ? 96 : 64) : 0;
@@ -154,6 +154,7 @@ export class World {
     this.snapPrev(); this.t += dt; this.fade = Math.max(0, this.fade - dt * 2.5);
     if (this.countdown > 0) { const before = Math.ceil(this.countdown / 0.5); this.countdown -= dt; const after = Math.ceil(this.countdown / 0.5); if (after !== before && this.countdown > 0 && after <= 3) sfx('beep'); if (this.countdown <= 0) { sfx('go'); this.goT = 0.6; if (this.boss && this.boss.st === 'sleep') { this.boss.go('intro'); this.startFight(this.boss); sfx('roar'); this.fx.shake(0.4); } } this.fx.update(dt); this.updateCamera(dt); return; }
     if (this.goT > 0) this.goT -= dt;
+    { const P = this.player, sp = P && P.hook.s === 'swing' ? Math.hypot(P.vx, P.vy) : 0, w = clamp((sp - 180) / 320, 0, 1); this.swz = (this.swz || 0) + (w - (this.swz || 0)) * Math.min(1, dt * (w > (this.swz || 0) ? 3 : 1.6)); } // v2.4 speed zoom-out while swinging
     if (this.zoomK > 0) this.zoomK = Math.max(0, this.zoomK - dt * 4.5); BR.tickCine(this, dt);
     if (this.hs > 0) { this.hs -= dt; this.fx.update(dt * 0.3); CB.tickPops(this, dt); return 'hs'; } // v1.4: callers keep button edges through hit-stop
     CB.tickPops(this, dt); if (this.slow > 0) { this.slow -= dt; dt *= 0.4; } if (this.cine && this.cine.slow) dt *= 1 - (1 - this.cine.slow) * BR.cineK(this); // v2.0 cinematic slow-mo
@@ -181,13 +182,13 @@ export class World {
     let ax, ay; if (Math.abs(mx) > 0.2 || my) { ax = mx; ay = my || -0.35; } else { ax = p.face; ay = -0.9; }
     const al = Math.hypot(ax, ay); ax /= al; ay /= al;
     let best = null, bs = 1e9; const minDot = assist ? -0.25 : 0.45;
-    const cur = p.hook.s === 'swing' ? p.hook.tgt : null;
+    const cur = p.hook.s === 'swing' ? p.hook.tgt : null, sw = !!cur, svx = p.vx; // v2.4: the current anchor is skipped by position (targets are fresh objects each frame)
     const consider = (x, y, kind, ent) => {
       const dx = x - px, dy = y - py, d = Math.hypot(dx, dy); if (d > R || d < 18) return; const dot = (dx * ax + dy * ay) / d; if (dot < minDot) return;
-      let s = d / R * 0.6 + (1 - dot) * 0.9 + (kind !== 'enemy' && dy > 20 ? 0.5 : 0) + (kind === 'enemy' ? 0.25 : 0);
+      let s = d / R * 0.6 + (1 - dot) * 0.9 + (kind !== 'enemy' && dy > 20 ? 0.5 : 0) + (kind === 'enemy' ? 0.25 : 0) - (sw && kind !== 'enemy' && Math.abs(svx) > 120 && Math.sign(dx) === Math.sign(svx) ? 0.22 : 0); // v2.4: while swinging, prefer the anchor you are flying toward
       if (s < bs && lineClear(this.map, px, py, x, y)) { bs = s; best = { x, y, kind, ent }; }
     };
-    for (const a of this.anchors) if (a !== cur && Math.abs(a.x - px) < R && Math.abs(a.y - py) < R) consider(a.x, a.y, a.kind);
+    for (const a of this.anchors) if (!(cur && Math.abs(a.x - cur.x) < 1 && Math.abs(a.y - cur.y) < 1) && Math.abs(a.x - px) < R && Math.abs(a.y - py) < R) consider(a.x, a.y, a.kind);
     for (const e of this.enemies) if (!e.dead && e.type !== 'dummy' && e.st !== 'sleep' && Math.abs(e.cx - px) < R) consider(e.cx, e.cy, 'enemy', e);
     return best && !best.ent ? this.anchors.find((a) => a.x === best.x && a.y === best.y) : best;
   }
@@ -445,7 +446,7 @@ export class World {
     if (!lo) { g.globalCompositeOperation = 'lighter'; g.fillStyle = B.fog; for (let i = 0; i < 3; i++) { const x = ((i * 0.37 + 0.15) * cw - camx * rs * 0.05) % (cw * 1.2); g.beginPath(); g.moveTo(x, 0); g.lineTo(x + cw * 0.12, 0); g.lineTo(x + cw * 0.32, ch); g.lineTo(x + cw * 0.18, ch); g.fill(); } g.globalCompositeOperation = 'source-over'; }
     }
     mk && mk('bg');
-    const zk = this.zoomK || 0, z = 1 + 0.045 * zk * zk * (3 - 2 * zk); let zr = rs * z, tox = -camx * zr + cw * 0.5 * (1 - z), toy = -camy * zr + ch * 0.5 * (1 - z);
+    const zk = this.zoomK || 0, z = (1 + 0.045 * zk * zk * (3 - 2 * zk)) * (1 - 0.06 * (this.swz || 0)); let zr = rs * z, tox = -camx * zr + cw * 0.5 * (1 - z), toy = -camy * zr + ch * 0.5 * (1 - z);
     const ck = BR.cineK(this); if (ck > 0) { const c = this.cine; zr = rs * z * (1 + (c.zoom - 1) * ck); const Sx = lerp((c.x - camx) * rs, cw * 0.5, 0.6 * ck), Sy = lerp((c.y - camy) * rs, ch * 0.48, 0.6 * ck); // v2.0 focus zoom, kept inside the camera view
       tox = clamp(Sx - c.x * zr, cw - (camx + cw / rs) * zr, -camx * zr); toy = clamp(Sy - c.y * zr, ch - (camy + ch / rs) * zr, -camy * zr); }
     this.wt = [zr, tox, toy];
@@ -480,7 +481,7 @@ export class World {
     for (const w of this.waves) { const k = Math.sin(this.t * 30) * 2; g.fillStyle = '#7d5cff'; g.strokeStyle = '#15131f'; g.lineWidth = 2; g.beginPath(); g.moveTo(w.x - 12, w.y); g.quadraticCurveTo(w.x - w.dir * 2, w.y - 26 - k, w.x + w.dir * 12, w.y); g.closePath(); g.fill(); g.stroke(); drawGlow(g, w.x, w.y - 10, 26, '#ff5a7a', 0.6); }
     for (const p of this.pillars) { g.fillStyle = '#4a3e50'; g.strokeStyle = '#15131f'; g.lineWidth = 2.5; g.beginPath(); g.roundRect(p.x, p.y, p.w, p.h, 8); g.fill(); g.stroke(); g.fillStyle = '#ff8a5a'; g.fillRect(p.x + 8, p.y + 14, 6, 6); g.fillRect(p.x + 24, p.y + 26, 5, 5); }
     for (const k of this.pickups) if (!offV(k.x, k.y)) this.drawPickup(g, k);
-    if (this.player.hookTarget && this.player.hook.s === 'none' && !this.player.dead) this.drawReticle(g, this.player.hookTarget);
+    if (this.player.hookTarget && (this.player.hook.s === 'none' || this.player.hook.s === 'swing') && !this.player.dead) this.drawReticle(g, this.player.hookTarget, this.player.hook.s === 'swing');
     CB.drawFront(g, this, lo); mk && mk('shots'); this.fx.draw(g); mk && mk('fx');
     if (this.bloomT) this.drawBloom(g);
     if (painted && !lo) drawMotes(this, g, vx0, vx1, vy0, vy1);
@@ -553,8 +554,12 @@ export class World {
       if (hl) { const p = (t * 1.5) % 1; g.globalAlpha = 1 - p; g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.arc(a.x, a.y, 12 + p * 24, 0, 7); g.stroke(); g.globalAlpha = 1; }
     }
   }
-  drawReticle(g, tg) {
-    const t = this.t, r = 15 + Math.sin(t * 10) * 1.5, col = tg.kind === 'zip' || tg.kind === 'swing' ? ANCHOR_GLOW : '#ff8aa0';
+  drawReticle(g, tg, next) {
+    const key = Math.round(tg.x) + ',' + Math.round(tg.y); if (key !== this._retKey) { this._retKey = key; this._retT = this.t; } // v2.4: lock-on snap when the target changes
+    const t = this.t, snap = Math.max(0, 1 - (t - (this._retT || 0)) / 0.14), r = 15 + Math.sin(t * 10) * 1.5 + 14 * snap * snap, col = tg.kind === 'zip' || tg.kind === 'swing' ? ANCHOR_GLOW : '#ff8aa0';
+    if (next) g.globalAlpha = 0.75;
+    g.fillStyle = col; g.globalAlpha *= 0.18 + 0.2 * snap; g.beginPath(); g.arc(tg.x, tg.y, 9, 0, 7); g.fill(); g.globalAlpha = next ? 0.75 : 1;
+    g.strokeStyle = PAL.ink; g.lineWidth = 4.5; g.save(); g.translate(tg.x, tg.y); g.rotate(t * 2); for (let i = 0; i < 4; i++) { g.rotate(Math.PI / 2); g.beginPath(); g.arc(0, 0, r, -0.4, 0.4); g.stroke(); } g.restore();
     g.strokeStyle = col; g.lineWidth = 2.5; g.save(); g.translate(tg.x, tg.y); g.rotate(t * 2);
     for (let i = 0; i < 4; i++) { g.rotate(Math.PI / 2); g.beginPath(); g.arc(0, 0, r, -0.4, 0.4); g.stroke(); }
     g.restore();

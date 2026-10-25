@@ -3,7 +3,7 @@
 // left / straight / right, with or without a mid-air dash at a few timings), dropping through planks, and grappling
 // (zip pulls with jump-off or fall-off, swings pumped either way with release at many points, re-hooking chains).
 // No wall-jumps, no enemies-as-hook-targets, no coyote time: a "pass" therefore never relies on expert tech.
-import { moveBody, lineClear, hazardAt, HERO as C, isPlank } from './physics.js';
+import { moveBody, lineClear, hazardAt, HERO as C, isPlank, swingInit, swingStep, swingRelease } from './physics.js';
 import { TILE } from './util.js';
 const DT = 1 / 60, BW = 18, BH = 34, HOOK_R = 220;
 const approach = (v, t, d) => (v < t ? Math.min(v + d, t) : Math.max(v - d, t));
@@ -109,23 +109,17 @@ export function explore(map, anchors, start, opts = {}) {
       fly({ ...b }, { mx, hold: 0, noCut: true });
     }
   }
-  function swing(b, a, pump, tiles) {
-    let len = Math.max(48, Math.hypot(b.x + BW / 2 - a.x, b.y + 10 - a.y)); const len0 = len;
-    if (groundUnder(map, b)) { b.vy = Math.min(b.vy, -40) - 3000 * 0.08; b.vx += sgn(a.x - b.x - BW / 2) * 40; }
+  function swing(b, a, pump, tiles) { // v2.4: runs the game's own swing integrator (physics.js swingStep / swingRelease)
+    b.w = BW; b.h = BH; const s = swingInit(b, a.x, a.y, groundUnder(map, b), HOOK_R);
     for (let f = 0; f < 160; f++) {
-      const t = f * DT, want = Math.min(118, Math.max(64, len0 * 0.7));
-      len = approach(len, want, (t < 0.35 && len > want ? 480 : 150) * DT);
-      b.vy += C.GRAV * DT; b.vx += pump * 520 * DT; b.vx *= 1 - 0.15 * DT;
-      moveBody(map, b, DT); steps++;
-      const nx = b.x + BW / 2 - a.x, ny = b.y + 10 - a.y, nl = Math.hypot(nx, ny);
-      if (nl > len) { const ux = nx / nl, uy = ny / nl; b.x = a.x + ux * len - BW / 2; b.y = a.y + uy * len - 10; const vr = b.vx * ux + b.vy * uy; if (vr > 0) { b.vx -= vr * ux; b.vy -= vr * uy; } }
-      const sp = Math.hypot(b.vx, b.vy); if (sp > 560) { const k = Math.max(560 / sp, 1 - 4 * DT); b.vx *= k; b.vy *= k; }
+      const t = f * DT; s.t = t;
+      swingStep(map, b, s, pump, 0, DT); steps++;
       if (hazardAt(map, b) || !bodyFree(map, b.x, b.y)) return;
       cover(b, tiles);
       if (t > 0.25 && groundUnder(map, b) && Math.abs(b.vx) < 30) { for (const q of tiles) covered.add(q); addStand(b); return; }
       if (f >= 10 && f % 8 === 2) {
         for (const q of tiles) covered.add(q);
-        const rel = { ...b }; rel.vy = Math.min(rel.vy - 240, -430); rel.vx *= 1.15; // jump release boost
+        const rel = { ...b }; swingRelease(rel, s, true); // jump release boost (same curve as the game)
         fly({ ...rel }, { mx: pump, hold: 999, noCut: true }); fly({ ...rel }, { mx: 0, hold: 999, noCut: true });
         if (f % 16 === 2) { fly({ ...rel }, { mx: pump, hold: 999, noCut: true, dashAt: 10, dashDir: pump }); tryHooks(b, pump, tiles, a); }
       }

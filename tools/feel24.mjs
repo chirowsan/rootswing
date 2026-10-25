@@ -21,6 +21,8 @@ const res = await L.page.evaluate(() => {
     out.m.swingFrames = sw.length; out.m.swingEnergyDriftPct = ee.length ? Math.round((Math.min(...ee) - e0) / Math.abs(e0 || 1) * 1000) / 10 : null;
     out.m.swingEnergyLossPerSecPct = ee.length > 60 ? Math.round((ee[60] - ee[0]) / (0.5 * 300 * 300) * 1000) / 10 : null;
     let dv = 0, at = -1; const att = r.tr.findIndex((t) => t.hook === 'swing'); for (let i = Math.max(1, att - 1); i < att + 8 && i < r.tr.length; i++) { const d = Math.hypot(r.tr[i].vx - r.tr[i - 1].vx, r.tr[i].vy - r.tr[i - 1].vy - G / 60); if (d > dv) { dv = d; at = i; } }
+    { const L = sw.map((t) => t.len), spd = sw.map((t) => Math.hypot(t.vx, t.vy)); const st = L.findIndex((l, i) => i > 0 && Math.abs(l - L[i - 1]) < 0.05); const pk = []; for (let i = Math.max(1, st); i < spd.length - 1; i++) if (spd[i] >= spd[i - 1] && spd[i] > spd[i + 1] && spd[i] > 60) pk.push(Math.round(spd[i]));
+      out.m.swingPeakSpeeds = pk; out.m.swingPeakDecayPct = pk.length > 1 ? Math.round((pk[pk.length - 1] - pk[0]) / pk[0] * 1000) / 10 : null; }
     out.m.attachJerk = Math.round(dv); out.m.attachFrame = att; out.tr.swing = r.tr; out.strips.swing = r.shots; }
   // 2) pump: same but input follows motion -> amplitude (max speed) growth over 4 s
   { const { W, P } = setup(); W.anchors.push({ x: P.cx + 60, y: P.cy - 140, kind: 'swing', pulse: 0 }); const plan = {}; tap(plan, 0, 'hook'); for (let f = 20; f < 260; f++) plan[f] = { fn: (W, P) => S.axes(P.vx > 0 ? 1 : -1, 0) };

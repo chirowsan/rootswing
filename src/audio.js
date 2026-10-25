@@ -28,16 +28,29 @@ function env(g, t, a, peak, dur) { g.gain.setValueAtTime(0.0001, t); g.gain.expo
 function tone(type, f0, f1, dur, vol, { a = 0.005, when = 0, bus = sfxBus, filter = 0, detune = 0 } = {}) {
   const t = ctx.currentTime + when; const o = ctx.createOscillator(); const g = ctx.createGain();
   o.type = type; f0 *= pv; f1 *= pv; o.frequency.setValueAtTime(f0, t); if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(f1, 20), t + dur); o.detune.value = detune;
-  env(g, t, a, vol, dur);
+  env(g, t, a, vol * vs, dur);
   if (filter) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = filter; o.connect(f); f.connect(g); } else o.connect(g);
   g.connect(bus); o.start(t); o.stop(t + dur + 0.05);
 }
 function noise(dur, freq, vol, { q = 1, type = 'bandpass', f1 = 0, when = 0, a = 0.004, bus = sfxBus } = {}) {
   const t = ctx.currentTime + when; const s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
   const f = ctx.createBiquadFilter(); f.type = type; f.frequency.setValueAtTime(freq, t); if (f1) f.frequency.exponentialRampToValueAtTime(f1, t + dur); f.Q.value = q;
-  const g = ctx.createGain(); env(g, t, a, vol, dur); s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
+  const g = ctx.createGain(); env(g, t, a, vol * vs, dur); s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
 }
 const SFX = {
+  // v2.4 feel pass: hook swing, vine whip, thornbow
+  thwip: () => { noise(0.05, 3800, 0.16, { f1: 1400, q: 2.2, a: 0.002 }); tone('triangle', 1500, 700, 0.07, 0.07); tone('sine', 220, 140, 0.08, 0.08, { when: 0.01 }); },
+  swingWhoosh: () => { noise(0.32, 380, 0.17, { f1: 1500, q: 1.8, a: 0.1 }); noise(0.24, 1100, 0.06, { f1: 2600, q: 3, a: 0.08, when: 0.05 }); },
+  swingSweet: () => { noise(0.3, 700, 0.16, { f1: 3600, q: 1.4, a: 0.02 }); [784, 1175].forEach((f, i) => tone('triangle', f, f * 1.05, 0.16, 0.05, { when: 0.03 + i * 0.05 })); },
+  whipWind: () => { noise(0.12, 500, 0.08, { f1: 1600, q: 2.5, a: 0.05 }); },
+  whipTip: () => { noise(0.02, 9500, 0.22, { type: 'highpass', a: 0.001 }); tone('square', 3200, 1400, 0.035, 0.05, { filter: 7000 }); noise(0.09, 2400, 0.1, { f1: 700, q: 1.2, when: 0.01 }); tone('sine', 1568, 1568, 0.12, 0.04, { when: 0.02 }); },
+  bowNock: () => { tone('square', 1800, 1500, 0.025, 0.035, { filter: 4000 }); noise(0.03, 3000, 0.05, { q: 3 }); },
+  bowDraw: () => { tone('sawtooth', 160, 330, 0.5, 0.035, { filter: 900, a: 0.05 }); noise(0.5, 900, 0.03, { f1: 1800, q: 5, a: 0.08 }); },
+  bowFull: () => { tone('sine', 1319, 1319, 0.14, 0.06); tone('sine', 1976, 1976, 0.2, 0.04, { when: 0.04 }); },
+  bowRelease: () => { tone('triangle', 260, 120, 0.12, 0.12); noise(0.1, 2600, 0.12, { f1: 6000, q: 2.5 }); tone('sine', 520, 500, 0.18, 0.04, { when: 0.01 }); },
+  bowPower: () => { tone('triangle', 200, 90, 0.18, 0.16); noise(0.22, 1500, 0.16, { f1: 7000, q: 1.5 }); [988, 1319].forEach((f, i) => tone('triangle', f, f, 0.12, 0.05, { when: i * 0.04 })); },
+  arrowHit: () => { noise(0.04, 1800, 0.14, { q: 1.2 }); tone('square', 420, 180, 0.05, 0.05, { filter: 1800 }); },
+  bullseye: () => { tone('sine', 1760, 1760, 0.1, 0.07); tone('sine', 2637, 2637, 0.18, 0.05, { when: 0.05 }); noise(0.04, 7000, 0.08, { type: 'highpass' }); },
   // v2.0 fighting styles + style rank + set pieces (all synthesized, mixed to sit under music)
   hamA: () => { noise(0.18, 300, 0.2, { type: 'lowpass', f1: 120 }); tone('sine', 140, 48, 0.28, 0.26); noise(0.05, 2200, 0.07, { q: 0.8, when: 0.02 }); },
   hamB: () => { noise(0.14, 400, 0.16, { f1: 2200, q: 1.2 }); tone('triangle', 90, 260, 0.16, 0.14); tone('sine', 120, 50, 0.2, 0.16, { when: 0.04 }); },
@@ -111,13 +124,15 @@ const SFX = {
   thump: () => { tone('sine', 90, 40, 0.3, 0.3); noise(0.2, 300, 0.15, { type: 'lowpass' }); },
   secret: () => { [659, 831, 988, 1319].forEach((f, i) => tone('sine', f, f, 0.4, 0.09, { when: i * 0.09 })); },
 };
-const VARY = { hit: 0.14, hitHeavy: 0.1, pop: 0.12, land: 0.16, step: 0.3, jump: 0.08, pickup: 0.1, swing: 0.12, enemyShoot: 0.1, hookAttach: 0.08, slashA: 0.1, slashB: 0.1, spin: 0.08, thrust: 0.08, kick: 0.12, crit: 0.06, whipCrack: 0.12, hamA: 0.08, splat: 0.1 }; // per-play pitch variation
+const VARY = { swingWhoosh: 0.12, thwip: 0.1, whipTip: 0.1, bowRelease: 0.08, arrowHit: 0.14, hit: 0.14, hitHeavy: 0.1, pop: 0.12, land: 0.16, step: 0.3, jump: 0.08, pickup: 0.1, swing: 0.12, enemyShoot: 0.1, hookAttach: 0.08, slashA: 0.1, slashB: 0.1, spin: 0.08, thrust: 0.08, kick: 0.12, crit: 0.06, whipCrack: 0.12, hamA: 0.08, splat: 0.1 }; // per-play pitch variation
 // v2.3 ducking: big hits briefly dip the music so the important sound reads clearly
 const DUCK = { hitHeavy: [0.7, 0.25], finisherHit: [0.55, 0.4], slam: [0.6, 0.35], explode: [0.55, 0.45], roar: [0.5, 0.9], hurt: [0.65, 0.3], special: [0.5, 0.7], parry: [0.6, 0.35], death: [0.4, 1.2], victory: [0.5, 0.9], unlock: [0.7, 0.4], secret: [0.65, 0.5], poiseBreak: [0.6, 0.4] };
 export function duck(level, dur) {
   if (!ctx) return; const t = ctx.currentTime, g = duckG.gain; g.cancelScheduledValues(t); g.setValueAtTime(Math.min(g.value, 1), t);
   g.linearRampToValueAtTime(level, t + 0.03); g.setValueAtTime(level, t + dur * 0.5); g.linearRampToValueAtTime(1, t + dur + 0.25); audio.duckN = (audio.duckN || 0) + 1;
 }
+let vs = 1; // v2.4 per-call volume scale (sfxV)
+export function sfxV(name, k, minGap = 0.035) { vs = Math.max(0.05, Math.min(1.5, k)); try { sfx(name, minGap); } finally { vs = 1; } }
 export function sfx(name, minGap = 0.035) {
   if (!ctx || !SFX[name] || save.settings.sfx <= 0) return;
   const now = ctx.currentTime; if (last[name] && now - last[name] < minGap) return; last[name] = now;

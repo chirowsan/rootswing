@@ -12,3 +12,17 @@ Problems found:
 - Vine Whip: hit-test is the same rectangle as a sword with an "is it far away" tip test; the visual is a crescent arc + quadratic curve (reads like a sword swipe, not a whip); hero uses the sword cut/rev/rise/slam frames; only forward (+rise); 15 hit-stop frames over a 4-hit combo; no real crack moment, no recoil, no yank except the finisher's pull.
 - reach.js duplicates the swing integrator (pump 520, drag 0.15, cap 560, fixed release) → must move to a shared function so the validator proves exactly what the game does.
 Baseline numbers (shots/v24/before/feel.json): attach jerk 50 px/s/frame, pump max speed 283 → 446 px/s over 4 s, release 318 → 560 px/s (carry 1.76), whip 44 active frames / 15 hit-stop frames per 4-hit combo, bow 2 hits both 9 dmg (hold gave no charged shot inside 50 f).
+
+## Phase 2 — Hook swing (in progress, 2026-10-25)
+- physics.js: new shared `SWING` constants + `swingInit / swingStep / swingRelease`; player.js AND reach.js now run the same integrator (validator can never drift from the game).
+  - pump is projected on the rope tangent (only below the anchor; full with the motion, 0.7 against = brake), drag 0.15 -> 0.035/s (near-lossless pendulum), cap 560 -> 580 soft.
+  - reel is rate- AND accel-limited (lenV, 4200 px/s²) -> no snap; reel-in conserves angular momentum (capped 4%/step).
+  - attach: ground pop 240 spread over 0.12 s (was 0.08 s), first taut frame converts 35% of the killed radial speed into swing speed (no dead stop / pop).
+  - release: old launch (vy-240, min -430, vx*1.15) PLUS speed boost up to 110 px/s; forward up-swing "sweet" release = vx*1.28 + WHOOSH ring + small zoom kick.
+- player: swing poses c_swing_m/b/f (rig), release flip (c_tuck spun about body centre), vine from the hand, leaf trail at speed, thwip on attach, whoosh scaled by speed past the bottom, buffered re-hook (0.22 s), current anchor excluded by position (bug: identity compare never matched).
+- world: swing look-ahead vx*0.32 (±96) eased 0.075, anchor-biased framing, speed zoom-out up to 6 %, reticle lock-on snap + shown for the NEXT anchor while swinging, anchor-ahead bias.
+- tapered vine (thick at anchor), lands slack and pulls taut in ~0.2 s with decaying twang, grip wrap at the hand.
+- sfx: thwip, swingWhoosh, swingSweet (+ whip/bow set for later phases), sfxV() per-call volume.
+- validator: validateAllChunks() = 0 problems (35.7 s) with the new integrator.
+- fix: energy reference was taken after gravity -> corrected; drag 0.02/s. Pure-sim pendulum: ~1.7 %/half-swing decay (was ~10 %), game probe peaks 236/228/223/218.
+- after1 probe: swing drift -3.7 % (was -10.1), pump 345 -> 525 (was 283 -> 446), release 356 -> 619 px/s (was 318 -> 560), release distance 474 px (was 416), attach impulse spread over 7 frames (max 40/frame, was a 50 step), 0 page errors. validateAllChunks = 0 problems.

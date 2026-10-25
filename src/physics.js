@@ -68,3 +68,51 @@ export function hazardAt(map, b) {
   }
   return null;
 }
+// ---------------- v2.4 shared hook-swing integrator (the game AND the reach validator run exactly this) ----------------
+export const SWING = {
+  PUMP: 700, PUMP_BACK: 0.7, DRAG: 0.02, CAP: 580, // pump along the rope tangent (with the motion = full, against = brake); near-lossless pendulum
+  LEN_MIN: 56, AUTO_MIN: 64, AUTO_MAX: 118, AUTO_K: 0.7, LIFT_T: 0.35, LIFT_V: 480, AUTO_V: 150, REEL_IN: 260, REEL_OUT: 200, LEN_ACC: 4200, // reel (rate-limited + accel-limited => no snap)
+  TAUT_KEEP: 0.35, POP_V: 240, POP_T: 0.12, // first taut frame: part of the radial speed turns into swing speed; ground attach lift spread over 0.12 s
+  REL_VY: 240, REL_MIN: 430, REL_VX: 1.15, REL_K: 0.3, REL_MAX: 110, SWEET_VX: 1.28, // release: old launch + a speed-scaled boost; a forward up-swing release is a "sweet" launch
+};
+export function swingInit(b, ax, ay, ground, range = 230) {
+  const cx = b.x + b.w / 2, l = Math.max(48, Math.hypot(cx - ax, b.y + 10 - ay));
+  const s = { ax, ay, len: l, len0: l, lenV: 0, t: 0, pop: 0, taut: true, range };
+  if (ground) { s.pop = SWING.POP_T; s.popX = Math.sign(ax - cx) * 40; s.popY = Math.max(0, b.vy + 40); } // lift ramps in over POP_T (no velocity step on the attach frame)
+  return s;
+}
+// one fixed step; caller advances s.t. Returns { taut, crossed } (crossed = passed under the anchor this step)
+export function swingStep(map, b, s, mx, my, dt) {
+  const S = SWING, ax = s.ax, ay = s.ay;
+  if (s.pop > 0) { const k = Math.min(s.pop, dt) / S.POP_T; b.vy -= (S.POP_V + (s.popY || 0)) * k; b.vx += (s.popX || 0) * k; s.pop -= k * S.POP_T; }
+  const want = my < 0 ? S.LEN_MIN : my > 0 ? s.range : Math.min(S.AUTO_MAX, Math.max(S.AUTO_MIN, s.len0 * S.AUTO_K));
+  const rate = s.t < S.LIFT_T && s.len > want ? S.LIFT_V : my < 0 ? S.REEL_IN : my > 0 ? S.REEL_OUT : S.AUTO_V;
+  const dv = Math.max(-rate, Math.min(rate, (want - s.len) * 10)); s.lenV += Math.max(-S.LEN_ACC * dt, Math.min(S.LEN_ACC * dt, dv - s.lenV));
+  const lp = s.len; s.len = Math.max(S.LEN_MIN * 0.9, s.len + s.lenV * dt);
+  const px0 = b.x + b.w / 2 - ax, py0 = b.y + 10 - ay, r0 = Math.hypot(px0, py0) || 1, ux0 = px0 / r0, uy0 = py0 / r0;
+  if (mx && uy0 > 0) { const tx = -uy0, ty = ux0, vt = b.vx * tx + b.vy * ty, with_ = Math.sign(mx * tx) === Math.sign(vt) || Math.abs(vt) < 20, at = mx * S.PUMP * tx * (with_ ? 1 : S.PUMP_BACK); b.vx += tx * at * dt; b.vy += ty * at * dt; }
+  const dk = 1 - S.DRAG * dt; b.vx *= dk; b.vy *= dk;
+  const wasTaut = s.taut, steady = Math.abs(s.lenV) < 2 && s.pop <= 0, E0 = 0.5 * (b.vx * b.vx + b.vy * b.vy) - HERO.GRAV * b.y; // energy before gravity + constraint
+  b.vy += HERO.GRAV * dt;
+  const mr = moveBody(map, b, dt);
+  const nx = b.x + b.w / 2 - ax, ny = b.y + 10 - ay, nl = Math.hypot(nx, ny); let taut = false;
+  if (nl > s.len) {
+    const ux = nx / nl, uy = ny / nl; b.x = ax + ux * s.len - b.w / 2; b.y = ay + uy * s.len - 10; const vr = b.vx * ux + b.vy * uy;
+    if (vr > 0) { b.vx -= vr * ux; b.vy -= vr * uy; if (!s.taut) { const tx = -uy, ty = ux, vt = b.vx * tx + b.vy * ty, sg = Math.abs(vt) > 5 ? Math.sign(vt) : (Math.sign(-nx) || 1) * Math.sign(tx || 1); b.vx += tx * sg * vr * S.TAUT_KEEP; b.vy += ty * sg * vr * S.TAUT_KEEP; } }
+    if (s.len < lp && s.taut) { const tx = -uy, ty = ux, vt = b.vx * tx + b.vy * ty, k = Math.min(1.04, lp / s.len) - 1; b.vx += tx * vt * k; b.vy += ty * vt * k; } // reel-in conserves angular momentum
+    taut = true;
+  } else if (nl < s.len - 2) taut = false; else taut = s.taut;
+  s.taut = taut;
+  if (taut && wasTaut && steady && !mr.ground && !mr.wallL && !mr.wallR && !mr.ceil) { // v2.4: symplectic-ish correction — the projection would bleed ~10%/swing; restore the pre-step energy along the tangent
+    const ke = 0.5 * (b.vx * b.vx + b.vy * b.vy), want = E0 + HERO.GRAV * b.y; if (ke > 1 && want > 0) { const k = Math.max(0.97, Math.min(1.03, Math.sqrt(want / ke))); b.vx *= k; b.vy *= k; } }
+  const sp = Math.hypot(b.vx, b.vy); if (sp > S.CAP) { const k = Math.max(S.CAP / sp, 1 - 4 * dt); b.vx *= k; b.vy *= k; }
+  const crossed = Math.sign(px0) !== Math.sign(nx) && ny > 0; return { taut, crossed };
+}
+// release from a swing. boost = jump release. Mutates b's velocity; returns { sweet }
+export function swingRelease(b, s, boost) {
+  if (!boost) return { sweet: false };
+  const S = SWING, sp = Math.hypot(b.vx, b.vy), cx = b.x + b.w / 2;
+  const sweet = b.vy < -60 && Math.abs(b.vx) > 180 && Math.sign(cx - s.ax) === Math.sign(b.vx) && Math.abs(cx - s.ax) > s.len * 0.25;
+  b.vy = Math.min(b.vy - S.REL_VY - Math.min(S.REL_MAX, S.REL_K * Math.max(0, sp - 220)), -S.REL_MIN); b.vx *= sweet ? S.SWEET_VX : S.REL_VX;
+  return { sweet };
+}
