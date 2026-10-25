@@ -74,3 +74,9 @@ haptics. It still felt stiff ("80s/90s"), so v2.1 changes the moment-to-moment f
 ## Screenshots (shots/v21/)
 01/02 intro panels · 03 hub before · 06 hub after 3 chapters · 04/07 chapter map · 05 Warden story beat ·
 08 final boss · 09 ending comic · 10 ending victory · 11 bloomed hub · 12 modern touch layout · 13 layout editor
+
+## Ship record (2026-10-24, PDT)
+- Commit f0328e0, tag v2.1.0. Release https://github.com/chirowsan/rootswing/releases/tag/v2.1.0
+  - Rootswing-2.1.0.apk 9,308,058 B, Rootswing-2.1.0.aab 9,123,775 B, rootswing-2.1.0-src.zip 18,500,119 B (excludes dist/, art/, older shots)
+  - APK + AAB cert SHA-256 6e59e14a…ab35d8de (same key as before), versionCode 13 / versionName 2.1.0
+- Pages: gh-pages b84e423 built; https://chirowsan.github.io/rootswing/ live HTTP 200, 0 console errors, v2.1 bundle confirmed
