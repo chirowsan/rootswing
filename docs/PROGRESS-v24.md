@@ -65,3 +65,4 @@ Baseline numbers (shots/v24/before/feel.json): attach jerk 50 px/s/frame, pump m
 - run-all 111/111, v21 32/32, v22 34/34, v23 21/21, v24 25/25, reach validator 0 chunk problems.
 ## Phase 8 — ship
 - Bumped 2.4.0 / versionCode 16 (package.json, mobile/package.json, build.gradle). Android build started.
+- Signed APK (9.7 MB) + AAB (9.5 MB): apksigner verified, cert SHA-256 6e59e14a…d35d8de matches for both; aapt: versionCode 16 / 2.4.0. Source zip 16 MB (src, tests, tools, docs, assets, mobile, shots/v24 as 1000px JPEG).
