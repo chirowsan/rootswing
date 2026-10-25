@@ -73,6 +73,7 @@ export function showPause(ctx) {
 }
 function seg(k, opts) { return `<div class="seg">${opts.map(([v, l]) => `<button data-act="set" data-v="${k}:${v}" class="${String(save.settings[k]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`; }
 function row(label, ctl, help = '') { return `<div class="row"><div class="lab">${label}${help ? `<small>${help}</small>` : ''}</div>${ctl}</div>`; }
+const fmtMin = (s) => { const m = Math.round((+s || 0) / 60); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min'; };
 export function showSettings(back) {
   ui.back = back === 'settings' ? ui.back : back;
   const s = save.settings;
@@ -100,6 +101,9 @@ export function showSettings(back) {
   ${row('Screen shake', seg('shake', [['off', 'Off'], ['reduced', 'Low'], ['full', 'Full']]))}
   ${row('Flashes', seg('flash', [['normal', 'Normal'], ['reduced', 'Gentle']]), 'Gentle: softer, dimmer flashes')}
   ${row('Bigger text', seg('bigText', [['false', 'Off'], ['true', 'On']]))}
+  <h3 class="sect">Grown-ups</h3>
+  ${row('Break reminder', seg('breakMin', [[0, 'Off'], [20, '20 min'], [40, '40 min'], [60, '1 hour']]), 'Pauses the game with a friendly "time for a break" note')}
+  <div class="parent-info">Played today: <b>${fmtMin((save.progress.playDay || {}).secs)}</b> · in total: <b>${fmtMin(save.progress.playSecs)}</b><br>No ads, no purchases, no accounts, no tracking and no links out of the game. It works offline and saves only on this device.</div>
   ${row('Erase save', `<button class="danger" data-act="reset">Erase progress</button>`)}
   </div><div class="col"><button class="big primary" data-act="back">Done</button></div></div>`);
   // booleans saved as strings by seg → normalise

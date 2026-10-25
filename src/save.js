@@ -8,7 +8,7 @@ export const DEFAULT_SETTINGS = {
   haptics: true, music: 0.6, sfx: 0.8, shake: 'reduced', // full | reduced | off
   hookAssist: true, quality: 'auto', // auto | high | low
   assist: 'auto', // v2.2 Assist: auto | on | off
-  amb: 0.6, mute: false, // v2.3 ambience volume, master mute
+  amb: 0.6, breakMin: 0, mute: false, // v2.3 ambience volume, master mute
   flash: 'normal', bigText: false, // v2.3 accessibility: flash 'normal' | 'reduced', larger UI text
 };
 export const DEFAULT_PROGRESS = {
@@ -22,20 +22,28 @@ function clone(o) { return JSON.parse(JSON.stringify(o)); }
 export const save = { settings: clone(DEFAULT_SETTINGS), progress: clone(DEFAULT_PROGRESS), run: null };
 export function loadSave() { assist.on = false; // auto-Assist is per session: it re-arms on the next death if the chapter is still hard
   try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) {
-      const d = JSON.parse(raw);
+    let raw = localStorage.getItem(KEY), d = null; lastW = raw; /* v2.3: fall back to the last good copy if the main save is damaged */
+    try { d = raw ? JSON.parse(raw) : null; if (d && typeof d !== 'object') d = null; } catch (e) { d = null; }
+    if (!d) { try { const b = localStorage.getItem(KEY + '.bak'); d = b ? JSON.parse(b) : null; } catch (e) { d = null; } }
+    if (d) {
       save.settings = Object.assign(clone(DEFAULT_SETTINGS), d.settings || {});
       save.progress = Object.assign(clone(DEFAULT_PROGRESS), d.progress || {});
       save.progress.unlocks = Object.assign({ blade: true }, (d.progress || {}).unlocks || {});
       save.run = d.run || null;
       if (save.settings.difficulty === 'tough') save.settings.difficulty = 'hard'; // v2.0 rename
+      for (const k of ['mute', 'bigText']) if (typeof save.settings[k] === 'string') save.settings[k] = save.settings[k] === 'true';
+      for (const k of ['music', 'sfx', 'amb']) { const v = +save.settings[k]; save.settings[k] = Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : DEFAULT_SETTINGS[k]; }
+      if (!['auto', 'high', 'med', 'low'].includes(save.settings.quality)) save.settings.quality = 'auto';
+      if (!Number.isFinite(+save.progress.glimmers)) save.progress.glimmers = 0;
     }
   } catch (e) { console.warn('save load failed', e); }
   return save;
 }
+let lastBak = 0;
+let lastW = null; /* v2.3: what this tab last read/wrote; softSave never clobbers a save another tab changed meanwhile */
+export function softSave() { try { const cur = localStorage.getItem(KEY); if (cur != null && lastW != null && cur !== lastW) return false; } catch (e) { return false; } writeSave(); return true; }
 export function writeSave() {
-  try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* storage full or blocked */ }
+  try { const s = JSON.stringify({ ...save, v: 23 }); const prev = localStorage.getItem(KEY); localStorage.setItem(KEY, s); lastW = s; const now = Date.now(); if (now - lastBak > 30000) { lastBak = now; let ok = false; try { ok = !!(prev && JSON.parse(prev)); } catch (e) { ok = false; } localStorage.setItem(KEY + '.bak', ok ? prev : s); } } catch (e) { /* storage full or blocked */ }
 }
 export function resetSave() { save.settings = clone(DEFAULT_SETTINGS); save.progress = clone(DEFAULT_PROGRESS); save.run = null; writeSave(); }
 export const DIFF = { // v2.0: hp/ramp/rampDmg scale foes, trap/foes/elite/arenas/ambush/waves scale the run, reward/stars scale the payout

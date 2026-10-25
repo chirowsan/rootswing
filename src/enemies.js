@@ -257,7 +257,9 @@ export class Enemy {
   }
   drawBang(g, x, y, k) { // the readable "!" warning
     const s = 1 + Math.sin(k * 20) * 0.08; drawGlow(g, x, y, 18, '#ff4a5a', 0.6);
-    g.save(); g.translate(x, y); g.scale(s, s); g.fillStyle = '#ff4a5a'; g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, 8, 0, 7); g.fill(); g.stroke();
-    g.fillStyle = '#fff'; g.fillRect(-1.3, -5, 2.6, 6); g.fillRect(-1.3, 2.4, 2.6, 2.6); g.restore();
+    g.save(); g.translate(x, y); g.scale(s, s); /* v2.3: colour-blind safe - a warning TRIANGLE (shape, not just red) + a timer ring that closes as the attack nears */
+    g.lineJoin = 'round'; g.beginPath(); g.moveTo(0, -10); g.lineTo(9.5, 7); g.lineTo(-9.5, 7); g.closePath(); g.lineWidth = 5; g.strokeStyle = '#15131f'; g.stroke(); g.fillStyle = '#ff4a5a'; g.fill(); g.lineWidth = 2; g.strokeStyle = '#fff'; g.stroke();
+    g.fillStyle = '#fff'; g.fillRect(-1.3, -4.5, 2.6, 6); g.fillRect(-1.3, 2.6, 2.6, 2.4);
+    const kk = Math.max(0, Math.min(1, k)); g.lineWidth = 2.2; g.strokeStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(0, 0, 14, -Math.PI / 2, -Math.PI / 2 + kk * Math.PI * 2); g.stroke(); g.restore();
   }
 }

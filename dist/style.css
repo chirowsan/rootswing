@@ -204,7 +204,7 @@ button.boon .curse{font-size:min(3.3vh,13px);color:#ff9ab0;font-weight:800}
 .seg button{min-height:44px;padding:6px 11px;white-space:nowrap}
 .row .lab{flex:1;min-width:0}
 @media (max-width:700px){.seg button{padding:6px 8px;font-size:13px}.row{gap:8px}}
-.up button,button.danger,.ggrid button,.le-bar button{min-height:44px}
+.up button,button.danger,.ggrid button,.le-bar button,.row>button,.row button[data-act]{min-height:44px}
 button.big{min-height:46px}
 .res .col{position:sticky;bottom:0;padding-top:6px;background:linear-gradient(180deg,rgba(13,11,22,0),rgba(13,11,22,.92) 30%);z-index:2}
 .res{padding-bottom:max(6px,env(safe-area-inset-bottom))}
@@ -234,3 +234,5 @@ html.big-text #ui small,html.big-text .lab small,html.big-text .foot,html.big-te
 html.big-text #ui button{font-size:max(1em,16px)}
 html.big-text .seg button{font-size:14px}
 .logo{line-height:1}.logo i{line-height:1.12;padding:0 .015em}.logo .lw2{margin-top:-.12em}
+.parent-info{font-size:13px;line-height:1.45;opacity:.85;background:rgba(255,255,255,.05);border-radius:12px;padding:10px 12px;margin:4px 0 8px}
+.breaknote{background:linear-gradient(135deg,#2b4a22,#1d3318);border:2px solid #9dff8a;border-radius:14px;padding:10px 14px;margin-bottom:10px;font-weight:700;line-height:1.35}

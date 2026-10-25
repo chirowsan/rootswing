@@ -38,7 +38,7 @@ export function playerStats() {
 const CHUNK_KEEP = 40; // ~2.5 screens of painted 384px chunks; long maps stream instead of growing memory
 export class World {
   constructor(game, mode, opts = {}) {
-    this.game = game; this.mode = mode; this.fx = new FX(); this.quake = (p, d) => BR.quake(this, p, d); this.fx.cap = (game && game.lowPerf) || (save.settings && save.settings.quality === 'low') ? 220 : 480; this.t = 0; this.events = []; this.listeners = [];
+    this.game = game; this.mode = mode; this.fx = new FX(); this.quake = (p, d) => BR.quake(this, p, d); this.fx.cap = (game && game.lowPerf) || (save.settings && save.settings.quality === 'low') ? 220 : (save.settings && save.settings.quality === 'med') || (game && game.resLevel) ? 340 : 480; this.t = 0; this.events = []; this.listeners = [];
     this.enemies = []; this.shots = []; this.bombs = []; this.waves = []; this.markers = []; this.pickups = []; this.props = []; this.anchors = []; this.sentries = []; this.pillars = []; this.lights = [];
     this.hs = 0; this.slow = 0; this.fight = null; this.runGlim = opts.glim || 0; this.cleared = new Set(opts.cleared || []); this.visited = new Set(opts.visited || []); this.opened = new Set(opts.opened || []);
     let L; this.seed = opts.seed ?? ((Math.random() * 1e9) | 0); this.stage = opts.stage || 0; this.chapter = (mode === 'run' || mode === 'boss') ? (opts.chapter || 0) : 0; // stage 0 = Overpass (-> Furnace), stage 1 = Drowned Glowroots (-> Drowned Bloom)

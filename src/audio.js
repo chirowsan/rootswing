@@ -292,3 +292,5 @@ export function director(game, dt, uiName) {
   tensBus.gain.setTargetAtTime(Math.max(0.0001, tSm * 0.9), ctx.currentTime, 0.12);
   const b = W && W.boss; const ph = b && !b.dead ? b.phase : 0; if (ph > lastPhase && lastPhase) stinger('boss'); lastPhase = ph;
 }
+// v2.3 test hook: a read-only snapshot of the mix graph
+export function graph() { if (!ctx) return null; return { state: ctx.state, master: master.gain.value, mus: musBus.gain.value, duck: duckG.gain.value, tens: tensBus.gain.value, sting: stingBus.gain.value, amb: ambBus.gain.value, sfx: sfxBus.gain.value, song: audio.song, ambName: audio.amb, tension: audio.tension || 0, duckN: audio.duckN || 0, lastSting: audio.lastSting || null }; }

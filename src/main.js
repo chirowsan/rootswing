@@ -1,6 +1,7 @@
 // Boot, game flow and the fixed-step loop.
 import * as POL from './polish23.js';
-import { save, loadSave, writeSave, diff } from './save.js';
+import { graph as _ag } from './audio.js';
+import { save, loadSave, writeSave, softSave, diff } from './save.js';
 import { initAudio, sfx, playSong, applyVolumes, director, stinger, audio, initAudio as _ia } from './audio.js';
 import { input, initInput, pollInput, endStep, pressed, held, computeLayout, drawTouch, clearAll, simButton, simAxes } from './input.js';
 import { World, VIEW_H, playerStats } from './world.js';
@@ -104,7 +105,7 @@ const game = {
     SU.playComic('ch' + ch + 'end', ch === ST.CH_N ? ST.FINALE.concat(end.slice(1, 2)) : end, show);
     this.lastChapter = { ch, ...r };
   },
-  relayout() { input.layout = computeLayout(game.cssW, game.cssH); input.layout && (input.visible.skill2 = !game.world || game.world.player.gadgets.length > 1); },
+  relayout() { if (typeof innerWidth === 'number' && game.cssW && (innerWidth !== game.cssW || innerHeight !== game.cssH)) return resize(); /* v2.3: a late resize event never leaves stale button spots */ input.layout = computeLayout(game.cssW, game.cssH); input.layout && (input.visible.skill2 = !game.world || game.world.player.gadgets.length > 1); },
   pause() { if (this.state !== 'play' || this.paused || !this.world) return; this.paused = true; clearAll(); sfx('uiBack'); UI.showPause(this.world.mode); },
   drawPauseMap() { const W = this.world, cv = document.getElementById('pmap'); if (!cv || !W || W.mode !== 'run') return; const g = cv.getContext('2d'); g.clearRect(0, 0, cv.width, cv.height); const cs = Math.floor(Math.min(cv.width / W.gw, cv.height / W.gh * 1.7)), chh = Math.floor(cs / 1.7); drawMap(g, W, (cv.width - cs * W.gw) / 2, (cv.height - chh * W.gh) / 2, cs, chh, true); if (this.paused && UI.ui.open === 'pause') requestAnimationFrame(() => this.drawPauseMap()); },
 };
@@ -127,7 +128,8 @@ function resize() {
   game.relayout(); UI.showRotate(game.cssH > game.cssW * 1.05);
 }
 addEventListener('resize', resize); addEventListener('orientationchange', () => setTimeout(resize, 200));
-document.addEventListener('visibilitychange', () => { if (document.hidden) game.pause(); else { last = performance.now(); acc = 0; } });
+document.addEventListener('visibilitychange', () => { const A = audio.ctx; if (document.hidden) { game.pause(); softSave(); if (A && A.state === 'running') A.suspend().catch(() => {}); } else { last = performance.now(); acc = 0; if (A && A.state === 'suspended') A.resume().catch(() => {}); } }); /* v2.3: audio sleeps in the background (battery) */
+addEventListener('blur', () => { if (game.state === 'play' && game.world && !game.paused && !UI.isOpen()) game.pause(); }); addEventListener('pagehide', () => softSave());
 let last = performance.now(), acc = 0, titleT = 0, menuCd = 0;
 function frame(now) {
   requestAnimationFrame(frame);
@@ -147,7 +149,7 @@ function tick(now) {
       if (n === 4) acc = 0;
     }
   } else endStep();
-  director(game, real, UI.ui.open);
+  director(game, real, UI.ui.open); playClock(real);
   render(real, W && game.state === 'play' && !game.paused && !game.manual && !UI.isOpen() ? acc / STEP : 1);
 }
 function menuInput(dt) {
@@ -211,9 +213,15 @@ function titleSceneHub(dt) {
   if (Math.random() < dt * 8) titleWorld.fx.burst(titleWorld.cam.x + Math.random() * titleWorld.viewW, titleWorld.cam.y + VIEW_H, 1, { color: '#e8ffb0', min: 10, max: 30, g: -20, drag: 0, life: 6, size: 2.2, angle: -Math.PI / 2, spread: 0.5, glow: 1 });
   titleWorld.draw(g, canvas.width, canvas.height, canvas.height / VIEW_H);
 }
+if ((navigator.hardwareConcurrency || 8) <= 4 && (navigator.deviceMemory || 8) <= 3) game.resLevel = 1; /* v2.3: modest phones start one auto step down */
+function playClock(dt) { /* v2.3 grown-ups: play time today/total + optional break reminder */
+  if (game.state !== 'play' || game.paused || !game.world || UI.isOpen() || !(dt > 0) || dt > 0.5) return; const P = save.progress, day = new Date().toDateString();
+  if (!P.playDay || P.playDay.d !== day) P.playDay = { d: day, secs: 0 }; P.playDay.secs += dt; P.playSecs = (P.playSecs || 0) + dt; game.sess = (game.sess || 0) + dt;
+  const bm = +save.settings.breakMin || 0; if (bm > 0 && game.sess > bm * 60) { game.sess = 0; game.pause(); const c = document.querySelector('#ui .card'); c && c.insertAdjacentHTML('afterbegin', '<div class="breaknote">Great playing! Time for a little break: stretch, drink some water, look out of a window.</div>'); writeSave(); } }
 function perfTrack(dt) {
   const p = game.perf; p.frames++; p.ms.push(dt * 1000); if (p.ms.length > 120) p.ms.shift();
-  if (save.settings.quality === 'auto' && (game.resLevel || 0) < 2 && p.frames > 240 && p.frames % 120 === 0 && game.state === 'play' && !game.paused) { const m = p.ms.slice().sort((a, b) => a - b), med = m[m.length >> 1]; if (med > 19) { game.resLevel = (game.resLevel || 0) + 1; if (game.resLevel >= 2) game.lowPerf = true; p.frames = 0; resize(); } } // dynamic resolution: 1.5x -> 1.25x -> 1x + low effects
+  p.tt = (p.tt || 0) + dt; /* v2.3: time-based auto quality - checks every 2 s of play after 3 s warm-up, very slow devices drop two steps at once */
+  if (save.settings.quality === 'auto' && (game.resLevel || 0) < 2 && p.tt > 3 && p.frames >= 20 && game.state === 'play' && !game.paused) { p.tt = 1; const m = p.ms.slice(-Math.min(p.ms.length, p.frames)).sort((a, b) => a - b), med = m[m.length >> 1]; if (med > 19) { game.resLevel = Math.min(2, (game.resLevel || 0) + (med > 40 ? 2 : 1)); if (game.resLevel >= 2) game.lowPerf = true; p.frames = 0; resize(); } }
 }
 // first touch: audio + fullscreen + orientation lock (web only; the Android app is already full-screen landscape)
 function firstGesture() {
@@ -230,7 +238,7 @@ boot(); initInput(canvas); resize(); UI.showTitle(); requestAnimationFrame(frame
 // --------- test API (used by automated tests; harmless for players) ---------
 addEventListener('rs-pausemap', () => game.drawPauseMap());
 window.__RS = {
-  UI, SP, AU: { audio, stinger, initAudio: _ia }, AI22, planSurprises, story: ST, storyUI: SU, startChapter: (n) => game.startChapter(n), skipComic: () => SU.skipComic(), FEEL, moveButton, layoutEditor: () => showLayoutEditor(() => UI.close()),
+  UI, SP, AU: { audio, stinger, initAudio: _ia, graph: _ag }, AI22, planSurprises, story: ST, storyUI: SU, startChapter: (n) => game.startChapter(n), skipComic: () => SU.skipComic(), FEEL, moveButton, layoutEditor: () => showLayoutEditor(() => UI.close()),
   foes: { Enemy, Warden, TideGolem, Boss, DrownedBloom }, BR, GA, T20, DIFF, MS, toast, WEAPONS, trapPhase, TRAP_TIMING, TRAP_DMG,
   game, save, input, TILE, gfx: G, writeSave, loadSave: boot, missions, continueRun: () => document.querySelector('[data-act="continueRun"]').click(), layout: () => input.layout,
   get W() { return game.world; }, supports() { return game.world ? game.world.auditSupports() : null; },
