@@ -1,0 +1,208 @@
+{
+ "small": {
+  "00-firstboot": {
+   "bad": [],
+   "small": [],
+   "open": "title"
+  },
+  "01-title": {
+   "bad": [],
+   "small": [],
+   "open": "title"
+  },
+  "02-settings": {
+   "bad": [],
+   "small": [],
+   "open": "settings"
+  },
+  "03-shop": {
+   "bad": [],
+   "small": [],
+   "open": "shop"
+  },
+  "04-loadout": {
+   "bad": [],
+   "small": [],
+   "open": "loadout"
+  },
+  "05-journal": {
+   "bad": [],
+   "small": [],
+   "open": "journal"
+  },
+  "06-hub": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "07-worldmap": {
+   "bad": [],
+   "small": [],
+   "open": "map"
+  },
+  "08-comic": {
+   "bad": [
+    "offscreen div.cm-art \"\" -34,-22,681,380"
+   ],
+   "small": [],
+   "open": "comic"
+  },
+  "09-ch1-start": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "10-combat": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "11-pause": {
+   "bad": [],
+   "small": [],
+   "open": "pause"
+  },
+  "12-death": {
+   "bad": [],
+   "small": [],
+   "open": "death"
+  },
+  "13-victory": {
+   "bad": [],
+   "small": [],
+   "open": "victory"
+  },
+  "14-boss-intro": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "15-boss-fight": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "16-ending": {
+   "bad": [
+    "offscreen div.cm-art \"\" -35,-23,682,381"
+   ],
+   "small": [],
+   "open": "comic"
+  },
+  "17-tutorial": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "errors": []
+ },
+ "wide": {
+  "00-firstboot": {
+   "bad": [],
+   "small": [],
+   "open": "title"
+  },
+  "01-title": {
+   "bad": [],
+   "small": [],
+   "open": "title"
+  },
+  "02-settings": {
+   "bad": [],
+   "small": [],
+   "open": "settings"
+  },
+  "03-shop": {
+   "bad": [],
+   "small": [],
+   "open": "shop"
+  },
+  "04-loadout": {
+   "bad": [],
+   "small": [],
+   "open": "loadout"
+  },
+  "05-journal": {
+   "bad": [],
+   "small": [],
+   "open": "journal"
+  },
+  "06-hub": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "07-worldmap": {
+   "bad": [],
+   "small": [],
+   "open": "map"
+  },
+  "08-comic": {
+   "bad": [
+    "offscreen div.cm-art \"\" -55,-28,976,437"
+   ],
+   "small": [],
+   "open": "comic"
+  },
+  "09-ch1-start": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "10-combat": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "11-pause": {
+   "bad": [],
+   "small": [],
+   "open": "pause"
+  },
+  "12-death": {
+   "bad": [],
+   "small": [],
+   "open": "death"
+  },
+  "13-victory": {
+   "bad": [],
+   "small": [],
+   "open": "victory"
+  },
+  "14-boss-intro": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "15-boss-fight": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "16-ending": {
+   "bad": [
+    "offscreen div.cm-art \"\" -54,-27,976,437"
+   ],
+   "small": [],
+   "open": "comic"
+  },
+  "17-tutorial": {
+   "bad": [],
+   "small": [],
+   "open": null
+  },
+  "errors": []
+ },
+ "portrait": {
+  "00-firstboot": {
+   "bad": [],
+   "small": [],
+   "open": "title"
+  },
+  "01-title": {
+   "bad": [],
+   "small": [],
+   "open": "title"
+  }
+ }
+}

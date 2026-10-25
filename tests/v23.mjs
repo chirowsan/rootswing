@@ -42,9 +42,9 @@ const E = (fn, ...a) => page.evaluate(fn, ...a);
   ok('perf: one frame of draw calls under 30 ms even in software raster', p.renderMs < 30, p); }
 
 // ---------- 5. presentation hooks: boss/warden intro card, chapter ribbon, break reminder ----------
-{ const c = await E(async () => { __RS.start('run', { chapter: 3, seed: 4 }); __RS.god(true); await new Promise((r) => setTimeout(r, 300)); const W = __RS.W, e = W.enemies[0]; __RS.game.bossBar(null); __RS.game.bossBar(e); const card = W.icard && W.icard.name; __RS.game.bossBar(null);
-    __RS.save.settings.breakMin = 1; __RS.game.sess = 1e6; await new Promise((r) => setTimeout(r, 400)); const brk = !!document.querySelector('.breaknote') && __RS.game.paused; __RS.save.settings.breakMin = 0; return { card, banner: W.story && W.story.banner > 0, brk }; });
-  ok('polish: chapter ribbon + warden intro card', !!c.card && c.banner, c);
+{ const c = await E(async () => { __RS.start('run', { chapter: 3, seed: 4 }); __RS.god(true); await new Promise((r) => setTimeout(r, 300)); const W = __RS.W, e = W.enemies.find((x) => x.info && !/warden|golem/i.test(x.info.name)) || W.enemies[0], wd = W.enemies.find((x) => x.type === 'warden'); __RS.game.bossBar(null); __RS.game.bossBar(e); const card = W.icard && W.icard.name, want = e.info && e.info.name; W.icard = null; __RS.game.bossBar(null); let wcard = 'none'; if (wd) { __RS.game.bossBar(wd); wcard = W.icard && W.icard.name; __RS.game.bossBar(null); }
+    __RS.save.settings.breakMin = 1; __RS.game.sess = 1e6; await new Promise((r) => setTimeout(r, 400)); const brk = !!document.querySelector('.breaknote') && __RS.game.paused; __RS.save.settings.breakMin = 0; return { card, want, wcard, banner: W.story && W.story.banner > 0, brk }; });
+  ok('polish: chapter ribbon + intro card names the foe the bar shows (warden -> chapter warden name)', !!c.card && c.card === c.want && (c.wcard === 'none' || c.wcard === 'Thornback Warden') && c.banner, c);
   ok('grown-ups: break reminder pauses with a friendly note', c.brk, c); }
 await browser.close();
 

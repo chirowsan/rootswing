@@ -1,14 +1,16 @@
 // v2.3 presentation polish: chapter title ribbon + boss/warden intro cards (screen space, canvas only)
 import * as ST from './story.js';
+import { Warden, Boss } from './boss.js';
 const ease = (x) => 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
 export function introCard(W, e) {
   if (!W || !e || W.mode === 'tutorial' || W.mode === 'hub') return; const C = W.chapter && ST.CHAPTERS[W.chapter];
-  const boss = e === W.boss || e.type === 'boss'; const name = boss ? (C ? C.boss : (e.info && e.info.name) || 'Boss') : (C ? C.wardName : (e.info && e.info.name) || 'Warden');
-  W.icard = { t0: W.t, name, sub: boss ? 'GUARDIAN OF THE ROOT' : 'WARDEN', col: (C && C.col) || '#ffb13b', boss };
+  const boss = e instanceof Boss, ward = !boss && e instanceof Warden, own = (e.info && e.info.name) || (e.cfg && e.cfg.name); /* v2.3: the card always names the foe the bar shows */
+  const name = boss ? (C ? C.boss : own || 'Boss') : ward ? (C ? C.wardName : own || 'Warden') : own || 'Champion';
+  W.icard = { t0: W.t, name, sub: boss ? 'GUARDIAN OF THE ROOT' : ward ? 'WARDEN' : 'CHAMPION', col: (C && C.col) || '#ffb13b', boss };
 }
 function band(g, y, h, cw, col, a) { g.globalAlpha = a; g.fillStyle = 'rgba(8,6,16,0.78)'; g.fillRect(0, y, cw, h); g.fillStyle = col; g.fillRect(0, y, cw, 2); g.fillRect(0, y + h - 2, cw, 2); g.globalAlpha = 1; }
 export function drawIntro(g, W, cw, ch, s) {
-  const I = W.icard; if (!I) return; const age = W.t - I.t0, L = 2.4; if (age > L || age < 0) { W.icard = null; return; }
+  const I = W.icard; if (!I) return; if (W.countdown > 0 || W.goT > 0) { I.t0 = W.t; return; } /* v2.3: wait for the GO! so the card never sits under it */ const age = W.t - I.t0, L = 2.4; if (age > L || age < 0) { W.icard = null; return; }
   const inA = ease(age / 0.35), outA = 1 - ease((age - (L - 0.4)) / 0.4), a = Math.min(inA, outA), H = 64 * s, y = ch * 0.3;
   g.save(); g.translate((1 - inA) * -cw * 0.4 + (1 - outA) * cw * 0.4, 0); band(g, y, H, cw, I.col, 0.95 * a);
   g.globalAlpha = a; g.textAlign = 'center'; g.textBaseline = 'middle';

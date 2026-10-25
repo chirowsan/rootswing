@@ -211,7 +211,7 @@ button.big{min-height:46px}
 .scroll{-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 22px),transparent);mask-image:linear-gradient(180deg,#000 calc(100% - 22px),transparent);padding-bottom:18px}
 @media (max-height:430px){.res .next-goal{font-size:13px;padding:4px 10px}.res .stars{margin:-4px 0}}
 /* v2.3 phase 3: painted logo, screen entrances, a11y classes */
-.logo{display:flex;flex-direction:column;align-items:flex-start;text-shadow:none;filter:drop-shadow(0 1px 0 #3a1e08) drop-shadow(0 4px 0 #15131f) drop-shadow(0 0 22px rgba(255,200,90,.35));font-size:min(14vh,78px);letter-spacing:.02em}
+.logo{display:flex;flex-direction:column;align-items:flex-start;text-shadow:none;filter:drop-shadow(0 1px 0 #3a1e08) drop-shadow(0 4px 0 #15131f) drop-shadow(0 0 22px rgba(255,200,90,.35));font-size:min(14vh,78px,15vw);letter-spacing:.02em}
 .logo>span{position:relative;display:inline-flex}
 .logo i{font-style:normal;display:inline-block;background:linear-gradient(180deg,#fffbe9 0%,#ffe6a8 48%,#f0a43a 52%,#ffcf6a 100%);-webkit-background-clip:text;background-clip:text;color:transparent;animation:lgIn .7s cubic-bezier(.2,1.5,.4,1) both;animation-delay:calc(var(--i)*55ms + 80ms)}
 .logo .lw2{margin-left:.55em;margin-top:.04em}
@@ -236,3 +236,4 @@ html.big-text .seg button{font-size:14px}
 .logo{line-height:1}.logo i{line-height:1.12;padding:0 .015em}.logo .lw2{margin-top:-.12em}
 .parent-info{font-size:13px;line-height:1.45;opacity:.85;background:rgba(255,255,255,.05);border-radius:12px;padding:10px 12px;margin:4px 0 8px}
 .breaknote{background:linear-gradient(135deg,#2b4a22,#1d3318);border:2px solid #9dff8a;border-radius:14px;padding:10px 14px;margin-bottom:10px;font-weight:700;line-height:1.35}
+.seg button{min-width:44px}.title-wrap{max-width:88vw}
