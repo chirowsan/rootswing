@@ -2,7 +2,7 @@
 import { save, writeSave, resetSave, DEFAULT_SETTINGS } from './save.js';
 import { sfx, applyVolumes, initAudio, stinger } from './audio.js';
 import { drawIcon, PAL } from './art.js';
-import { WEAPONS, GADGETS, UPGRADES } from './weapons.js';
+import { WEAPONS, GADGETS, UPGRADES, STYLES } from './weapons.js';
 import { ENEMY_INFO } from './enemies.js';
 import { input, computeLayout } from './input.js';
 import { has, spr, G } from './gfx.js';
@@ -211,7 +211,7 @@ export function showWardrobe() {
   const hats = HATS.map((h) => item('hat', h.id, (h.id === 'none' ? ic('hat', '#555', 30) : ic('hatx:' + h.id, '#fff', 40)), '', w.hat === h.id, h.id === 'none' || owns(m, 'hat:' + h.id))).join('');
   const vns = VINES.map((v) => item('vine', v.id, `<i class="sw vine" style="background:${v.rainbow ? 'linear-gradient(90deg,#ff5a5a,#ffd34a,#5ae07a,#5ab4ff,#b45aff)' : `linear-gradient(90deg,${v.dark},${v.light},${v.dark})`}"></i>`, '', (save.progress.vine || 'green') === v.id, vines.includes(v.id))).join('');
   const pets = ['none', ...CRITTERS].map((c) => item('pet', c, c === 'none' ? ic('pet', '#555', 30) : ic('spr:cr_' + c, '#fff', 40), '', w.pet === c, c === 'none' || owns(m, 'pet:' + c))).join('');
-  const wpns = ['blade', 'hammer', 'whip'].map((id) => item('wpn', id, ic('spr:w_' + id, '#fff', 40), '', (save.progress.weapon || 'blade') === id, id === 'blade' || !!save.progress.unlocks[id])).join(''); // v2.0 fighting styles
+  const wpns = STYLES.map((id) => item('wpn', id, ic('spr:w_' + id, '#fff', 40), '', (save.progress.weapon || 'blade') === id, id === 'blade' || !!save.progress.unlocks[id])).join(''); // v2.0 fighting styles
   const badges = BADGES.map((b) => `<span class="bd ${m.badges.includes(b.id) ? 'on' : ''}">${ic(b.icon, m.badges.includes(b.id) ? b.color : '#4a4462', 26)}${b.n ? `<small>${b.n}</small>` : ''}</span>`).join('');
   show('wardrobe', `<div class="card wide wardrobe"><div class="wr-main"><div class="hero-prev">${ic('hero:' + w.cape + ',' + w.hat, '#fff', 150)}</div>
   <div class="scroll wr-rows"><div class="wr">${ic('blade', '#bff5c8', 24)}${wpns}</div><div class="wr">${ic('cape', '#ffe27a', 24)}${capes}</div><div class="wr">${ic('hat', '#ffe27a', 24)}${hats}</div><div class="wr">${ic('hook', '#9be070', 24)}${vns}</div><div class="wr">${ic('pet', '#ff9ab0', 24)}${pets}</div>

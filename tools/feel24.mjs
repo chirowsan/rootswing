@@ -43,9 +43,9 @@ const res = await L.page.evaluate(() => {
     out.tr.whip = r.tr; out.strips.whip = r.shots; }
   // 5) bow: tap shot then hold-charge shot
   { const { W, P } = setup('bow'); W.spawnEnemy('dummy', P.cx + 260, P.y + P.h); const e = W.enemies[W.enemies.length - 1]; if (e) { e.hp = e.maxHp = 1e6; }
-    const hits = []; let fr = 0; const h0 = W.hitEnemy.bind(W); W.hitEnemy = (en, h, p) => { hits.push({ f: fr, dmg: h.dmg, crit: !!h.crit, src: h.src }); return h0(en, h, p); };
+    const hits = []; let fr = 0; const h0 = W.hitEnemy.bind(W); W.hitEnemy = (en, h, p) => { hits.push({ f: fr, dmg: h.dmg, crit: !!h.crit, tag: h.tag || '', src: h.src, mv: h.mv || '' }); return h0(en, h, p); };
     const plan = {}; tap(plan, 0, 'attack', 3); tap(plan, 40, 'attack', 50); for (let f = 0; f < 150; f++) plan[f] = { ...(plan[f] || {}), fn: () => { fr = f; } };
-    const shotsTr = []; const r = run(W, P, 150, plan, { every: 4, from: 36, max: 16, wide: 2.2 }, (W, P) => { const s = W.shots.find((s) => s.arrow); if (s) shotsTr.push([fr, +s.x.toFixed(1), +s.y.toFixed(1)]); return {}; });
+    const shotsTr = []; const r = run(W, P, 150, plan, { every: 4, from: 36, max: 16, wide: 2.2 }, (W, P) => { const s = W.shots.find((s) => s.arrow); if (s) shotsTr.push([fr, +s.x.toFixed(1), +s.y.toFixed(1)]); return { bowK: P.bowS ? +P.bowS.k.toFixed(3) : -1, bowCd: +(P.bowCd || 0).toFixed(3), pose: P.heroPose(W).n }; });
     out.m.bowHits = hits; out.m.bowArrowPts = shotsTr.length; out.tr.bow = r.tr; out.tr.arrow = shotsTr; out.strips.bow = r.shots; }
   return out; });
 for (const [k, list] of Object.entries(res.strips)) list.forEach((d, i) => fs.writeFileSync(`${OUT}${k}-${String(i).padStart(2, '0')}.png`, Buffer.from(d.split(',')[1], 'base64')));

@@ -11,6 +11,7 @@ import { diff, save } from './save.js';
 import { PAL, drawGlow } from './art.js';
 import { G, has, spr, sprAspect, shaded, heroFlash, heroTint } from './gfx.js';
 import { palOf, STYLES } from './weapons.js';
+import * as WH from './whip.js'; import * as BW from './bow.js';
 import { MV, GAUGE_MAX, trail, lash, decal, wave, leaves, petals, gain } from './combat.js';
 
 const C = HERO; // unchanged values (moved to physics.js in v1.5 so the validator shares them)
@@ -93,7 +94,7 @@ export class Player {
       if (this.dashT <= 0 && this.vy === 0) { this.vx = this.dashDir * C.RUN * 0.9; this.dashEnd = 0.15; } // v1.9: short window after a dash for the dash-slash
     } else {
       // horizontal
-      const mm = WEAPONS[this.weapon].moveMul, slow = this.atk ? (!this.onGround ? 1 : this.atk.phase === 'rec' ? Math.max(mm, 0.85) : Math.max(mm, mm * 0.5 + 0.35)) : this.parryLock > 0 ? 0.1 : this.flaskT > 0 ? 0.4 : 1;
+      const mm = WEAPONS[this.weapon].moveMul, slow = this.bowS ? (this.onGround ? (this.bowS.k > 0 ? 0.45 : 0.75) : 0.8) : this.atk ? (!this.onGround ? 1 : this.atk.phase === 'rec' ? Math.max(mm, 0.85) : Math.max(mm, mm * 0.5 + 0.35)) : this.parryLock > 0 ? 0.1 : this.flaskT > 0 ? 0.4 : 1;
       const target = mx * C.RUN * slow;
       if (this.wallLock > 0) { if (mx && sign(mx) !== sign(this.vx)) this.vx = approach(this.vx, target, C.ACC_A * 0.45 * dt); } // v1.4: wall-jump keeps its kick but a stick back toward the wall is honoured gently
       else if (this.onGround) { const rev = target && this.vx && sign(target) !== sign(this.vx);
@@ -255,6 +256,10 @@ export class Player {
   }
   // ---------------- combat ----------------
   updateAttack(W, dt, mx, my) {
+    if (this.weapon === 'bow') { // v2.4 Thornbow: own one-button draw/charge/shoot loop (no generic melee charge)
+      const pr = pressed('attack') || (this.atkBuf > 0 && !this.bowS && this.dashT <= 0 && this.hurtT <= 0);
+      let pA = false; if (pr && this.parryLock <= 0 && this.flaskT <= 0) { this.atkBuf = 0; if (!W.tryInteract(this)) pA = true; }
+      this.atk = null; this.chargeT = 0; BW.update(W, this, dt, mx, my, pA, held('attack')); return; }
     const wpn = WEAPONS[this.weapon];
     const atkP = pressed('attack') || (this.atkBuf > 0 && !held('attack') && !this.atk && this.dashT <= 0 && this.hurtT <= 0); // v2.1: a tap during parry/flask/hurt/dash is kept for 160 ms
     if (atkP && this.parryLock <= 0 && this.flaskT <= 0) { this.atkBuf = 0;
@@ -279,12 +284,13 @@ export class Player {
     a.t += dt;
     if (a.kind === 'plunge') return this.updatePlunge(W, a);
     const d = a.def;
+    if (a.wm && WH.update(W, this, a, dt)) { this.onConnect(W, a); if (d.pogo && !this.onGround) { this.vy = -400; this.airDash = true; this.airHover = 0; } }
     if (a.phase === 'wind' && a.t >= (a.wind ?? d.wind)) { a.phase = 'active'; a.t = 0; this.onActive(W, a, d, wpn); }
     if (a.phase === 'active') {
       if (d.ticks > 1) { const n = Math.min(d.ticks - 1, Math.floor(a.t / (d.active / d.ticks))); if (n !== (a.tick || 0)) { a.tick = n; a.hit.clear(); if (d.mv === 'whirl') sfx('spin', 0.05); } }
       if (d.pull) for (const e of W.enemies) if (!e.dead && e.light && !e.boss && Math.abs(e.cx - this.cx) < 110 && Math.abs(e.cy - this.cy) < 60) e.vx = approach(e.vx, sign(this.cx - e.cx) * 160, 900 * dt);
       if (a.kind === 'special') this.updateSpecial(W, a);
-      else if (!d.proj) { const box = this.attackRect(d); if (W.attackBox(box, a.hd || d, this, a.hit)) this.onConnect(W, a); }
+      else if (!d.proj && !a.wm) { const box = this.attackRect(d); if (W.attackBox(box, a.hd || d, this, a.hit)) this.onConnect(W, a); }
       if (a.t >= d.active) { a.phase = 'rec'; a.t = 0; if (d.burst) this.vineBurst(W, d); }
     } else if (a.phase === 'rec') {
       if (this.queued && a.t > d.rec * 0.35 && a.kind === 'combo') { const n = wpn.combo.length; if (a.step + 1 < n) { this.queued = false; this.startAttack(W, my, 'combo', a.step + 1); return; } }
@@ -299,7 +305,7 @@ export class Player {
     if (d.proj) W.spawnArrow(this, d); if (d.quake) W.quake(this, d);
     a.hd = { ...d, crit: d.crit || this.critT > 0, air: a.kind === 'air' };
     const mv = MV[a.mv || d.mv], pal = palOf(this.weapon), col = pal[0], core = pal[1], heavy = this.weapon === 'hammer', up = a.kind === 'rise' || a.up;
-    if (mv && !d.proj && this.weapon === 'whip' && !mv.spin && !mv.foot && (mv.arc || mv.thrust)) trail(W, this, { kind: 'whip', arc: mv.arc || [-0.15, 0.1], r: Math.min(124, (d.w || 90) * 1.02), sq: mv.thrust ? 0.4 : 1, dur: Math.max(0.07, d.active * 0.9), fade: 0.13, col, core, ox: 2, oy: up ? -10 : -6 });
+    if (mv && !a.wm && !d.proj && this.weapon === 'whip' && !mv.spin && !mv.foot && (mv.arc || mv.thrust)) trail(W, this, { kind: 'whip', arc: mv.arc || [-0.15, 0.1], r: Math.min(124, (d.w || 90) * 1.02), sq: mv.thrust ? 0.4 : 1, dur: Math.max(0.07, d.active * 0.9), fade: 0.13, col, core, ox: 2, oy: up ? -10 : -6 });
     if (heavy && !d.proj && a.kind !== 'special') { W.fx.burst(this.cx + this.face * 30, this.cy - 4, d.fin ? 10 : 6, { color: [col, '#ffd08a', core], kind: 'spark', min: 90, max: d.fin ? 340 : 230, life: 0.4, glow: 1, g: 420, angle: this.face > 0 ? -0.7 : Math.PI + 0.7, spread: 0.9, size: 3 }); } // embers off the hammer head
     else if (this.weapon === 'blade' && a.kind !== 'special' && !d.proj) leaves(W, this.cx + this.face * 26, this.cy - 8, d.fin ? 6 : 2, { angle: up ? -Math.PI / 2 : (this.face > 0 ? 0 : Math.PI), spread: 0.9 });
     if (mv && !d.proj && !(this.weapon === 'whip' && !mv.spin)) {
@@ -319,7 +325,7 @@ export class Player {
   swapStyle(W) { // v2.0 quick-swap: cycle the fighting styles you have earned (Leaf Blade / Thorn Hammer / Vine Whip)
     const own = this.ownedStyles(); this.swapCd = 0.3;
     if (own.length < 2) { W.fx.text(this.cx, this.y - 18, 'Earn styles in missions!', '#d8e6ff', 11); sfx('uiBack'); return; }
-    const i = own.indexOf(this.weapon), next = own[(i + 1) % own.length], pal = palOf(next); this.weapon = next; this.comboIdx = 0; this.comboT = 0; this.queued = false;
+    const i = own.indexOf(this.weapon), next = own[(i + 1) % own.length], pal = palOf(next); this.weapon = next; this.bowS = null; this.comboIdx = 0; this.comboT = 0; this.queued = false;
     if (W.mode !== 'run') save.progress.weapon = next;
     const gy = this.onGround ? this.y + this.h : this.cy + 14; wave(W, this.cx, gy, 52, pal[0]); W.fx.burst(this.cx, this.cy - 4, 14, { color: pal, kind: next === 'blade' ? 'leaf' : next === 'hammer' ? 'spark' : 'leaf', min: 60, max: 200, life: 0.5, glow: 1, size: 4 });
     W.fx.text(this.cx, this.y - 18, WEAPONS[next].name.toUpperCase(), pal[1], 13); sfx(next === 'hammer' ? 'hamA' : next === 'whip' ? 'whipCrack' : 'slashA'); vibrate(10); W.emit('styleSwap', next);
@@ -345,7 +351,20 @@ export class Player {
     if (a.phase === 'rec' && a.t > 0.2) this.atk = null;
   }
   attackRect(d, up = !!(this.atk && this.atk.up)) { if (d.mv === 'rise') { const w = d.w; return { x: this.face > 0 ? this.cx - 6 : this.cx + 6 - w, y: this.y - 26, w, h: this.h + 30 }; } if (up && !d.both) { const L = d.w * 0.9, Wd = d.h + 10; return { x: this.cx - Wd / 2, y: this.y + 10 - L, w: Wd, h: L }; } const w = d.w, h = d.h; const x = d.both ? this.cx - w / 2 : this.face > 0 ? this.cx - 4 : this.cx + 4 - w; return { x, y: this.cy - h / 2 + (d.oy || 0), w, h }; }
-  startAttack(W, my, kind = 'combo', step = 0) {
+  startAttack(W, my, kind = 'combo', step = 0) { // v2.4: the Vine Whip picks a lash per direction (forward / up / diagonal / air-down)
+    if (this.weapon !== 'whip' || kind === 'heavy') return this._startAttack(W, my, kind, step);
+    const mx = input.mx, diag = my < -0.3 && Math.abs(mx) > 0.35, swingKick = this.hook.s === 'swing';
+    if (kind === 'combo' && !this.onGround && !swingKick && this.hook.s === 'none' && my > 0.5) { // air down-lash (pogo on hit)
+      if (Math.abs(mx) > 0.2) this.face = sign(mx); const A = WEAPONS.whip.air;
+      this.atk = { kind: 'air', step: 0, phase: 'wind', t: 0, wind: A.wind * 0.75, def: { ...A, mv: 'wdown', pogo: true }, hit: new Set(), wm: 'down' }; this.stats.attacks++; W.emit('attack'); return;
+    }
+    const prev = this.atk; this._startAttack(W, diag ? 0 : my, kind, step); const a = this.atk;
+    if (!a || a === prev || a.wm || !['combo', 'air', 'rise'].includes(a.kind)) return;
+    const wm = diag ? 'diag' : a.kind === 'rise' || a.up ? 'up' : a.kind === 'air' ? 'air' : ({ wcut: 'cut', wrev: 'rev', wrise: 'rise', wfin: 'fin' })[a.def.mv] || 'cut';
+    a.wm = wm; a.up = false; a.def = { ...a.def, mv: 'w' + wm, tip: true, w: WH.WM[wm].L };
+    if (a.kind === 'rise') a.def.sfx = 'whipWind';
+  }
+  _startAttack(W, my, kind = 'combo', step = 0) {
     const wpn = WEAPONS[this.weapon]; if (Math.abs(input.mx) > 0.2) this.face = sign(input.mx); else this.autoFace(W);
     const melee = this.weapon !== 'bow', up = my < -0.5 && melee && kind !== 'heavy', thr = wpn.combo[0].thrust;
     if (kind === 'combo' && this.counterT > 0 && melee && this.hook.s === 'none') return this.startCounter(W);
@@ -491,7 +510,8 @@ export class Player {
     if (this.parryT > 0 || this.parryLock > 0.1) { g.strokeStyle = '#bfefff'; g.lineWidth = 3; g.globalAlpha = this.parryT > 0 ? 0.95 : 0.4; g.beginPath(); g.arc(X, this.cy, 24, f > 0 ? -1.2 : Math.PI - 1.2 + 0.0, f > 0 ? 1.2 : Math.PI + 1.2); g.stroke(); drawGlow(g, X + f * 18, this.cy, 22, '#9fe8ff', 0.5); g.globalAlpha = 1; }
     if (this.flash > 0) { drawGlow(g, X, this.cy, 30, '#ff7090', this.flash * 2); }
     // attack smear
-    if (atk && atk.phase === 'active' && atk.def && !atk.def.proj && atk.kind !== 'plunge' && atk.kind !== 'special' && atk.kind !== 'kick' && (!(atk.def.mv && MV[atk.def.mv]) || (this.weapon === 'whip' && !MV[atk.def.mv].spin))) { if (atk.up) { g.save(); g.translate(this.cx, this.cy); g.rotate(-this.face * Math.PI / 2); g.translate(-this.cx, -this.cy); } this.drawSmear(g, atk); if (atk.up) g.restore(); }
+    if (atk && atk.phase === 'active' && atk.def && !atk.def.proj && atk.kind !== 'plunge' && atk.kind !== 'special' && atk.kind !== 'kick' && !atk.wm && (!(atk.def.mv && MV[atk.def.mv]) || (this.weapon === 'whip' && !MV[atk.def.mv].spin))) { if (atk.up) { g.save(); g.translate(this.cx, this.cy); g.rotate(-this.face * Math.PI / 2); g.translate(-this.cx, -this.cy); } this.drawSmear(g, atk); if (atk.up) g.restore(); }
+    if (this.weapon === 'bow') BW.draw(g, this, W, pose && pose.hand); if (atk && atk.wm) WH.draw(g, this, atk, pose && pose.hand, (W.game && W.game.lowPerf) || save.settings.quality === 'low'); // v2.4 the lash itself
     if (atk && atk.kind === 'plunge' && atk.phase === 'active') { // v1.9: falling-star streaks + a glowing blade tip instead of a flat wedge
       g.save(); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round'; for (let i = 0; i < 5; i++) { const ox = (i - 2) * 5 + Math.sin(t * 50 + i * 2) * 1.5, L = 26 + ((i * 37 + Math.floor(t * 60) * 13) % 22); g.globalAlpha = 0.25 + 0.12 * (i % 2); g.strokeStyle = i === 2 ? '#fff6d8' : '#bff7ff'; g.lineWidth = i === 2 ? 3 : 1.6; g.beginPath(); g.moveTo(X + ox, this.y - L + 6); g.lineTo(X + ox, this.y + this.h - 4); g.stroke(); }
       g.globalAlpha = 0.85; drawGlow(g, X + this.face * 2, this.y + this.h + 10, 12, '#fff6d8', 0.8); g.restore(); g.globalAlpha = 1; }
@@ -524,10 +544,13 @@ export class Player {
     const t = this.t, h = this.hook, atk = this.atk, wpn = this.weapon, air = !this.onGround;
     const run = this.onGround && Math.abs(this.vx) > 20, dash = this.dashT > 0;
     const wall = air && this.wallDir && this.vy > 0 && Math.sign(input.mx) === this.wallDir;
-    let n = 'idle0', wa = null, rot = 0, face = this.face, shake = 0, pivC = false;
+    let n = 'idle0', wa = null, rot = 0, face = this.face, shake = 0, pivC = false, noW = false;
     const sweep = (a0, a1) => { const d = atk.def || {}; const k = atk.phase === 'wind' ? 0 : atk.phase === 'active' ? Math.min(1, atk.t / Math.max(0.01, d.active || 0.1)) : 1; const e = 1 - (1 - k) * (1 - k); return a0 + (a1 - a0) * e; };
     if (this.dead) n = this.deadT < 0.28 ? 'hurt' : 'dead';
     else if (this.hurtT > 0) n = 'hurt';
+    else if (wpn === 'bow' && (this.bowS || this.bowRel > 0) && G.hero.f.c_bow_nock) { const bs = this.bowS; n = !bs ? 'c_bow_rel' : bs.k > 0.05 ? 'c_bow_draw' : 'c_bow_nock'; noW = true;
+      const A = bs ? (bs.ang !== undefined ? bs.ang : 0) : this.bowAng || 0, fa = Math.cos(A) < -0.01 ? -1 : Math.cos(A) > 0.01 ? 1 : this.face; face = fa; const loc = fa > 0 ? A : Math.PI - A; rot = Math.max(-0.5, Math.min(0.5, loc * 0.35)) * fa;
+      if (h.s === 'swing') rot += Math.atan2(h.hx - this.cx, -(h.hy - this.cy)) * 0.4; if (!bs) shake = 0; }
     else if (h.s === 'swing' && !(atk && this.combatPose(atk, wpn))) { // v2.4: lean with the rope; legs trail on the down-swing, lead on the up-swing; hang when slow
       const dx = this.cx - h.hx, sp = Math.hypot(this.vx, this.vy); rot = Math.atan2(h.hx - this.cx, -(h.hy - this.cy)) * 0.85; n = 'swing';
       if (G.hero.f.c_swing_m) n = sp < 130 ? 'c_swing_m' : Math.sign(dx) === Math.sign(this.vx) && Math.abs(dx) > 10 ? 'c_swing_f' : 'c_swing_b'; }
@@ -562,7 +585,7 @@ export class Player {
     if (this.dead) rot = 0;
     const F = G.hero.f[n] || G.hero.f.idle0, K = HERO_PX * (W.heroK || HERO_K), pvx = F.length > 6 ? F[6] : F[4] - 22; let X = this.cx, Y = this.y + this.h; if (pivC) { X -= Math.sin(rot) * 20; Y += -20 + Math.cos(rot) * 20; } // flip spins about the body centre
     const sx = (1 + (this.sx - 1) * 0.45) * face, sy = 1 + (this.sy - 1) * 0.45 + (n.startsWith('idle') ? Math.sin(t * 2.4) * 0.012 : 0);
-    const pose = { n, F, K, pvx, pvy: F.length > 7 ? F[7] : F[3], X, Y, sx, sy, rot, face, wa, shake: shake ? Math.sin(t * 50) * shake : 0, hand: null };
+    const pose = { n, F, K, pvx, pvy: F.length > 7 ? F[7] : F[3], X, Y, sx, sy, rot, face, wa, shake: shake ? Math.sin(t * 50) * shake : 0, hand: null, noW };
     const fi = this.fist(n); if (fi) pose.hand = this.framePt(pose, fi[0], fi[1]);
     return pose;
   }
@@ -574,6 +597,7 @@ export class Player {
     let n = ph === 'wind' ? mv.a : ph === 'active' ? (k < 0.5 ? mv.s : mv.f) : mv.f, face = this.face, rot = 0, wa = null;
     if (key === 'plunge') n = ph === 'rec' ? mv.f : mv.s;
     if (mv.w) { const w = mv.w, e = 1 - (1 - k) * (1 - k); wa = ph === 'wind' ? w[0] : ph === 'active' ? w[1] + (w[2] - w[1]) * e : w[3]; }
+    if (atk.wm) wa = WH.handleAt(atk);
     if (mv.spin && ph === 'active') { const turns = d.ticks > 2 ? d.ticks * 0.6 : 1, a = k * turns * Math.PI * 2; face = Math.cos(a) >= 0 ? this.face : -this.face; wa = (mv.w ? mv.w[0] : 0) + a * 1.0; }
     if (key === 'dash' || key === 'counter') rot = clamp(this.vx / 2400, -0.12, 0.12);
     if (key === 'kick' && this.hook.s === 'swing') rot = Math.atan2(this.hook.hx - this.cx, -(this.hook.hy - this.cy)) * 0.5;
@@ -596,7 +620,7 @@ export class Player {
     g.save(); g.translate(p.X + p.shake, p.Y); g.rotate(p.rot); g.scale(p.sx * p.K, p.sy * p.K); g.translate(-p.pvx, -p.pvy);
     if (blink) g.globalAlpha = 0.5;
     const fi = this.fist(p.n);
-    if (p.wa === null || !fi) this.frameWeapon(g, p, F[4] - 30, F[5] + 6, this.weapon === 'bow' ? 1.75 : 1.95, 0.95, 0.72); // sheathed across the back
+    if (!p.noW && (p.wa === null || !fi)) this.frameWeapon(g, p, F[4] - 30, F[5] + 6, this.weapon === 'bow' ? 1.75 : 1.95, 0.95, 0.72); // sheathed across the back
     const wr = missions().wardrobe; g.drawImage(capeSheet(H, wr.cape) || H.img, F[0], F[1], F[2], F[3], 0, 0, F[2], F[3]);
     if (wr.hat && wr.hat !== 'none' && !this.dead) { const hm = p.n.startsWith('c_') && G.hero.hand && G.hero.hand[p.n]; const hr = (hm && hm[3] ? hm[3] * 0.012 : 0) + (this.hatA || 0) * 0.5 * (this.face || 1); if (hr) { g.save(); g.translate(F[4], F[5] - 30); g.rotate(hr); g.translate(-F[4], -(F[5] - 30)); } drawHat(g, wr.hat, F[4] - 12, F[5] - 47, 4.4, 1); if (hr) g.restore(); } // v1.8 hat rides the hood; v2.1 hat spring (secondary motion)
     if (p.wa !== null && fi) this.frameWeapon(g, p, fi[0], fi[1], p.wa, 1);

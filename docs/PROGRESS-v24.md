@@ -35,3 +35,12 @@ Baseline numbers (shots/v24/before/feel.json): attach jerk 50 px/s/frame, pump m
 - [check] run-all (with whip dist) 111/111 PASS.
 - [probe after2] whip combo vs dummy @85px: 4/4 hits (wcut f7, wrev f25, wrise f45, wfin f67), 3 tip-zone crits (TIP! x1.5), 45 active frames, 14 hit-stop frames, 0 page errors. Strip: shots/v24/after2/whip-strip.png.
 - [commit] phase 3 (whip). Bow work (src/bow.js etc.) started in the same tree, committed as phase 4 next.
+
+## Phase 4 — Thornbow (existed since v1.x as a shop weapon; now a real earnable style)
+- [step] src/bow.js: one button. Tap (<0.12 s) = quick shot 8 dmg, 780 px/s, arcs (g 430), cd 0.2 s. Hold = draw k 0→1 over 0.55 s (bowDraw sfx, bowFull sfx + spark at full). Release k≥0.3 = power shot 11→22 dmg, 820→1180 px/s, flatter; full = pierce + breaks + recoil + camera punch.
+- [step] Aim: 8-way from the stick (up / up-forward / forward / air down) + soft auto-aim (±23° cone, 430 px, line of sight, gravity-compensated lead). Quick shots aim at the body, charged shots at the head.
+- [step] Weakpoint: arrow in the top third of a foe = BULLSEYE! crit x1.5 (bullseye sfx, gold sparks, zoom punch). Arrows stick in walls and wobble, trail ribbon, fletching; dotted predicted arc + target bracket while drawing.
+- [step] Poses c_bow_nock → c_bow_draw → c_bow_rel (0.16 s), procedural bow limbs bend with draw, string vibrates after release. Movement slows while drawing; air draw caps fall to 150 px/s (aim hang). Dash / hurt / hook-fire cancel the draw cleanly.
+- [step] Unlock: STYLES += bow (swap cycles 4), REWARDS gets 'wpn:bow' after 'cape:sky'; shop item still works. saveVer 24 migration: veterans past the bow's slot get it as their first open mission's reward; nothing else touched.
+- [fix] bowCd undefined → never fired (undefined <= 0 is false). Fixed with !(bowCd > 0).
+- [tests] tests/v24.mjs written (25 checks). First run: tap-DPS blade 36 / hammer 59 (unchanged v2.0 hammer) / whip 41 / bow 31.

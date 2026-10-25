@@ -254,10 +254,10 @@ export class World {
         if (gc === 'block') { sfx('block'); this.fx.burst(e.cx + e.face * 14, e.cy - 4, 6, { color: ['#fff', '#ffe27a'], kind: 'spark', max: 240, glow: 1 }); p.vx = -p.face * 160; this.fx.text(e.cx, e.y - 12, 'blocked', '#cfd6e6', 11); this.hitstop(0.03); this.emit('blocked'); e.blocks = (e.blocks || 0) + 1; return false; }
         armorMul = gc; }
     }
-    const tip = !!(p && hit.tip && !hit.quakeHit && Math.abs(e.cx - p.cx) > (hit.w || 80) * 0.6), crit = !!(p && (hit.crit || tip || (e.yankUntil > this.t && hit.src === 'melee')));
+    const tip = !!(p && hit.tip && !hit.quakeHit && (hit.tipHit !== undefined ? hit.tipHit : Math.abs(e.cx - p.cx) > (hit.w || 80) * 0.6)), crit = !!(p && (hit.crit || tip || (e.yankUntil > this.t && hit.src === 'melee')));
     const trapped = !p && hit.src === 'hazard' && e.flungT > this.t && !e.boss; // v2.0: knocked into a trap // v1.9 crits: counters, perfect-dodge follow-ups, hook-zip strikes, hits on yanked foes, Bloom
     let dmg = hit.dmg * (p ? diff().dmgDealt * (this.dmgDealt || 1) : 1) * (e.parried > 0 ? 2 : 1) * (e.boss && e.stun > 0 ? 1.4 : 1) * (crit ? 1.5 : 1) * armorMul * (e.flipT > this.t ? 1.5 : 1); if (trapped) dmg = Math.max(45, dmg * 3);
-    if (e.type === 'dummy') { e.flash = 0.07; this.fx.dmg(e.cx, e.y - 6, Math.round(dmg), { key: e, crit, tag: tip ? 'TIP!' : null, heavy: !!hit.fin }); if (p) BR.addHit(this, hit.mv || hit.src || 'hit', dmg, { crit, fin: hit.fin }); BR.react(this, e, sign(e.cx - srcX || 1), hit.fin || crit); this.emit('dummyHit'); sfx(hit.fin ? 'finisherHit' : 'hit'); CB.pop(this, lerp(e.cx, srcX, 0.35), e.cy - 2, hit.fin || hit.crit ? 1.5 : 1, hit.crit ? '#ffe9a0' : '#ffffff'); e.sq = hit.fin ? 0.35 : 0.2; if (hit.fin) CB.leaves(this, e.cx, e.cy, 8); this.hitstop(hit.hs || 0.04); this.fx.burst(e.cx, e.cy, 6, { color: ['#fff', '#ffe27a'], kind: 'spark', max: 260 }); return true; }
+    if (e.type === 'dummy') { e.flash = 0.07; this.fx.dmg(e.cx, e.y - 6, Math.round(dmg), { key: e, crit, tag: hit.tag || (tip ? 'TIP!' : null), heavy: !!hit.fin }); if (p) BR.addHit(this, hit.mv || hit.src || 'hit', dmg, { crit, fin: hit.fin }); BR.react(this, e, sign(e.cx - srcX || 1), hit.fin || crit); this.emit('dummyHit'); sfx(hit.fin ? 'finisherHit' : 'hit'); CB.pop(this, lerp(e.cx, srcX, 0.35), e.cy - 2, hit.fin || hit.crit ? 1.5 : 1, hit.crit ? '#ffe9a0' : '#ffffff'); e.sq = hit.fin ? 0.35 : 0.2; if (hit.fin) CB.leaves(this, e.cx, e.cy, 8); this.hitstop(hit.hs || 0.04); this.fx.burst(e.cx, e.cy, 6, { color: ['#fff', '#ffe27a'], kind: 'spark', max: 260 }); return true; }
     if (e.type === 'tturret') { e.flash = 0.15; e.hitsTaken += hit.reflected ? 99 : 1; sfx('hit'); if (e.hitsTaken < 5) { this.fx.text(e.cx, e.y - 8, hit.reflected ? '' : 'Parry its spit!', '#bff2ff', 11); return true; } dmg = 1e9; }
     dmg = Math.max(1, Math.round(dmg)); e.hp -= dmg; e.flash = 0.07; // v2.0: a crisp 2-frame white flash (was up to 0.3 s in slow-mo)
     const dir0 = sign(e.cx - srcX || 1), dir = hit.kdir === 'pull' ? -dir0 : dir0, stg = hit.stag ?? hit.stun ?? 0.22, armored = e.armor > 0;
@@ -278,7 +278,7 @@ export class World {
     if (e.poisePending && (e.st === 'idle' || /Tele$/.test(e.st || ''))) { e.poisePending = false; e.poiseBroke = 2.2 + 2 * (diff().smart || 0); e.poise = e.maxPoise; e.stun = Math.max(e.stun, 2.2); if (e.go) e.go('idle'); else e.st = 'idle'; e.tele = 0; e.cd = Math.max(e.cd || 0, 0.8); sfx('poiseBreak'); BR.cine(this, { x: e.cx, y: e.cy, life: 1.1, zoom: 1.22, slow: 0.3, label: 'BREAK!' }); BR.bonus(this, 'POISE BREAK', 60, '#ffe27a'); this.fx.ring(e.cx, e.cy, 70, '#ffe27a', 0.45, 7); CB.leaves(this, e.cx, e.cy, 18); this.hitstop(0.14); this.zoomKick(1); this.fx.flash = 0.3; this.fx.flashColor = '#fff2b0'; this.emit('poiseBreak'); }
     const heavy = dmg >= 25 || !!hit.breaks; this.hitstop(Math.max(hit.hs || 0.035, heavy ? 0.065 : 0)); this.fx.shake(hit.shake || 0.08); sfx(heavy ? 'hitHeavy' : 'hit'); if (heavy) this.zoomKick(0.6);
     this.fx.burst(lerp(e.cx, srcX, 0.3), e.cy, dmg >= 25 ? 12 : 7, { color: ['#fff', '#ffe27a', PAL.inkPop], kind: 'spark', min: 120, max: 360, glow: 1, life: 0.3 });
-    this.fx.dmg(e.cx, e.y - 4, dmg, { key: e, heavy: heavy || crit, gold: e.parried > 0 || crit, dir, crit, tag: tip ? 'TIP!' : trapped ? 'TRAP' : null }); BR.react(this, e, dir, heavy || crit || !!hit.fin);
+    this.fx.dmg(e.cx, e.y - 4, dmg, { key: e, heavy: heavy || crit, gold: e.parried > 0 || crit, dir, crit, tag: hit.tag || (tip ? 'TIP!' : trapped ? 'TRAP' : null) }); BR.react(this, e, dir, heavy || crit || !!hit.fin);
     if (p && hit.src !== 'hazard') BR.addHit(this, hit.mv || hit.src || 'hit', dmg, { crit, fin: hit.fin });
     CB.pop(this, lerp(e.cx, srcX, 0.35), e.cy - 2, heavy || crit ? 1.5 : 1, crit ? '#ffe9a0' : '#ffffff');
     if (crit) { sfx('crit'); this.hitstop(Math.max(hit.hs || 0.035, 0.07)); this.fx.ring(e.cx, e.cy, 30, '#ffe27a', 0.25, 4); this.fx.burst(e.cx, e.cy, 5, { color: ['#fff6d8', '#ffe27a'], kind: 'star', min: 60, max: 200, life: 0.5, size: 6 }); this.emit('crit'); }
@@ -344,13 +344,16 @@ export class World {
     const P = this.player;
     for (const s of this.shots) {
       s.t += dt; s.life -= dt; s.vy += s.g * dt; s.x += s.vx * dt; s.y += s.vy * dt;
+      if (s.tr) { s.tr.push(s.x, s.y); if (s.tr.length > 16) s.tr.splice(0, 2); }
       if (s.life <= 0) { s.dead = true; if (s.ember) this.emberBurst(s); continue; }
-      if (this.map.solidPx(s.x, s.y) || (s.ember && s.vy > 0 && this.map.get(Math.floor(s.x / TILE), Math.floor((s.y + s.r) / TILE)) === '=')) { s.dead = true; if (s.ember) this.emberBurst(s); else this.fx.burst(s.x, s.y, 5, { color: s.owner === 'player' ? '#a6e47a' : '#c9b8f0', max: 100 }); this.breakTiles({ x: s.x - 2, y: s.y - 2, w: 4, h: 4 }); continue; }
+      if (this.map.solidPx(s.x, s.y) || (s.ember && s.vy > 0 && this.map.get(Math.floor(s.x / TILE), Math.floor((s.y + s.r) / TILE)) === '=')) { s.dead = true; if (s.tr) { (this.stuck || (this.stuck = [])).push({ x: s.x - s.vx * dt * 0.6, y: s.y - s.vy * dt * 0.6, a: Math.atan2(s.vy, s.vx), t: 0 }); if (this.stuck.length > 8) this.stuck.shift(); sfx('arrowHit'); } if (s.ember) this.emberBurst(s); else this.fx.burst(s.x, s.y, 5, { color: s.owner === 'player' ? '#a6e47a' : '#c9b8f0', max: 100 }); this.breakTiles({ x: s.x - 2, y: s.y - 2, w: 4, h: 4 }); continue; }
       if (s.owner === 'enemy') {
         if (this.overlapPlayer({ x: s.x - s.r, y: s.y - s.r, w: s.r * 2, h: s.r * 2 }, 3)) { const r = this.damagePlayer(s.dmg, s.x, { name: s.info.name, tip: s.info.tip, shot: s, parryable: true }); if (r === 'hit') { s.dead = true; this.fx.burst(s.x, s.y, 8, { color: '#c9b8f0', max: 140 }); } else if (r === 'dodge') { /* pass through */ } }
       } else {
         for (const e of this.enemies) { if (e.dead || (s.hit && s.hit.has(e))) continue; if (s.x > e.x - s.r && s.x < e.x + e.w + s.r && s.y > e.y - s.r && s.y < e.y + e.h + s.r) {
-          if (s.hit) s.hit.add(e); this.hitEnemy(e, { dmg: s.dmg, kb: s.kb || 200, hs: s.hs || 0.06, shake: 0.15, breaks: s.breaks || s.reflected, reflected: s.reflected, src: 'shot' }, { cx: s.x - s.vx * 0.01, face: sign(s.vx), x: s.x, vx: 0 });
+          const head = !!s.tr && s.y < e.y + e.h * 0.34; // v2.4 Thornbow weakpoint: the top third of a foe = BULLSEYE (x1.5)
+          if (s.hit) s.hit.add(e); this.hitEnemy(e, { dmg: s.dmg, kb: s.kb || 200, hs: s.hs || 0.06, shake: s.tr ? (s.full ? 0.14 : 0.06) : 0.15, breaks: s.breaks || s.reflected, reflected: s.reflected, src: 'shot', crit: head, tag: head ? 'BULLSEYE!' : null, mv: s.tr ? (s.full ? 'bowFull' : s.ch ? 'bowCharged' : 'bowQuick') : undefined }, { cx: s.x - s.vx * 0.01, face: sign(s.vx), x: s.x, vx: 0 });
+          if (s.tr) { sfx(head ? 'bullseye' : 'arrowHit'); this.fx.burst(s.x, s.y, head ? 12 : 5, { color: head ? ['#ffe27a', '#fff'] : ['#a6e47a', '#e8ffd0'], kind: 'spark', min: 60, max: head ? 240 : 140, life: 0.3, glow: head ? 1 : 0, size: 3 }); if (head && this.zoomKick) this.zoomKick(0.25); }
           if (!s.pierce) { s.dead = true; if (s.ember) this.emberBurst(s); break; } } }
       }
     }
@@ -586,8 +589,15 @@ export class World {
     }
   }
   drawShots(g) {
+    if (this.stuck) { for (const st of this.stuck) { st.t += 1 / 60; const al = Math.max(0, 1 - Math.max(0, st.t - 0.6) / 0.3); if (al <= 0) continue; const wob = Math.sin(st.t * 60) * Math.max(0, 0.25 - st.t) * 0.6; g.save(); g.globalAlpha = al; g.translate(st.x, st.y); g.rotate(st.a + wob); g.strokeStyle = '#1d140c'; g.lineWidth = 3; g.beginPath(); g.moveTo(-14, 0); g.lineTo(2, 0); g.stroke(); g.strokeStyle = '#d9c49a'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(-14, 0); g.lineTo(2, 0); g.stroke(); g.fillStyle = '#7fd05a'; g.beginPath(); g.moveTo(-10, 0); g.lineTo(-16, -3.5); g.lineTo(-13, 0); g.lineTo(-16, 3.5); g.fill(); g.restore(); } this.stuck = this.stuck.filter((st) => st.t < 0.9); }
     for (const s of this.shots) {
       if (this.offV && this.offV(s.x, s.y)) continue;
+      if (s.tr) { // v2.4 arrow: fading trail ribbon, shaft, head, fletching
+        const a = Math.atan2(s.vy, s.vx), c = Math.cos(a), si = Math.sin(a); g.save(); g.lineCap = 'round';
+        if (s.tr.length >= 4) { g.globalCompositeOperation = 'lighter'; for (let i = 2; i < s.tr.length; i += 2) { const k = i / s.tr.length; g.globalAlpha = k * (s.full ? 0.55 : 0.35); g.strokeStyle = s.full ? '#ffe27a' : '#cfffb0'; g.lineWidth = (s.full ? 5 : 3) * k; g.beginPath(); g.moveTo(s.tr[i - 2], s.tr[i - 1]); g.lineTo(s.tr[i], s.tr[i + 1]); g.stroke(); } g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; }
+        g.translate(s.x, s.y); g.rotate(a); g.strokeStyle = '#1d140c'; g.lineWidth = 3.2; g.beginPath(); g.moveTo(-16, 0); g.lineTo(5, 0); g.stroke(); g.strokeStyle = '#d9c49a'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(-16, 0); g.lineTo(5, 0); g.stroke();
+        g.fillStyle = s.full ? '#ffe27a' : '#cfe8ff'; g.strokeStyle = '#1d140c'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(11, 0); g.lineTo(3, -3.5); g.lineTo(3, 3.5); g.closePath(); g.fill(); g.stroke();
+        g.fillStyle = '#7fd05a'; g.beginPath(); g.moveTo(-12, 0); g.lineTo(-18, -4); g.lineTo(-15, 0); g.lineTo(-18, 4); g.closePath(); g.fill(); g.restore(); if (s.full) drawGlow(g, s.x, s.y, 16, '#ffe27a', 0.5); continue; }
       if (s.arrow) { const a = Math.atan2(s.vy, s.vx); g.save(); g.translate(s.x, s.y); g.rotate(a); g.fillStyle = s.big ? '#eaffc0' : '#a6e47a'; g.strokeStyle = '#15131f'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(8, 0); g.lineTo(-10, -2.5); g.lineTo(-10, 2.5); g.closePath(); g.fill(); g.stroke(); g.restore(); if (s.big) drawGlow(g, s.x, s.y, 18, '#a6e47a', 0.6); continue; }
       const col = s.reflected ? '#bff2ff' : s.ember ? '#ffb13b' : '#c9b8f0';
       drawGlow(g, s.x, s.y, s.r * 3.2, s.reflected ? '#9fe8ff' : s.ember ? '#ff8a3a' : '#b88aff', 0.8);

@@ -255,7 +255,7 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
   // save migration: a v1.7 save (no missions) keeps progress and gains a mission block
   const mg = await E(page, () => { const s = JSON.parse(localStorage.getItem('rootswing.save.v1') || '{}'); s.progress = s.progress || __RS.save.progress; delete s.progress.missions; delete s.progress.saveVer; s.progress.glimmers = 777; s.progress.vine = 'moss'; localStorage.setItem('rootswing.save.v1', JSON.stringify(s)); __RS.loadSave();
     const p = __RS.save.progress, st = JSON.parse(localStorage.getItem('rootswing.save.v1')).progress; return { g: p.glimmers, vine: p.vine, act: p.missions && p.missions.active.length, ver: p.saveVer, stored: !!st.missions, types: new Set(p.missions.active.map((a) => a.type)).size }; });
-  ok('v1.8 save migration: v1.7 save -> glimmers/vine kept, 3 distinct active missions, saved as v20 (v2.0 save version)', mg.g === 777 && mg.vine === 'moss' && mg.act === 3 && mg.types === 3 && mg.ver === 20 && mg.stored, JSON.stringify(mg));
+  ok('v1.8 save migration: v1.7 save -> glimmers/vine kept, 3 distinct active missions, saved as v20+ (v2.4 = 24)', mg.g === 777 && mg.vine === 'moss' && mg.act === 3 && mg.types === 3 && mg.ver >= 20 && mg.stored, JSON.stringify(mg));
   // progress events + completion + reward unlock (driven by real World events)
   const ev = await E(page, () => { const m = __RS.missions(); m.owned = m.owned.filter((r) => r !== 'cape:sky' && r !== 'pet:hog'); m.wardrobe.cape = 'none';
     m.active = [{ id: 901, type: 'hunt', enemy: 'hopper', target: 2, prog: 0, tier: 0, reward: 'cape:sky' }, { id: 902, type: 'chain', target: 3, prog: 0, tier: 0, reward: 'pet:hog' }, { id: 903, type: 'gold', target: 1000, prog: 0, tier: 0, reward: 'glim:25' }];
@@ -384,7 +384,7 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
   ok('v2.0 boss phases: 2 at 66%, 3 at 33%, each with a PHASE cinematic', bp.noboss || (bp.ph.join() === '1,2,3' && /PHASE/.test(bp.cine[0]) && /FINAL/.test(bp.cine[1])), JSON.stringify(bp));
   ok('v2.0 boss poise-break cinematic + death sequence (dying -> beats -> defeated, no stuck camera)', bp.noboss || ((bp.poiseCine !== false) && bp.dying === 'dying' && bp.deathCine && bp.def && bp.f > 60 && bp.cineGone), JSON.stringify(bp));
   // 6) no soft-locks: every style, swap mid-combo, quake, hold -- then the hero is free and time is normal
-  const sl = await E(page, () => { Object.assign(__RS.save.progress.unlocks, { hammer: true, whip: true }); __RS.save.progress.weapon = 'blade'; __RS.start('hub'); __RS.manual(true); __RS.god(true); __RS.step(40); const W = __RS.W, P = W.player; const seen = [];
+  const sl = await E(page, () => { Object.assign(__RS.save.progress.unlocks, { hammer: true, whip: true, bow: false }); __RS.save.progress.weapon = 'blade'; __RS.start('hub'); __RS.manual(true); __RS.god(true); __RS.step(40); const W = __RS.W, P = W.player; const seen = [];
     W.spawnEnemy('knight', P.cx + 60, P.y + P.h); W.spawnEnemy('charger', P.cx + 90, P.y + P.h);
     for (let r = 0; r < 3; r++) { seen.push(P.weapon); for (let f = 0; f < 70; f++) { if (f % 7 === 0) __RS.press('attack'); if (f % 7 === 2) __RS.release('attack'); __RS.step(1); } __RS.press('swap'); __RS.step(2); __RS.release('swap'); __RS.step(30); }
     __RS.press('attack'); __RS.step(50); __RS.release('attack'); __RS.step(240); const x0 = P.x; __RS.axes(1, 0); __RS.step(25); __RS.axes(0, 0); const moved = P.x - x0; __RS.press('jump'); __RS.step(3); __RS.release('jump'); const vy = P.vy; __RS.step(60);
@@ -398,7 +398,7 @@ const E = (page, fn, ...a) => page.evaluate(fn, ...a);
     __RS.MS.grant(m, 'wpn:whip'); r.whip = !!q.unlocks.whip && q.weapon === 'whip';
     __RS.start('hub'); __RS.manual(true); __RS.step(10); const G = __RS.game; G.toasts = []; for (let i = 0; i < 5; i++) __RS.toast(G, { key: 'm1', icon: 'leaf', color: '#9be070', prog: i, target: 5 }); r.toasts = G.toasts.length; r.prog = G.toasts[0].prog;
     __RS.toast(G, { key: 'm1', icon: 'leaf', color: '#9be070', done: true, reward: 'wpn:whip' }); r.toastsDone = G.toasts.length; return r; });
-  ok('v2.0 save migration: v1.9 save -> v20, glimmers/weapon/missions kept, owned hammer not re-offered', mg.ver === 20 && mg.g === 4242 && mg.w === 'hammer' && mg.done === 7 && mg.ownsHammer && mg.next !== 'wpn:hammer', JSON.stringify(mg));
+  ok('v2.0 save migration: v1.9 save -> v20, glimmers/weapon/missions kept, owned hammer not re-offered', mg.ver >= 20 && mg.g === 4242 && mg.w === 'hammer' && mg.done === 7 && mg.ownsHammer && mg.next !== 'wpn:hammer', JSON.stringify(mg));
   ok('v2.0 missions grant fighting styles (wpn:whip unlocks + equips); progress toasts update in place (no stacking)', mg.whip && mg.toasts === 1 && mg.prog === 4 && mg.toastsDone === 1, JSON.stringify(mg));
   ok('no page errors (v2.0)', errors.length === 0, errors.slice(0, 2).join(' | ')); await browser.close(); }
 { // v2.0 "more traps, more enemies, harder": trap pack, foe variants + elite affixes, arenas, ambushes, warden variants, difficulty

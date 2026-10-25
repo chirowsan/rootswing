@@ -16,20 +16,20 @@ export const WEAPONS = {
       { dmg: 34, wind: 0.24, active: 0.12, rec: 0.36, w: 96, h: 56, oy: -6, lunge: 110, kb: 520, hs: 0.14, shake: 0.55, sfx: 'hamFin', mv: 'slam', fin: true, quake: true, lashL: 150, breaks: true, stag: 1 }],
     heavy: { dmg: 55, wind: 0.08, active: 0.14, rec: 0.42, w: 120, h: 40, oy: 4, lunge: 0, kb: 520, hs: 0.15, shake: 0.6, sfx: 'thump', arc: 4, breaks: true, quake: true, both: true, mv: 'slam' },
     air: { dmg: 20, wind: 0.1, active: 0.12, rec: 0.2, w: 50, h: 46, oy: 6, lunge: 0, kb: 360, hs: 0.08, shake: 0.3, sfx: 'hamA', arc: 2, breaks: true, mv: 'air' } },
-  bow: { name: 'Thornbow', icon: 'bow', color: '#a6e47a', desc: 'Shoots from afar, charged shot pierces', moveMul: 0.7,
+  bow: { name: 'Thornbow', icon: 'bow', color: '#a6e47a', desc: 'Tap to shoot, hold to draw a piercing power shot. Aim with the stick; hit heads for BULLSEYE', moveMul: 0.7, pal: ['#a6e47a', '#fff3b0', '#3d5a22'],
     combo: [
       { dmg: 9, wind: 0.05, active: 0.02, rec: 0.2, proj: { speed: 640, life: 0.7 }, kb: 90, hs: 0.03, shake: 0.05, sfx: 'bow' },
       { dmg: 9, wind: 0.05, active: 0.02, rec: 0.2, proj: { speed: 640, life: 0.7 }, kb: 90, hs: 0.03, shake: 0.05, sfx: 'bow' }],
     heavy: { dmg: 30, wind: 0.02, active: 0.02, rec: 0.3, proj: { speed: 900, life: 0.8, pierce: true, big: true }, kb: 300, hs: 0.08, shake: 0.2, sfx: 'bow', breaks: true },
     air: { dmg: 9, wind: 0.04, active: 0.02, rec: 0.18, proj: { speed: 640, life: 0.7 }, kb: 90, hs: 0.03, shake: 0.05, sfx: 'bow' } },
-  whip: { name: 'Vine Whip', icon: 'whip', color: '#b8f07a', pal: ['#9ae04a', '#f4ffd0', '#2f5a14'], style: 'Long reach', desc: 'Long 4-hit lash: crack, backlash, sky-crack, snap-pull. Tip hits crit', moveMul: 0.6,
-    combo: [ // v2.0: hits with the very tip of the whip are crits ("TIP!")
-      { dmg: 9, wind: 0.1, active: 0.1, rec: 0.13, w: 92, h: 22, oy: -4, lunge: 30, kb: 150, hs: 0.04, shake: 0.1, sfx: 'whipCrack', arc: 5, mv: 'cut', tip: true },
-      { dmg: 10, wind: 0.09, active: 0.1, rec: 0.13, w: 92, h: 22, oy: 2, lunge: 30, kb: 150, hs: 0.04, shake: 0.1, sfx: 'whipCrack', arc: 5, mv: 'rev', tip: true },
-      { dmg: 11, wind: 0.1, active: 0.1, rec: 0.16, w: 76, h: 70, oy: -24, lunge: 20, kb: 90, hs: 0.05, shake: 0.14, sfx: 'whipCrack', mv: 'rise', launch: 340, kdir: 'up', tip: true, stag: 0.5 },
-      { dmg: 17, wind: 0.13, active: 0.12, rec: 0.26, w: 112, h: 26, oy: -2, lunge: 40, kb: 300, hs: 0.08, shake: 0.24, sfx: 'whipSnap', arc: 5, mv: 'slam', fin: true, kdir: 'pull', tip: true, lashL: 150, stag: 0.8 }],
+  whip: { name: 'Vine Whip', icon: 'whip', color: '#b8f07a', pal: ['#9ae04a', '#f4ffd0', '#2f5a14'], style: 'Long reach', desc: 'Long 4-lash combo: overhead crack, backhand, sky-crack, snap-pull. Hold a direction to aim (up, diagonal, air-down). Tip hits crit', moveMul: 0.78,
+    combo: [ // v2.4: a real lash -- a bend travels down the vine and the tip cracks last (see whip.js). The tip (last 25 %) crits ("TIP!")
+      { dmg: 9, wind: 0.1, active: 0.11, rec: 0.11, w: 104, h: 22, oy: -4, lunge: 24, kb: 150, hs: 0.03, shake: 0.08, sfx: 'whipWind', mv: 'wcut', tip: true },
+      { dmg: 10, wind: 0.09, active: 0.11, rec: 0.11, w: 104, h: 22, oy: 2, lunge: 24, kb: 150, hs: 0.03, shake: 0.08, sfx: 'whipWind', mv: 'wrev', tip: true },
+      { dmg: 11, wind: 0.1, active: 0.12, rec: 0.14, w: 96, h: 70, oy: -24, lunge: 16, kb: 90, hs: 0.04, shake: 0.12, sfx: 'whipWind', mv: 'wrise', launch: 340, kdir: 'up', tip: true, stag: 0.5 },
+      { dmg: 17, wind: 0.14, active: 0.14, rec: 0.2, w: 128, h: 26, oy: -2, lunge: 30, kb: 300, hs: 0.06, shake: 0.2, sfx: 'whipSnap', mv: 'wfin', fin: true, kdir: 'pull', tip: true, stag: 0.8 }],
     heavy: { dmg: 13, wind: 0.05, active: 0.36, rec: 0.3, w: 170, h: 90, oy: -10, lunge: 0, kb: 340, hs: 0.1, shake: 0.35, sfx: 'whirl', arc: 6, both: true, breaks: true, mv: 'whirl', ticks: 3, pull: 1 },
-    air: { dmg: 10, wind: 0.05, active: 0.1, rec: 0.12, w: 84, h: 30, oy: 0, lunge: 0, kb: 150, hs: 0.04, shake: 0.1, sfx: 'whipCrack', arc: 5, mv: 'air', tip: true } },
+    air: { dmg: 10, wind: 0.07, active: 0.1, rec: 0.1, w: 96, h: 30, oy: 0, lunge: 0, kb: 150, hs: 0.03, shake: 0.08, sfx: 'whipWind', mv: 'wair', tip: true } },
   // v1.3 (Drowned Glowroots) weapons
   spear: { name: 'Tidespear', icon: 'spear', color: '#7ff6ff', desc: 'Long piercing thrusts, heavy lunges through foes', moveMul: 0.5, biome: 'caverns',
     combo: [
@@ -46,7 +46,7 @@ export const WEAPONS = {
     heavy: { dmg: 10, wind: 0.04, active: 0.36, rec: 0.28, w: 110, h: 50, oy: -4, lunge: 0, kb: 300, hs: 0.1, shake: 0.35, sfx: 'whirl', arc: 6, both: true, mv: 'whirl', ticks: 4, pull: 1 },
     air: { dmg: 8, wind: 0.03, active: 0.08, rec: 0.08, w: 40, h: 38, oy: 0, lunge: 0, kb: 100, hs: 0.03, shake: 0.06, sfx: 'slashA', arc: 1, mv: 'air' } },
 };
-export const STYLES = ['blade', 'hammer', 'whip']; // v2.0 earnable fighting styles (missions or the shop)
+export const STYLES = ['blade', 'hammer', 'whip', 'bow']; // v2.0 earnable fighting styles (missions or the shop)
 export const palOf = (id) => (WEAPONS[id] && WEAPONS[id].pal) || [WEAPONS[id] ? WEAPONS[id].color : '#fff', '#ffffff', '#333'];
 export const GADGETS = {
   popseed: { name: 'Popseed', icon: 'popseed', cd: 6, desc: 'Throw a seed bomb' },

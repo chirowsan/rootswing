@@ -27,7 +27,7 @@ export const CAPES = [
 ];
 export const HATS = [{ id: 'none' }, { id: 'flower' }, { id: 'acorn' }, { id: 'leafcrown' }, { id: 'mush' }, { id: 'crown' }];
 export const REWARDS = [ // earn order (each new mission shows the next reward it will give)
-  'cape:leaf', 'wpn:hammer', 'vine:berry', 'pet:bunny', 'wpn:whip', 'hat:flower', 'cape:sky', 'pet:squirrel', 'vine:frost', 'hat:acorn', 'cape:berry',
+  'cape:leaf', 'wpn:hammer', 'vine:berry', 'pet:bunny', 'wpn:whip', 'hat:flower', 'cape:sky', 'wpn:bow', 'pet:squirrel', 'vine:frost', 'hat:acorn', 'cape:berry',
   'pet:beetle', 'hat:leafcrown', 'vine:sunset', 'cape:gold', 'pet:hog', 'hat:mush', 'cape:night', 'hat:crown', 'vine:rainbow',
 ];
 export const BADGES = [...TYPE_IDS.map((t) => ({ id: 'b_' + t, icon: TYPES[t].icon, color: TYPES[t].color })),
@@ -53,7 +53,13 @@ export function migrateSave(p) {
   if (!m.active.length) fillMissions(m);
   return fresh;
 }
-const M = () => { if (!save.progress.missions || (save.progress.saveVer || 0) < 20) migrateSave(save.progress); return save.progress.missions; };
+// ---- v2.3 -> v2.4: the Thornbow becomes an earnable fighting style. Keep everything; a veteran past the bow's slot gets it as the reward of their first open mission ----
+export function migrate24(p) {
+  const m = p.missions; if (!m) return; p.saveVer = 24; p.unlocks = Object.assign({ blade: true }, p.unlocks || {});
+  if (!owns(m, 'wpn:bow') && !m.active.some((a) => a.reward === 'wpn:bow')) { const at = REWARDS.indexOf('wpn:bow'), passed = REWARDS.slice(0, at).every((r) => owns(m, r) || m.active.some((a) => a.reward === r));
+    if (passed && m.active.length) { const mi = m.active.find((a) => !String(a.reward).startsWith('wpn:')) || m.active[0]; mi.reward = 'wpn:bow'; } }
+}
+const M = () => { const p = save.progress; if (!p.missions || (p.saveVer || 0) < 20) migrateSave(p); if ((p.saveVer || 0) < 24) migrate24(p); return p.missions; };
 export const missions = M;
 export const owns = (m, r) => m.owned.includes(r) || (r.startsWith('wpn:') && !!(save.progress.unlocks || {})[r.slice(4)]);
 export function nextReward(m) { const used = new Set(m.active.map((a) => a.reward)); return REWARDS.find((r) => !owns(m, r) && !used.has(r)) || 'glim:25'; }
