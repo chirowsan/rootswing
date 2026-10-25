@@ -4,7 +4,7 @@
 import { save, diff, writeSave, assist, assistActive } from './save.js';
 import { TILE, clamp, sign, rand, makeRng, rectsOverlap } from './util.js';
 import { CW, CH } from './level.js';
-import { sfx } from './audio.js';
+import { sfx, stinger } from './audio.js';
 import { drawGlow, drawIcon } from './art.js';
 import { G, sImg } from './gfx.js';
 import * as UI from './ui.js';
@@ -111,7 +111,7 @@ function gainBoon(W, b) { const R = W.sp.run, P = W.player; R.boons.push(b); con
   sfx('unlock'); W.fx.ring(P.cx, P.cy, 70, B.c, 0.5, 6); W.fx.text(P.cx, P.y - 20, B.n + '!', B.c, 16); W.emit('boon', b); }
 
 // ---------------- UI panels (pause the game while open) ----------------
-function openUI(W, name, html, hook) { const g = W.game; if (!g || typeof document === 'undefined') return false; g.paused = true; clearAll(); UI.hooks[name] = (a, v, el) => { const r = hook(a, v, el); if (r === 'close') { UI.close(); g.paused = false; clearAll(); } return true; }; UI.show(name, html, 'sp22'); return true; }
+function openUI(W, name, html, hook) { const g = W.game; if (!g || typeof document === 'undefined') return false; if (name === 'shrine' || name === 'shop') stinger(name === 'shop' ? 'merchant' : name); g.paused = true; clearAll(); UI.hooks[name] = (a, v, el) => { const r = hook(a, v, el); if (r === 'close') { UI.close(); g.paused = false; clearAll(); } return true; }; UI.show(name, html, 'sp22'); return true; }
 export function offerBoons(W, why = 'Pick a boon!', n = 1) {
   if (!W.sp || !W.sp.run) return; const R = W.sp.run, pool = BKEYS.filter((b) => BOONS[b].stack || !R.boons.includes(b)); const pick = rand.shuffle ? rand.shuffle(pool.slice()).slice(0, 3) : pool.slice(0, 3);
   const card = (b, i) => { const B = BOONS[b]; return `<button class="boon" data-act="boonPick${i}" style="--c:${B.c}"><span class="b-art">${ic2(B.i, B.c)}</span><b>${B.n}</b><small>${B.d}</small>${R.boons.includes(b) ? '<em>stacks!</em>' : ''}</button>`; };

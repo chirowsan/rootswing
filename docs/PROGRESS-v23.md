@@ -20,3 +20,4 @@ Phases: 1 audit -> 2 audio -> 3 visual/feel -> 4 mobile/perf -> 5 a11y/kids -> 6
 8. Countdown numeral overlaps the control ring area for ~1s at chapter start - minor, left.
 9. Settings missing: ambience volume, mute, bigger text, gentle flashes, Medium graphics. FIX: Phase 2/4/5.
 - Phase 1 fixes in style.css (v2.3 block). Comic/result art 'offscreen' flags are intentional Ken-Burns overscan.
+- 2026-10-24 23:55 Phase2 audio: 8 new original themes (menu, ch2-5, boss2/boss3 phases, story, ending), tension layer bus faded by nearby foes, 7 stingers, ambience beds (wind/water/rain + birds/crickets/drips/spores), ducking on big hits, director picks theme every frame. Settings: mute, Forest sounds slider. Smoke: songs/amb correct for hub/ch2/ch4/ch5/tutorial, tension 0.68 near foes, 0 errors.

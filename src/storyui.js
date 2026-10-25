@@ -2,7 +2,7 @@
 // Big art, few words, big font, icon-first; every screen has a Skip / Back.
 import { show, close, ui, ic, hooks, storyApi } from './ui.js';
 import { save, writeSave } from './save.js';
-import { sfx } from './audio.js';
+import { sfx, audio } from './audio.js';
 import { CHAPTERS, CH_N, LORE, camp, seedTotal, freedCount, doneCount, isUnlocked, currentChapter, mossLines, nextGoal, SEEDS_PER } from './story.js';
 const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 const ICONS = { seed15: ['glimmer', '#a6f05a', '15'], seed3: ['glimmer', '#a6f05a', '3'], warden4: ['shield', '#ffb13b', '4'], warden1: ['shield', '#ffb13b', '1'], heart: ['heart', '#ff9ab0', ''], door: ['door', '#ffe27a', ''] };
@@ -15,7 +15,7 @@ function iconRow(list) {
 const C = { panels: null, i: 0, done: null, tok: 0, auto: 0, name: '' };
 export const comic = C;
 export function playComic(name, panels, done, opts = {}) {
-  C.panels = panels; C.i = 0; C.done = done; C.auto = opts.auto ?? 6500; C.name = name; C.log = C.log || []; C.log.push(name); C.skipped = false;
+  audio.ending = /fin|ch5end|ch6end/i.test(name); C.panels = panels; C.i = 0; C.done = done; C.auto = opts.auto ?? 6500; C.name = name; C.log = C.log || []; C.log.push(name); C.skipped = false;
   renderPanel();
 }
 function renderPanel() {

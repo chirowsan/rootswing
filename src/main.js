@@ -1,6 +1,6 @@
 // Boot, game flow and the fixed-step loop.
 import { save, loadSave, writeSave, diff } from './save.js';
-import { initAudio, sfx, playSong, applyVolumes } from './audio.js';
+import { initAudio, sfx, playSong, applyVolumes, director, stinger, audio, initAudio as _ia } from './audio.js';
 import { input, initInput, pollInput, endStep, pressed, held, computeLayout, drawTouch, clearAll, simButton, simAxes } from './input.js';
 import { World, VIEW_H, playerStats } from './world.js';
 import { Tutorial } from './tutorial.js';
@@ -120,7 +120,7 @@ UI.initUI({
   relayout() { game.relayout(); }, statsChanged() { const W = game.world; if (W && W.mode === 'hub') { const s = playerStats(); Object.assign(W.player, { maxHp: s.maxHp, hp: s.maxHp, maxFlasks: s.maxFlasks, flasks: s.maxFlasks, weapon: s.weapon, gadgets: s.gadgets, hookRange: s.hookRange }); input.visible.skill2 = s.gadgets.length > 1; } },
 });
 function resize() {
-  const q = save.settings.quality; const coarse = matchMedia && matchMedia('(pointer: coarse)').matches; const cap = q === 'high' ? 2.5 : q === 'low' ? 1 : [coarse ? 1.5 : 2, 1.25, 1][game.resLevel || 0]; // v1.4: phones cap at 1.5x; auto steps the resolution down when frames run long
+  const q = save.settings.quality; const coarse = matchMedia && matchMedia('(pointer: coarse)').matches; const cap = q === 'high' ? 2.5 : q === 'low' ? 1 : q === 'med' ? 1.5 : [coarse ? 1.5 : 2, 1.25, 1][game.resLevel || 0]; // v1.4: phones cap at 1.5x; auto steps the resolution down when frames run long
   game.dpr = Math.min(devicePixelRatio || 1, cap); game.cssW = innerWidth; game.cssH = innerHeight;
   canvas.width = Math.round(game.cssW * game.dpr); canvas.height = Math.round(game.cssH * game.dpr); canvas.style.width = game.cssW + 'px'; canvas.style.height = game.cssH + 'px';
   game.relayout(); UI.showRotate(game.cssH > game.cssW * 1.05);
@@ -146,6 +146,7 @@ function tick(now) {
       if (n === 4) acc = 0;
     }
   } else endStep();
+  director(game, real, UI.ui.open);
   render(real, W && game.state === 'play' && !game.paused && !game.manual && !UI.isOpen() ? acc / STEP : 1);
 }
 function menuInput(dt) {
@@ -206,7 +207,7 @@ boot(); initInput(canvas); resize(); UI.showTitle(); requestAnimationFrame(frame
 // --------- test API (used by automated tests; harmless for players) ---------
 addEventListener('rs-pausemap', () => game.drawPauseMap());
 window.__RS = {
-  SP, AI22, planSurprises, story: ST, storyUI: SU, startChapter: (n) => game.startChapter(n), skipComic: () => SU.skipComic(), FEEL, moveButton, layoutEditor: () => showLayoutEditor(() => UI.close()),
+  UI, SP, AU: { audio, stinger, initAudio: _ia }, AI22, planSurprises, story: ST, storyUI: SU, startChapter: (n) => game.startChapter(n), skipComic: () => SU.skipComic(), FEEL, moveButton, layoutEditor: () => showLayoutEditor(() => UI.close()),
   foes: { Enemy, Warden, TideGolem, Boss, DrownedBloom }, BR, GA, T20, DIFF, MS, toast, WEAPONS, trapPhase, TRAP_TIMING, TRAP_DMG,
   game, save, input, TILE, gfx: G, writeSave, loadSave: boot, missions, continueRun: () => document.querySelector('[data-act="continueRun"]').click(), layout: () => input.layout,
   get W() { return game.world; }, supports() { return game.world ? game.world.auditSupports() : null; },
@@ -227,3 +228,4 @@ window.__RS = {
   skipCountdown() { if (game.world) { game.world.countdown = 0.001; } },
   state() { const W = game.world; if (!W) return { state: game.state, ui: UI.ui.open }; const P = W.player; return { state: game.state, ui: UI.ui.open, mode: W.mode, x: P.x, y: P.y, vx: P.vx, vy: P.vy, hp: P.hp, onGround: P.onGround, hook: P.hook.s, enemies: W.enemies.length, glim: W.runGlim, cell: W.curCell ? W.curCell.index : -1, cells: W.cells.length, boss: W.boss ? { hp: W.boss.hp, phase: W.boss.phase, st: W.boss.st } : null, paused: game.paused, fps: 1000 / (game.perf.ms.reduce((a, b) => a + b, 0) / Math.max(1, game.perf.ms.length)) }; },
 };
+UI.applyA11y(); // v2.3 bigger text / gentle flashes

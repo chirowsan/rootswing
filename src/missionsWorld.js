@@ -3,7 +3,7 @@
 import { TILE, clamp } from './util.js';
 import { has, spr, tinted } from './gfx.js';
 import { drawGlow, drawIcon, PAL } from './art.js';
-import { sfx } from './audio.js';
+import { sfx, stinger } from './audio.js';
 import { save, writeSave } from './save.js';
 import { missions, missionEvent, missionIcon, TYPES, pickCritterSpots, CRITTERS, CAPES } from './missions.js';
 export function drawMIcon(g, icon, x, y, size, color = '#fff') { // atlas sprite or vector icon, centred
@@ -26,7 +26,7 @@ function report(W, list) {
   for (const r of list) {
     const T = TYPES[r.mi.type], done = r.kind === 'done';
     toast(game, { key: 'm' + (r.mi.id ?? r.mi.type), icon: missionIcon(r.mi), color: T.color, prog: r.mi.prog, target: r.mi.target, done, reward: done ? r.reward[0] : null });
-    if (done) { sfx('unlock'); setTimeout(() => sfx('victory'), 180); W.fx.burst(P.cx, P.y, 34, { color: ['#ffe27a', '#fff', T.color, '#ffa6d8'], min: 80, max: 330, g: 200, kind: 'star', life: 1.1, size: 6 }); W.fx.ring(P.cx, P.cy, 70, T.color, 0.6, 6); }
+    if (done) { sfx('unlock'); setTimeout(() => stinger('mission'), 180); W.fx.burst(P.cx, P.y, 34, { color: ['#ffe27a', '#fff', T.color, '#ffa6d8'], min: 80, max: 330, g: 200, kind: 'star', life: 1.1, size: 6 }); W.fx.ring(P.cx, P.cy, 70, T.color, 0.6, 6); }
     else sfx('pickup');
   }
 }

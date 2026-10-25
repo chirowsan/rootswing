@@ -8,6 +8,8 @@ export const DEFAULT_SETTINGS = {
   haptics: true, music: 0.6, sfx: 0.8, shake: 'reduced', // full | reduced | off
   hookAssist: true, quality: 'auto', // auto | high | low
   assist: 'auto', // v2.2 Assist: auto | on | off
+  amb: 0.6, mute: false, // v2.3 ambience volume, master mute
+  flash: 'normal', bigText: false, // v2.3 accessibility: flash 'normal' | 'reduced', larger UI text
 };
 export const DEFAULT_PROGRESS = {
   glimmers: 0, totalGlimmers: 0, runs: 0, wins: 0, bestDepth: 0,

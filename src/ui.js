@@ -1,6 +1,6 @@
 // DOM menus: title, pause, settings, shop, loadout, journal, death and victory cards.
 import { save, writeSave, resetSave, DEFAULT_SETTINGS } from './save.js';
-import { sfx, applyVolumes, initAudio } from './audio.js';
+import { sfx, applyVolumes, initAudio, stinger } from './audio.js';
 import { drawIcon, PAL } from './art.js';
 import { WEAPONS, GADGETS, UPGRADES } from './weapons.js';
 import { ENEMY_INFO } from './enemies.js';
@@ -17,6 +17,7 @@ export function initUI(handlers) {
   root.addEventListener('input', (e) => { const r = e.target.closest('input[type=range]'); if (!r) return; save.settings[r.dataset.k] = +r.value; applyVolumes(); writeSave(); input.layout && onAct.relayout && onAct.relayout(); });
 }
 export const ui = { open: null };
+export function applyA11y() { const s = save.settings; document.documentElement.classList.toggle('big-text', !!s.bigText); document.documentElement.classList.toggle('gentle', s.flash === 'reduced'); }
 export function isOpen() { return !!ui.open; }
 export function close() { root.innerHTML = ''; root.className = ''; ui.open = null; }
 export const hooks = {}; // v2.1: story screens (comic, map, moss, control prompt) claim their own button actions
@@ -26,7 +27,7 @@ function drawHeroPreview(g, s, spec) { const H = G.hero; if (!H) return; const [
 export const ic = (name, color = '#fff', size = 28) => `<canvas data-icon="${name}" data-color="${color}" data-size="${size}"></canvas>`;
 function act(a, v, el) {
   if (ui.open && hooks[ui.open] && hooks[ui.open](a, v, el)) return;
-  if (a === 'set') { const [k, val] = v.split(':'); save.settings[k] = isNaN(+val) ? val : +val; writeSave(); applyVolumes(); onAct.relayout && onAct.relayout(); showSettings(ui.back); return; }
+  if (a === 'set') { const [k, val] = v.split(':'); save.settings[k] = val === 'true' ? true : val === 'false' ? false : isNaN(+val) ? val : +val; writeSave(); applyVolumes(); applyA11y(); onAct.relayout && onAct.relayout(); showSettings(ui.back); return; }
   if (a === 'settings') { showSettings(ui.open); return; }
   if (a === 'back') { if (ui.back === 'pause') showPause(ui.pauseCtx); else if (ui.back === 'title') showTitle(); else { close(); onAct.resume && onAct.resume(); } return; }
   if (a === 'buy') { const u = UPGRADES.find((x) => x.id === v); if (u && save.progress.glimmers >= u.cost && !save.progress.unlocks[u.id]) { save.progress.glimmers -= u.cost; save.progress.unlocks[u.id] = true; if (u.id === 'sentry' && !save.progress.gadgets.includes('sentry')) save.progress.gadgets.push('sentry'); if (WEAPONS[u.id]) save.progress.weapon = u.id; writeSave(); sfx('unlock'); onAct.statsChanged && onAct.statsChanged(); } showShop(); return; }
@@ -80,7 +81,6 @@ export function showSettings(back) {
   ${row('Difficulty', seg('difficulty', [['relaxed', 'Relaxed'], ['normal', 'Normal'], ['hard', 'Hard'], ['nightmare', 'Nightmare']]), 'Harder = more traps + foes, more stars')}
   ${row('Assist', seg('assist', [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']]), 'Assist makes foes gentler. Auto turns it on after 4 knock-outs in a chapter')}
   ${row('Hook aim help', seg('hookAssist', [['true', 'On'], ['false', 'Off']]))}
-  ${row('Screen shake', seg('shake', [['off', 'Off'], ['reduced', 'Low'], ['full', 'Full']]))}
   ${row('Left thumb', seg('leftStyle', [['stick', 'Stick'], ['pads', '◀ ▶ Buttons']]))}
   <h3 class="sect">Controls</h3>
   ${row('Stick style', seg('stickMode', [['float', 'Floating'], ['fixed', 'Fixed']]), 'Floating: the stick appears where your thumb lands')}
@@ -90,13 +90,20 @@ export function showSettings(back) {
   ${row('Button places', `<button data-act="editLayout">Move buttons</button>`, 'Drag each button where your thumb likes it')}
   ${row('Button see-through', `<input type="range" min="0.2" max="0.9" step="0.05" value="${s.ctrlOpacity}" data-k="ctrlOpacity">`)}
   ${row('Vibration', seg('haptics', [['true', 'On'], ['false', 'Off']]))}
+  <h3 class="sect">Sound</h3>
+  ${row('All sound', seg('mute', [['false', 'On'], ['true', 'Muted']]))}
   ${row('Music', `<input type="range" min="0" max="1" step="0.05" value="${s.music}" data-k="music">`)}
   ${row('Sound effects', `<input type="range" min="0" max="1" step="0.05" value="${s.sfx}" data-k="sfx">`)}
-  ${row('Graphics', seg('quality', [['auto', 'Auto'], ['high', 'Sharp'], ['low', 'Fast']]))}
+  ${row('Forest sounds', `<input type="range" min="0" max="1" step="0.05" value="${s.amb ?? 0.6}" data-k="amb">`, 'Wind, birds, water and crickets')}
+  <h3 class="sect">Screen</h3>
+  ${row('Graphics', seg('quality', [['auto', 'Auto'], ['high', 'High'], ['med', 'Medium'], ['low', 'Low']]), 'Auto picks what runs smoothly on this phone')}
+  ${row('Screen shake', seg('shake', [['off', 'Off'], ['reduced', 'Low'], ['full', 'Full']]))}
+  ${row('Flashes', seg('flash', [['normal', 'Normal'], ['reduced', 'Gentle']]), 'Gentle: softer, dimmer flashes')}
+  ${row('Bigger text', seg('bigText', [['false', 'Off'], ['true', 'On']]))}
   ${row('Erase save', `<button class="danger" data-act="reset">Erase progress</button>`)}
   </div><div class="col"><button class="big primary" data-act="back">Done</button></div></div>`);
   // booleans saved as strings by seg → normalise
-  for (const k of ['hookAssist', 'haptics']) if (typeof save.settings[k] === 'string') { save.settings[k] = save.settings[k] === 'true'; writeSave(); }
+  for (const k of ['hookAssist', 'haptics', 'mute', 'bigText']) if (typeof save.settings[k] === 'string') { save.settings[k] = save.settings[k] === 'true'; writeSave(); }
 }
 export function showShop() {
   const p = save.progress;
@@ -158,6 +165,7 @@ export function showDeath(info, kept, found, stats) {
   countUp();
 }
 export function showVictory(glim, stats) {
+  stinger('level');
   const first = save.progress.wins === 1, st = stats.stars || 1;
   const star = (on, i) => `<span class="star${on ? ' on' : ''}" style="animation-delay:${0.4 + i * 0.35}s"><svg viewBox="0 0 24 24" width="54" height="54"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.2l7.1-.6z" fill="${on ? '#ffe27a' : '#3a3450'}" stroke="#15131f" stroke-width="1.6" stroke-linejoin="round"/></svg></span>`;
   show('victory', `<div class="res-art win-art"></div><div class="res win"><h2>${stats.title || (stats.final ? 'The Great Root is restored!' : 'The furnace is calm!')}</h2>

@@ -12,7 +12,7 @@ import { Warden, Boss, TideGolem, DrownedBloom } from './boss.js';
 import * as GA from './gauntlet.js';
 import { FX } from './fx.js';
 import { PAL, drawGlow, drawIcon, renderTileChunk, makeBackground, BIOMES, CHUNK_T } from './art.js';
-import { sfx, playSong } from './audio.js';
+import { sfx, playSong, songFor, stinger } from './audio.js';
 import { save, diff, writeSave } from './save.js';
 import * as AI from './ai22.js';
 import * as SP from './surprise.js';
@@ -66,7 +66,7 @@ export class World {
     for (let y = 0; y < this.map.h; y++) for (let x = 0; x < this.map.w; x++) { const c = this.map.get(x, y); if (c === '^' || c === 'v' || c === '~') this.hazTiles.push({ x, y, c }); }
     this.viewH = viewHFor(mode); this.heroK = heroKFor(mode); this.bossIntro = mode === 'boss'; this.countdown = mode === 'run' || mode === 'boss' ? 1.6 : 0; this.fade = 1;
     this._L = L; attachMissions(this); this._L = null; SW.initWorld(this, opts); SP.initWorld(this, opts); // v1.8 missions: trackers, lost critters, hub friends
-    playSong(mode === 'hub' ? 'hub' : mode === 'boss' ? 'boss' : mode === 'tutorial' ? 'calm' : this.stage ? 'caverns' : 'biome');
+    this.mode = this.mode || mode; playSong(songFor(this));
   }
   spawnEntity(s) {
     let gy = s.y; if ('cFWD'.includes(s.c)) while (gy < s.y + 6 && !this.map.solid(s.x, gy + 1) && this.map.get(s.x, gy + 1) !== '=') gy++; // props sit on the ground
@@ -236,7 +236,7 @@ export class World {
   floodBreak(x, y) {
     const st = [[x, y]]; let n = 0;
     while (st.length) { const [a, b] = st.pop(); if (this.map.get(a, b) !== 'B') continue; this.setTile(a, b, '.'); n++; this.fx.burst(a * TILE + 12, b * TILE + 12, 4, { color: ['#5a5268', '#8a80a0'], max: 200, size: 5, g: 600 }); st.push([a + 1, b], [a - 1, b], [a, b + 1], [a, b - 1]); }
-    if (n) { sfx('secret'); this.fx.shake(0.3); this.fx.text(x * TILE, y * TILE, 'Secret!', '#ffe27a', 16); this.emit('secret'); }
+    if (n) { stinger('secret'); this.fx.shake(0.3); this.fx.text(x * TILE, y * TILE, 'Secret!', '#ffe27a', 16); this.emit('secret'); }
   }
   setTile(x, y, c) { this.map.set(x, y, c); const k = Math.floor(x / CHUNK_T) + ',' + Math.floor(y / CHUNK_T); this.chunkCache.delete(k); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) this.chunkCache.delete(Math.floor((x + dx) / CHUNK_T) + ',' + Math.floor((y + dy) / CHUNK_T)); }
   nearestEnemyAhead(p) { for (const e of this.enemies) if (!e.dead && sign(e.cx - p.cx) === p.face && Math.abs(e.cx - p.cx) < 90 && Math.abs(e.cy - p.cy) < 50) return e; return null; }
@@ -324,11 +324,11 @@ export class World {
       for (const gx of [0, CW - 1]) for (let y = 14; y <= 17; y++) if (this.map.get(ox + gx, oy + y) === '.') { this.setTile(ox + gx, oy + y, 'G'); this.gates.push([ox + gx, oy + y]); }
       // never trap the player inside a gate tile
       const P = this.player; if (this.map.solidPx(P.cx, P.cy)) P.x = c.room.x + TILE * 2;
-      sfx('door'); this.game.bossBar(e); playSong('mini');
+      sfx('door'); this.game.bossBar(e); playSong('mini'); stinger('warden');
     } else { this.fight = { e, room: this.fullRoom }; this.game.bossBar(e); }
   }
   onMinibossDefeated(e) {
-    for (const [x, y] of this.gates || []) this.setTile(x, y, '.'); this.gates = []; this.fight = null; this.game.bossBar(null); sfx('victory'); playSong(this.stage ? 'caverns' : 'biome');
+    for (const [x, y] of this.gates || []) this.setTile(x, y, '.'); this.gates = []; this.fight = null; this.game.bossBar(null); sfx('victory'); playSong(songFor(this));
     this.fx.text(e.cx, e.y - 30, e.info.name + ' defeated!', '#ffe27a', 18); this.dropGlims(e.cx, e.cy, 10); this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy - 20, vx: 0, vy: -250, t: 0, big: true });
     save.progress.minibossBeaten = (save.progress.minibossBeaten || 0) + 1; this.emit('miniboss'); SW.onWardenDown(this, e);
   }
