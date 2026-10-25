@@ -41,3 +41,4 @@ One set-piece per chapter: rolling logs, spore flood, the old bridge, lights out
 Iteration 1: found nondeterministic plans (sort with random comparator), Hard bosses never killed the bot, ch4 hazard spike, banner overlap — all fixed.
 Iteration 2: found a ReferenceError from a `//` comment in a one-line function (HUD), boon cards popping before the warden story comic, and 3 tests that needed updating for intentional changes (secret pockets carve sealed rock, fake death, warden boon card) — fixed.
 - 21:39 Tests: run-all 111/111, v21 32/32, v22 34/34.
+- 21:39 Source zip release/rootswing-2.2.0-src.zip 9.1 MB (shots/v22 stored as JPEG to stay < 20 MB). Tag v2.2.0, push, release, Pages next.
