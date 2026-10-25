@@ -66,3 +66,8 @@ Baseline numbers (shots/v24/before/feel.json): attach jerk 50 px/s/frame, pump m
 ## Phase 8 — ship
 - Bumped 2.4.0 / versionCode 16 (package.json, mobile/package.json, build.gradle). Android build started.
 - Signed APK (9.7 MB) + AAB (9.5 MB): apksigner verified, cert SHA-256 6e59e14a…d35d8de matches for both; aapt: versionCode 16 / 2.4.0. Source zip 16 MB (src, tests, tools, docs, assets, mobile, shots/v24 as 1000px JPEG).
+- Pushed main (3a6cacc) and tag v2.4.0.
+- Pages deployed: gh-pages 8a8aa47 (dist + version.json {version 2.4.0, versionCode 16}).
+- Release v2.4.0 created with APK/AAB/src zip (sizes verified).
+- Live check: https://chirowsan.github.io/rootswing/ 200, version.json = 2.4.0/16, live game.js sha256 = local dist (e8de038f…), headless boot: __RS present, 0 page errors, 0 console errors.
+- DONE. (shots/test-*.png noise left uncommitted on purpose.)
