@@ -30,3 +30,9 @@ Phases: 1 audit -> 2 audio -> 3 visual/feel -> 4 mobile/perf -> 5 a11y/kids -> 6
 - Phase 7 loop 2 (manual shots p7-*): found the intro card could name the wrong foe (it used the chapter warden name for any foe with a health bar) -> now Boss -> chapter boss name, Warden -> chapter warden name, anything else -> its own name with "CHAMPION"; card also waits until the GO! has faded. Test tightened. Scores (honest, 1-10): visuals 8.5, audio 8 (not heard on a phone), controls/feel 9 (unchanged), accessibility + grown-ups 8.5, performance 6.5 (only measured in headless software raster; real phones unverified), stability/saves 9. Overall 8.3 (v2.2 self-score was 7.8).
 - 2026-10-25 00:40 Phase 8 ship: version 2.3.0 / versionCode 15 in package.json, mobile/package.json, build.gradle. dist rebuilt (474.1 KB, byte-identical to the tested build). Full suite on this build: run-all 111/111, v2.1 32/32, v2.2 34/34, v2.3 21/21; reach validator (v1.5 physics model) passing inside run-all.
 - 00:45 Android: release/Rootswing-2.3.0.apk (9.6 MB; apksigner verified; cert SHA-256 6e59e14a...d8de; aapt2: com.chirow.rootswing versionCode 15 / 2.3.0) and Rootswing-2.3.0.aab (9.4 MB; jarsigner "jar verified", same cert). Source zip rootswing-2.3.0-src.zip 12.2 MB (shots resized to 1000 px JPEG to stay under 20 MB).
+
+## Phase 8 — Pages deploy + live check (2026-10-25 00:41 PDT)
+- gh-pages commit ad4c297 "Pages: Rootswing v2.3.0" pushed (dist 474.1 KB).
+- Live: https://chirowsan.github.io/rootswing/ -> HTTP 200; served game.js sha256 matches dist (009c33ac64f94d64…).
+- Headless boot of live URL (915x412 dpr2): status 200, __RS present, 0 page errors, 0 console errors; title renders.
+- Release: https://github.com/chirowsan/rootswing/releases/tag/v2.3.0 (APK, AAB, src zip 12.2 MB).
