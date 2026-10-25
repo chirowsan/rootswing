@@ -20,6 +20,15 @@ export const MV = {
   whirl: { a: 'c_charge', s: 'c_whirl', f: 'c_whirl', w: [2.5, 0, 0, 0], spin: 1, r: 52, th: 14 },
   kick: { a: 'c_kick', s: 'c_kick', f: 'c_kick', w: null, foot: 1 },
   bloom: { a: 'c_bloom', s: 'c_bloom', f: 'c_bloom', w: [-1.6, -1.6, -1.6, -1.6] },
+  // v2.4 whip lashes (hand angles mirror whip.js WM: a0 cocked, a1 strike)
+  wcut: { a: 'c_whip_a', s: 'c_whip_s', f: 'c_whip_f', w: [-2.55, -2.55, 0.02, 0.3] },
+  wrev: { a: 'c_rev_a', s: 'c_rev_s', f: 'c_whip_f', w: [2.45, 2.45, -0.14, -0.4] },
+  wrise: { a: 'c_rise_a', s: 'c_whipup_s', f: 'c_whipup_s', w: [1.5, 1.5, -1.2, -1.45] },
+  wfin: { a: 'c_slam_a', s: 'c_whip_s', f: 'c_whip_f', w: [-2.95, -2.95, 0.1, 0.5] },
+  wup: { a: 'c_rise_a', s: 'c_whipup_s', f: 'c_whipup_s', w: [1.3, 1.3, -1.5, -1.7] },
+  wdiag: { a: 'c_whip_a', s: 'c_whipup_s', f: 'c_whip_f', w: [1.9, 1.9, -0.72, -0.95] },
+  wair: { a: 'c_air_a', s: 'c_whip_s', f: 'c_air_f', w: [-2.4, -2.4, 0.06, 0.35] },
+  wdown: { a: 'c_air_a', s: 'c_whipdn_s', f: 'c_whipdn_s', w: [-1.7, -1.7, 1.05, 1.3] },
   plunge: { a: 'c_plunge', s: 'c_plunge', f: 'c_plunge_l', w: [1.5, 1.55, 1.55, 1.2] },
 };
 const ease = (k) => 1 - (1 - k) * (1 - k) * (1 - k);

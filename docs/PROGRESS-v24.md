@@ -26,3 +26,12 @@ Baseline numbers (shots/v24/before/feel.json): attach jerk 50 px/s/frame, pump m
 - validator: validateAllChunks() = 0 problems (35.7 s) with the new integrator.
 - fix: energy reference was taken after gravity -> corrected; drag 0.02/s. Pure-sim pendulum: ~1.7 %/half-swing decay (was ~10 %), game probe peaks 236/228/223/218.
 - after1 probe: swing drift -3.7 % (was -10.1), pump 345 -> 525 (was 283 -> 446), release 356 -> 619 px/s (was 318 -> 560), release distance 474 px (was 416), attach impulse spread over 7 frames (max 40/frame, was a 50 step), 0 page errors. validateAllChunks = 0 problems.
+
+## Phase 3 — Vine Whip (in progress)
+- [step] src/whip.js: 12-link verlet-free kinematic chain; handle angle wind→strike (easeOutCubic) with a travelling bend (lag) so the tip arrives last and "cracks" at crackTime; overshoot + settle = follow-through; link extension recoil.
+- [step] Hits are swept per link (prev→cur box) only in the active phase: tip links 9–11 = TIP crit zone (spark, camera punch zoomKick .35, shake, whipTip sfx), body links 3–8 = normal hit.
+- [step] Directional lashes: forward combo cut→rev→rise→fin(4 hits, distinct arcs), up (hold up), diagonal (up+forward), air, down (air+down = pogo lash). Finisher yanks light foes toward you.
+- [step] New poses c_whip_a/s/f, c_whipup_s, c_whipdn_s (wind-up / lash / follow-through). Recovery 0.11–0.2 s; moveMul .78 keeps attack steering.
+- [check] run-all (with whip dist) 111/111 PASS.
+- [probe after2] whip combo vs dummy @85px: 4/4 hits (wcut f7, wrev f25, wrise f45, wfin f67), 3 tip-zone crits (TIP! x1.5), 45 active frames, 14 hit-stop frames, 0 page errors. Strip: shots/v24/after2/whip-strip.png.
+- [commit] phase 3 (whip). Bow work (src/bow.js etc.) started in the same tree, committed as phase 4 next.
