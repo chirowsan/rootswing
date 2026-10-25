@@ -14,6 +14,8 @@ import { FX } from './fx.js';
 import { PAL, drawGlow, drawIcon, renderTileChunk, makeBackground, BIOMES, CHUNK_T } from './art.js';
 import { sfx, playSong } from './audio.js';
 import { save, diff, writeSave } from './save.js';
+import * as AI from './ai22.js';
+import * as SP from './surprise.js';
 import { lineClear, moveBody } from './physics.js';
 import { WEAPONS } from './weapons.js';
 import { vibrate, input } from './input.js';
@@ -50,7 +52,7 @@ export class World {
     let start = L.spawns.find((s) => s.c === 'P');
     initSeeds(this, opts.seeds);
     this.spawnRng = makeRng((this.seed ^ 0x9e3779b9) >>> 0);
-    GA.planRun(this, L); // v2.0: more traps, foes, arenas, ambushes (scaled by difficulty + depth)
+    GA.planRun(this, L); SP.plan(this, L); // v2.0: more traps, foes, arenas, ambushes (scaled by difficulty + depth)
     for (const s of L.spawns) this.spawnEntity(s);
     let px = start ? start.x * TILE + 12 : 100, py = start ? (start.y + 1) * TILE : 100;
     if (opts.cellIndex !== undefined && this.cells[opts.cellIndex]) { const c = this.cells[opts.cellIndex]; const p = this.findFloorIn(c); px = p.x; py = p.y; }
@@ -63,7 +65,7 @@ export class World {
     this.map.sup = computeSupports(this.map, this.anchors, L.traps || []);
     for (let y = 0; y < this.map.h; y++) for (let x = 0; x < this.map.w; x++) { const c = this.map.get(x, y); if (c === '^' || c === 'v' || c === '~') this.hazTiles.push({ x, y, c }); }
     this.viewH = viewHFor(mode); this.heroK = heroKFor(mode); this.bossIntro = mode === 'boss'; this.countdown = mode === 'run' || mode === 'boss' ? 1.6 : 0; this.fade = 1;
-    this._L = L; attachMissions(this); this._L = null; SW.initWorld(this, opts); // v1.8 missions: trackers, lost critters, hub friends
+    this._L = L; attachMissions(this); this._L = null; SW.initWorld(this, opts); SP.initWorld(this, opts); // v1.8 missions: trackers, lost critters, hub friends
     playSong(mode === 'hub' ? 'hub' : mode === 'boss' ? 'boss' : mode === 'tutorial' ? 'calm' : this.stage ? 'caverns' : 'biome');
   }
   spawnEntity(s) {
@@ -79,7 +81,7 @@ export class World {
       case 'f': E('moth'); break; case 't': E('puffcap'); break; case 'k': E('knight'); break; case 'b': E('bomber'); break; case 'h': E('charger'); break; case 'j': E('hopper'); break;
       case 'd': E('dummy'); break; case 'q': E('tturret'); break;
       case 'M': if (!this.cleared.has(ci)) { const w = this.chapter ? SW.chapterWarden(this, wx, wy, depth) : this.stage ? new TideGolem(wx, wy, depth) : new Warden(wx, wy, depth); w.cell = ci; if (!this.chapter) GA.dressWarden(this, w); this.enemies.push(w); } break;
-      case 'X': { const b = this.chapter ? SW.chapterBoss(this, wx, wy) : this.stage ? new DrownedBloom(wx, wy) : new Boss(wx, wy); b.cell = -1; this.enemies.push(b); this.boss = b; break; }
+      case 'X': { const b = this.chapter ? SW.chapterBoss(this, wx, wy) : this.stage ? new DrownedBloom(wx, wy) : new Boss(wx, wy); b.cell = -1; b.maxHp = b.hp = Math.round(b.maxHp * (diff().bossHp ?? 1)); b.maxPoise = b.poise = Math.round(b.maxPoise * (1 + 0.35 * (diff().smart || 0))); this.enemies.push(b); this.boss = b; break; }
       case 'c': this.props.push({ kind: 'chest', x: wx - 14, y: wy - 22, w: 28, h: 22, id: 'c' + s.x + '_' + s.y, open: this.opened.has('c' + s.x + '_' + s.y) }); break;
       case 'g': for (let i = 0; i < 5; i++) this.pickups.push({ kind: 'glim', x: wx + (i - 2) * 9, y: wy - 16 - Math.abs(i - 2) * 4, vx: 0, vy: 0, t: 1, float: true }); break;
       case 'F': this.props.push({ kind: 'fountain', x: wx - 18, y: wy - 40, w: 36, h: 40, id: 'F' + s.x + '_' + s.y, open: this.opened.has('F' + s.x + '_' + s.y) }); break;
@@ -108,9 +110,9 @@ export class World {
     if (c) { this.room = c.room; if (this.curCell !== c) { this.curCell = c; if (!this.visited.has(c.index)) { this.visited.add(c.index); } if (!initial) this.onEnterCell(c); } }
     else this.room = this.fullRoom;
   }
-  onEnterCell(c) { if (this.mode === 'run' && c.kind === 'checkpoint') this.reachCheckpoint(c); }
+  onEnterCell(c) { if (this.mode === 'run' && c.kind === 'checkpoint') this.reachCheckpoint(c); SP.onEnterCell(this, c); }
   reachCheckpoint(c) { // v1.3: saves happen only at checkpoint shrines (every ~10 rooms) and at the start of each biome
-    const P = this.player; P.flasks = P.maxFlasks; this.lastCheckpoint = c.index;
+    const P = this.player; const ckf = diff().ckFlask ?? 99, f0 = P.flasks; P.flasks = Math.min(P.maxFlasks, P.flasks + ckf); if (P.flasks > f0 && ckf < P.maxFlasks) this.fx.text(P.cx, P.y - 40, '+' + (P.flasks - f0) + ' flask', '#9ff0ff', 12); this.lastCheckpoint = c.index;
     for (const o of this.props) if (o.kind === 'shrine' && this.cellAt(o.x + o.w / 2, o.y + o.h - 4) === c && !o.lit) { o.lit = true; this.fx.burst(o.x + o.w / 2, o.y + 10, 26, { color: ['#9ff6ff', '#e8ffff'], g: -60, max: 170, kind: 'star', life: 1 }); }
     this.game.saveRunState(this, c.index); sfx('unlock'); this.fx.text(P.cx, P.y - 24, 'Checkpoint saved', '#bffcff', 14); this.emit('checkpoint', c.index);
   }
@@ -157,8 +159,9 @@ export class World {
     CB.tickPops(this, dt); if (this.slow > 0) { this.slow -= dt; dt *= 0.4; } if (this.cine && this.cine.slow) dt *= 1 - (1 - this.cine.slow) * BR.cineK(this); // v2.0 cinematic slow-mo
     const P = this.player; P.update(this, dt); this.updateRoom(false);
     const ax = P.cx, ay = P.cy;
-    for (const e of this.enemies) { if (e.dead) continue; const near = Math.abs(e.cx - ax) < 640 && Math.abs(e.cy - ay) < 420; if (near || e.boss && e.st !== 'sleep') e.update(this, dt); }
+    for (const e of this.enemies) { if (e.dead) continue; const near = Math.abs(e.cx - ax) < 640 && Math.abs(e.cy - ay) < 420; if (near || e.boss && e.st !== 'sleep' || e.hunter) e.update(this, dt); }
     this.enemies = this.enemies.filter((e) => !e.dead);
+    AI.director(this, dt); AI.bossHug(this, dt); SP.update(this, dt);
     this.updateShots(dt); this.updateBombs(dt); this.updateWaves(dt); this.updatePillars(dt); this.updateSentries(dt); this.updatePickups(dt); SW.update(this, dt); input.ctx = this.ctxIcon(this.player); this.traps.update(dt); this.arenas.update(dt); updateSeeds(this, dt); updateMissions(this, dt);
     for (const m of this.markers) m.t += dt; this.markers = this.markers.filter((m) => m.t < m.life);
     for (const p of this.props) if (p.kind === 'trigger' && !p.fired && Math.abs(P.cx - p.x) < 20 && Math.abs(P.cy - p.y) < 120) { p.fired = true; this.emit('trigger', p.n); }
@@ -193,12 +196,13 @@ export class World {
     for (const o of this.props) { if (o.open || o.kind === 'trigger' || o.kind === 'shrine') continue; if (rectsOverlap({ x: p.x - 14, y: p.y - 10, w: p.w + 28, h: p.h + 20 }, o)) { if ((o.kind === 'moss' || o.kind === 'station') && this.enemies.some((e) => !e.dead && Math.abs(e.cx - p.cx) < 150 && Math.abs(e.cy - p.cy) < 90)) continue; return o; } } // v2.1: fighting next to Moss/a station never opens a menu
     return null;
   }
-  ctxIcon(p) { const o = p && p.onGround && this.interactable(p); if (!o) return null; return { door: 'door', station: 'gear', moss: 'eye', chest: 'gift', fountain: 'flask', pedestal: 'key' }[o.kind] || null; } // v2.1 contextual Attack icon
+  ctxIcon(p) { const o = p && p.onGround && this.interactable(p); if (!o) return null; return { door: 'door', station: 'gear', moss: 'eye', chest: 'gift', fountain: 'flask', pedestal: 'key' }[o.kind] || (o.kind === 'sp' ? SP.icon(o) : null); } // v2.1 contextual Attack icon
   tryInteract(p) {
     const o = this.interactable(p); if (!o || !p.onGround) return false;
+    if (o.kind === 'sp') return SP.interact(this, o, p);
     if (o.kind === 'chest' || o.kind === 'fountain' || o.kind === 'pedestal') { this.game.treasures = (this.game.treasures || 0) + 1; SW.onTreasure(this, o); }
-    if (o.kind === 'chest') { o.open = true; this.opened.add(o.id); sfx('chest'); this.fx.burst(o.x + 14, o.y + 4, 20, { color: ['#ffe27a', '#fff'], max: 200, kind: 'star', g: 200 }); this.dropGlims(o.x + 14, o.y, rand.int(10, 16)); if (rand.chance(0.5)) this.pickups.push({ kind: 'heart', x: o.x + 14, y: o.y - 10, vx: rand.range(-60, 60), vy: -200, t: 0 }); this.emit('chest'); return true; }
-    if (o.kind === 'fountain') { o.open = true; this.opened.add(o.id); p.flasks = p.maxFlasks; p.healLeft += p.maxHp * 0.3; sfx('flask'); this.fx.burst(o.x + 18, o.y + 10, 30, { color: ['#9ff0ff', '#e8ffff'], g: -60, max: 160, kind: 'star', life: 1 }); this.fx.text(o.x + 18, o.y - 10, 'Flasks refilled!', '#bff', 13); return true; }
+    if (o.kind === 'chest') { o.open = true; this.opened.add(o.id); sfx('chest'); this.fx.burst(o.x + 14, o.y + 4, 20, { color: ['#ffe27a', '#fff'], max: 200, kind: 'star', g: 200 }); this.dropGlims(o.x + 14, o.y, rand.int(10, 16)); if (rand.chance(diff().chestHeart ?? 0.5)) this.pickups.push({ kind: 'heart', x: o.x + 14, y: o.y - 10, vx: rand.range(-60, 60), vy: -200, t: 0 }); this.emit('chest'); return true; }
+    if (o.kind === 'fountain') { o.open = true; this.opened.add(o.id); const full = (diff().ckFlask ?? 99) >= 99; p.flasks = full ? p.maxFlasks : Math.min(p.maxFlasks, p.flasks + 1); p.healLeft += p.maxHp * (full ? 0.3 : 0.15); sfx('flask'); this.fx.burst(o.x + 18, o.y + 10, 30, { color: ['#9ff0ff', '#e8ffff'], g: -60, max: 160, kind: 'star', life: 1 }); this.fx.text(o.x + 18, o.y - 10, full ? 'Flasks refilled!' : '+1 flask', '#bff', 13); return true; }
     if (o.kind === 'pedestal') { o.open = true; this.opened.add(o.id); p.weapon = o.weapon; sfx('unlock'); this.fx.ring(o.x + 14, o.y, 50, WEAPONS[o.weapon].color, 0.5, 5); this.fx.text(o.x + 14, o.y - 16, WEAPONS[o.weapon].name + '!', WEAPONS[o.weapon].color, 14); this.emit('weapon'); return true; }
     if (o.kind === 'station') { this.game.openStation(o.n); return true; }
     if (o.kind === 'moss') { sfx('ui'); this.game.openMoss && this.game.openMoss(); return true; }
@@ -238,7 +242,8 @@ export class World {
   nearestEnemyAhead(p) { for (const e of this.enemies) if (!e.dead && sign(e.cx - p.cx) === p.face && Math.abs(e.cx - p.cx) < 90 && Math.abs(e.cy - p.cy) < 50) return e; return null; }
   hitEnemy(e, hit, p) {
     if (e.dead) return false;
-    if (e.boss && (e.st === 'sleep' || e.st === 'intro' || e.st === 'roar' || e.st === 'dying' || e.st === 'wake')) { sfx('block'); this.fx.burst(e.cx, e.cy, 4, { color: '#fff', max: 120 }); return false; }
+    if (e.boss && (e.st === 'sleep' || e.st === 'intro' || e.st === 'roar' || e.st === 'dying' || e.st === 'wake' || e.st === 'fakeDying' || e.st === 'revive')) { sfx('block'); this.fx.burst(e.cx, e.cy, 4, { color: '#fff', max: 120 }); return false; }
+    if (AI.guarding(this, e, hit, p)) return false; // v2.2 guard
     const srcX = p ? p.cx : e.cx;
     let armorMul = 1;
     if (p && hit.src !== 'hazard' && hit.src !== 'splat' && (e.shield || e.armor > 0)) { // v2.0: shields have a guard meter (3 blocks = GUARD BREAK); armored foes need heavy hits
@@ -265,9 +270,11 @@ export class World {
       if (e.light && hit.air && !e.onGround) { e.vy = Math.min(e.vy, -170); e.juggle = Math.max(e.juggle || 0, 0.5); e.stun = Math.max(e.stun, 0.45); } // juggle: air hits keep light foes aloft
       if (e.light && (crit || hit.fin) && !e.spinV) e.spinV = dir * 12;
       e.sq = 0.78; }
-    if (hit.stun && e.boss) e.stun = Math.max(e.stun, 0.2);
-    if (e.maxPoise && p) { e.lastHitT = this.t; e.poise -= dmg * (hit.poise || 1) * (hit.fin ? 2 : 1); if (e.poise <= 0 && !(e.poiseBroke > 0)) e.poisePending = true; }
-    if (e.poisePending && (e.st === 'idle' || /Tele$/.test(e.st || ''))) { e.poisePending = false; e.poiseBroke = 2.2; e.poise = e.maxPoise; e.stun = Math.max(e.stun, 2.2); if (e.go) e.go('idle'); else e.st = 'idle'; e.tele = 0; e.cd = Math.max(e.cd || 0, 0.8); sfx('poiseBreak'); BR.cine(this, { x: e.cx, y: e.cy, life: 1.1, zoom: 1.22, slow: 0.3, label: 'BREAK!' }); BR.bonus(this, 'POISE BREAK', 60, '#ffe27a'); this.fx.ring(e.cx, e.cy, 70, '#ffe27a', 0.45, 7); CB.leaves(this, e.cx, e.cy, 18); this.hitstop(0.14); this.zoomKick(1); this.fx.flash = 0.3; this.fx.flashColor = '#fff2b0'; this.emit('poiseBreak'); }
+    if (e.boss) { const sm = diff().smart || 0; // v2.2: no more boss stun-lock -- hit-stun has a cooldown, and mashing an idle boss makes it strike back sooner
+      if (hit.stun && !(e.stunLockT > this.t)) { e.stun = Math.max(e.stun, 0.2); e.stunLockT = this.t + (sm ? 0.6 + 0.4 * sm : 0); }
+      if (sm && p && e.st === 'idle' && !(e.poiseBroke > 0)) e.cd = (e.cd ?? 1) - 0.1 * sm; }
+    if (e.maxPoise && p) { e.lastHitT = this.t; if (!(e.poiseBroke > 0)) e.poise -= dmg * (hit.poise || 1) * (hit.fin ? 2 : 1); if (e.poise <= 0 && !(e.poiseBroke > 0)) e.poisePending = true; }
+    if (e.poisePending && (e.st === 'idle' || /Tele$/.test(e.st || ''))) { e.poisePending = false; e.poiseBroke = 2.2 + 2 * (diff().smart || 0); e.poise = e.maxPoise; e.stun = Math.max(e.stun, 2.2); if (e.go) e.go('idle'); else e.st = 'idle'; e.tele = 0; e.cd = Math.max(e.cd || 0, 0.8); sfx('poiseBreak'); BR.cine(this, { x: e.cx, y: e.cy, life: 1.1, zoom: 1.22, slow: 0.3, label: 'BREAK!' }); BR.bonus(this, 'POISE BREAK', 60, '#ffe27a'); this.fx.ring(e.cx, e.cy, 70, '#ffe27a', 0.45, 7); CB.leaves(this, e.cx, e.cy, 18); this.hitstop(0.14); this.zoomKick(1); this.fx.flash = 0.3; this.fx.flashColor = '#fff2b0'; this.emit('poiseBreak'); }
     const heavy = dmg >= 25 || !!hit.breaks; this.hitstop(Math.max(hit.hs || 0.035, heavy ? 0.065 : 0)); this.fx.shake(hit.shake || 0.08); sfx(heavy ? 'hitHeavy' : 'hit'); if (heavy) this.zoomKick(0.6);
     this.fx.burst(lerp(e.cx, srcX, 0.3), e.cy, dmg >= 25 ? 12 : 7, { color: ['#fff', '#ffe27a', PAL.inkPop], kind: 'spark', min: 120, max: 360, glow: 1, life: 0.3 });
     this.fx.dmg(e.cx, e.y - 4, dmg, { key: e, heavy: heavy || crit, gold: e.parried > 0 || crit, dir, crit, tag: tip ? 'TIP!' : trapped ? 'TRAP' : null }); BR.react(this, e, dir, heavy || crit || !!hit.fin);
@@ -281,13 +288,14 @@ export class World {
     return true;
   }
   killEnemy(e, p) {
+    if (e instanceof Boss && !e.faked && (e.alwaysFake || (diff().smart || 0) >= 1) && this.mode !== 'tutorial') { e.fakeOut(this); this.slow = 0.6; BR.cine(this, { x: e.cx, y: e.cy, life: 1.6, zoom: 1.2 }); this.emit('bossFake'); return; }
     if (e instanceof Boss) { e.hp = 0; e.go('dying'); sfx('roar'); this.fx.shake(0.8); this.slow = 1.0; BR.cine(this, { x: e.cx, y: e.cy, life: 2.5, zoom: 1.28 }); BR.bonus(this, 'BOSS DOWN', 150, '#ff7ac8'); return; }
     e.dead = true; CB.leaves(this, e.cx, e.cy, e.boss ? 24 : 10); CB.spores(this, e.cx, e.cy, e.boss ? 16 : 8); this.fx.shatter(e._dr, e.boss ? 4 : 3, e.boss ? 1.2 : 1); this.fx.pop(e.cx, e.cy, e.boss ? 2 : 1); if (e.boss) this.zoomKick(0.8); sfx('pop'); vibrate(15);
     const lucky = save.progress.unlocks.lucky ? 1.25 : 1; this.dropGlims(e.cx, e.cy, Math.round(e.glim * lucky));
     GA.onFoeDown(this, e);
-    if (e.elite) { BR.bonus(this, 'ELITE DOWN', 50, '#ff7ad8'); this.fx.ring(e.cx, e.cy, 70, '#ff7ad8', 0.5, 6); this.hitstop(0.08); this.zoomKick(0.7); this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy, vx: 0, vy: -260, t: 0 }); this.emit('eliteKill', e.type); }
+    if (e.elite) { BR.bonus(this, 'ELITE DOWN', 50, '#ff7ad8'); this.fx.ring(e.cx, e.cy, 70, '#ff7ad8', 0.5, 6); this.hitstop(0.08); this.zoomKick(0.7); if (rand.chance((diff().chestHeart ?? 0.5) * 2)) this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy, vx: 0, vy: -260, t: 0 }); this.emit('eliteKill', e.type); }
     if (e instanceof Warden) BR.cine(this, { x: e.cx, y: e.cy, life: 1.2, zoom: 1.2, slow: 0.35 });
-    if (!e.boss && !e.elite && rand.chance(0.08)) this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy, vx: rand.range(-50, 50), vy: -220, t: 0 });
+    if (!e.boss && !e.elite && rand.chance(diff().heart ?? 0.08)) this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy, vx: rand.range(-50, 50), vy: -220, t: 0 });
     this.player.stats.kills++; this.emit('kill', e);
     if (e.cell >= 0 && !this.enemies.some((o) => !o.dead && o.cell === e.cell) && !this.cleared.has(e.cell)) { this.cleared.add(e.cell); this.emit('roomClear', e.cell); }
     if (e instanceof Warden) this.onMinibossDefeated(e);
@@ -296,7 +304,7 @@ export class World {
   dropGlims(x, y, n) { for (let i = 0; i < n; i++) this.pickups.push({ kind: 'glim', x, y, vx: rand.range(-140, 140), vy: rand.range(-320, -120), t: 0 }); }
   hazardHit(p, kind) {
     const info = kind === '~' ? ENEMY_INFO.smog : ENEMY_INFO.thorns; p.lastHit = info;
-    const dmg = this.mode === 'tutorial' || this.god ? 0 : Math.max(4, Math.round(12 * diff().dmgTaken));
+    const dmg = this.mode === 'tutorial' || this.god ? 0 : Math.max(4, Math.round(12 * Math.min(diff().dmgTaken, diff().dmgTaken > 1.6 ? 1.2 : 1))); // v2.2: tile hazards are platforming, not combat - capped so harder modes stay about fights
     sfx('hurt'); vibrate(30); this.fx.shake(0.35); this.fx.flash = 0.3; this.fx.flashColor = '#ff5a7a';
     this.fx.burst(p.cx, p.cy, 18, { color: ['#ff5a7a', '#fff', '#ffd0d8'], max: 240, kind: 'star', life: 0.5 });
     if (dmg) this.fx.text(p.cx, p.y - 6, '-' + dmg, '#ff8aa0', 14); else this.fx.text(p.cx, p.y - 6, 'Ouch!', '#ff8aa0', 14);
@@ -324,7 +332,7 @@ export class World {
     this.fx.text(e.cx, e.y - 30, e.info.name + ' defeated!', '#ffe27a', 18); this.dropGlims(e.cx, e.cy, 10); this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy - 20, vx: 0, vy: -250, t: 0, big: true });
     save.progress.minibossBeaten = (save.progress.minibossBeaten || 0) + 1; this.emit('miniboss'); SW.onWardenDown(this, e);
   }
-  onBossPhase(n) { BR.cine(this, { x: this.boss.cx, y: this.boss.cy, life: 1.5, zoom: 1.14, label: n === 2 ? 'PHASE 2' : 'FINAL PHASE', col: '#ffb13b' }); BR.bonus(this, 'PHASE ' + n, 40, '#ffb13b'); this.emit('bossPhase', n); }
+  onBossPhase(n) { BR.cine(this, { x: this.boss.cx, y: this.boss.cy, life: 1.5, zoom: 1.14, label: n === 2 ? 'PHASE 2' : n === 4 ? 'NOT OVER YET!' : 'FINAL PHASE', col: '#ffb13b' }); BR.bonus(this, 'PHASE ' + n, 40, '#ffb13b'); this.emit('bossPhase', n); }
   onBossDefeated(b) { this.fx.pop(b.cx, b.cy, 3); this.fx.flash = 0.8; this.fx.flashColor = '#fff6d8'; this.dropGlims(b.cx, b.cy, 40); this.fight = null; this.game.bossBar(null); sfx('victory'); this.bloomT = 0.01; this.emit('bossDefeated'); setTimeout(() => this.game.onVictory(this), 2600); }
   spawnEnemy(type, x, y) { const e = new Enemy(type, x, y, 2); e.cell = -1; e.stun = 0.5; BR.initFoe(this, e, 0, true); this.enemies.push(e); this.fx.burst(x, y - 10, 14, { color: [PAL.inkPop, '#3b2a6b'], max: 160, kind: 'blob', size: 6 }); }
   addMarker(m) { this.markers.push({ t: 0, ...m }); }
@@ -468,7 +476,7 @@ export class World {
     mk && mk('props'); for (const e of this.enemies) if (e.x + e.w > vx0 && e.x < vx1 && e.y + e.h > vy0 && e.y < vy1) { BR.drawFoeBack(g, this, e, lo); const rk = e.rkT ? Math.max(0, 1 - (this.t - e.rkT) / 0.16) : 0, rot = (e.spin || 0) + (e.boss ? 0 : rk * 0.2 * (e.rkD || 0)) + (e.flipT > this.t ? Math.PI : 0), sc = e.eScale || 1; // v1.9 ragdoll spin; v2.0 recoil lean, flipped shells, elite scale
       if (rot || sc !== 1) { g.save(); g.translate(e.cx, e.y + e.h); g.scale(sc, sc); g.translate(0, -e.h / 2); g.rotate(rot); g.translate(-e.cx, -e.cy); e.draw(g, this); g.restore(); } else e.draw(g, this); BR.drawFoeFront(g, this, e); }
     mk && mk('enemies'); this.dbg = { px: this.player.x, camx }; drawCritters(g, this); this.player.draw(g, this); mk && mk('player');
-    this.drawShots(g);
+    SP.drawWorld(g, this); this.drawShots(g);
     for (const w of this.waves) { const k = Math.sin(this.t * 30) * 2; g.fillStyle = '#7d5cff'; g.strokeStyle = '#15131f'; g.lineWidth = 2; g.beginPath(); g.moveTo(w.x - 12, w.y); g.quadraticCurveTo(w.x - w.dir * 2, w.y - 26 - k, w.x + w.dir * 12, w.y); g.closePath(); g.fill(); g.stroke(); drawGlow(g, w.x, w.y - 10, 26, '#ff5a7a', 0.6); }
     for (const p of this.pillars) { g.fillStyle = '#4a3e50'; g.strokeStyle = '#15131f'; g.lineWidth = 2.5; g.beginPath(); g.roundRect(p.x, p.y, p.w, p.h, 8); g.fill(); g.stroke(); g.fillStyle = '#ff8a5a'; g.fillRect(p.x + 8, p.y + 14, 6, 6); g.fillRect(p.x + 24, p.y + 26, 5, 5); }
     for (const k of this.pickups) if (!offV(k.x, k.y)) this.drawPickup(g, k);
@@ -600,6 +608,7 @@ export class World {
     const t = this.t, P = this.player, near = this.interactable(P);
     for (const o of this.props) {
       if (this.offV && this.offV(o.x, o.y, o.w || 0, o.h || 0)) continue;
+      if (o.kind === 'sp') { SP.drawProp(g, this, o); continue; }
       if ((o.kind === 'moss' || o.kind === 'friend') && SW.drawStoryProp(g, this, o)) {} else if (this.drawPropPainted(g, o)) {}
       else if (o.kind === 'chest') { g.fillStyle = '#15131f'; g.beginPath(); g.roundRect(o.x - 1, o.y - 1 + (o.open ? 6 : 0), o.w + 2, o.h + 2 - (o.open ? 6 : 0), 4); g.fill(); g.fillStyle = '#9a6a42'; g.fillRect(o.x + 1, o.y + 8, o.w - 2, o.h - 9); g.fillStyle = o.open ? '#5c3a24' : '#b8783a'; g.fillRect(o.x + 1, o.y + 1 + (o.open ? 5 : 0), o.w - 2, 8 - (o.open ? 4 : 0)); g.fillStyle = '#ffd36b'; g.fillRect(o.x + o.w / 2 - 3, o.y + 6, 6, 6); if (!o.open) drawGlow(g, o.x + o.w / 2, o.y + 6, 24, '#ffd36b', 0.3 + Math.sin(t * 3) * 0.1); }
       else if (o.kind === 'fountain') { g.fillStyle = '#15131f'; g.beginPath(); g.roundRect(o.x - 2, o.y + 18, o.w + 4, 24, 6); g.fill(); g.fillStyle = '#6a7488'; g.beginPath(); g.roundRect(o.x, o.y + 20, o.w, 20, 5); g.fill(); g.fillStyle = '#6a7488'; g.fillRect(o.x + 14, o.y + 2, 8, 20); if (!o.open) { g.fillStyle = '#7ff0ff'; g.fillRect(o.x + 4, o.y + 20, o.w - 8, 5); drawGlow(g, o.x + 18, o.y + 14, 34, '#7ff0ff', 0.5); if (Math.random() < 0.2) this.fx.burst(o.x + 18, o.y + 2, 1, { color: '#bff', min: 20, max: 60, g: 300, angle: -Math.PI / 2, spread: 0.6, life: 0.6, size: 2.5 }); } }

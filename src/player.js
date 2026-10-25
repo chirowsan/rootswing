@@ -80,7 +80,7 @@ export class Player {
     this.swapCd = Math.max(0, (this.swapCd || 0) - dt); this.swapBuf = Math.max(0, (this.swapBuf || 0) - dt); if (pressed('swap')) this.swapBuf = 0.3; // v2.0 quick-swap (buffered; cancels recovery)
     if (this.swapBuf > 0 && this.swapCd <= 0 && (!this.atk || this.atk.phase === 'rec') && this.atk?.kind !== 'special') { this.swapBuf = 0; this.atk = null; this.swapStyle(W); }
     if (pressed('parry') && this.parryLock <= 0 && this.dashT <= 0) { this.parryT = D.parry; this.parryLock = D.parry + 0.14; this.atk = null; this.vx *= 0.3; sfx('block'); W.emit('parryTry'); }
-    if (pressed('flask') && this.flasks > 0 && this.flaskT <= 0) { if (this.hp < this.maxHp) { this.flasks--; W.emit('flask'); this.flaskT = 0.45; this.healLeft = this.maxHp * 0.5; sfx('flask'); W.fx.burst(this.cx, this.cy, 20, { color: ['#9ff0ff', '#e8ffff', '#7fe0a0'], g: -120, max: 120, life: 0.8, kind: 'star' }); W.emit('flask'); } else W.fx.text(this.cx, this.y - 6, 'Full!', '#bff', 12); }
+    if (pressed('flask') && this.flasks > 0 && this.flaskT <= 0) { if (this.hp < this.maxHp) { this.flasks--; W.emit('flask'); this.flaskT = 0.45; this.healLeft = this.maxHp * (diff().flaskHeal ?? 0.5); sfx('flask'); W.fx.burst(this.cx, this.cy, 20, { color: ['#9ff0ff', '#e8ffff', '#7fe0a0'], g: -120, max: 120, life: 0.8, kind: 'star' }); W.emit('flask'); } else W.fx.text(this.cx, this.y - 6, 'Full!', '#bff', 12); }
     for (let i = 0; i < 2; i++) if (pressed(i ? 'skill2' : 'skill1') && this.gadgets[i] && this.gcd[i] <= 0) { this.gcd[i] = GADGETS[this.gadgets[i]].cd; W.useGadget(this.gadgets[i], this); }
     if (pressed('attack') && this.jumpBuf > 0 && !this.atk && (this.onGround || this.coyote > 0) && this.parryLock <= 0 && this.dashT <= 0) this.doJump(W); // jump+attack on the same frame -> jump first, then an air swing
     this.updateAttack(W, dt, mx, my);
@@ -405,7 +405,7 @@ export class Player {
       W.fx.text(this.cx, this.y - 8, 'PERFECT!', '#bff7ff', 15); W.fx.ring(this.cx, this.cy, 44, '#bff7ff', 0.35, 4); W.emit('perfectDodge'); return 'dodge'; }
     if (this.dashT > 0 || this.iframes > 0) { if (this.dashT > 0 && !this.dodgeShown) { this.dodgeShown = true; W.fx.text(this.cx, this.y - 4, 'dodge!', '#bff7ff', 11); setTimeout(() => (this.dodgeShown = false), 400); } return 'dodge'; }
     const real = Math.max(1, Math.round(dmg * diff().dmgTaken * (W.dmgTaken || 1)));
-    this.hp -= real; this.iframes = 1.0; this.hurtT = 0.22; this.flash = 0.25; this.atk = null; this.hook = { s: 'none' };
+    this.hp -= real; this.iframes = diff().iframes ?? 1.0; this.hurtT = 0.22; this.flash = 0.25; this.atk = null; this.hook = { s: 'none' };
     const d = sign(this.cx - srcX) || -this.face; this.vx = d * 230; this.vy = -240; this.lastHit = info;
     W.fx.shake(0.45); W.hitstop(0.08); W.fx.flash = 0.35; W.fx.flashColor = '#ff5a7a'; sfx('hurt'); vibrate(35);
     W.fx.burst(this.cx, this.cy, 10, { color: ['#fff', '#ffd0d8'], max: 200, life: 0.4, kind: 'star', size: 5 });

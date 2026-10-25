@@ -41,7 +41,7 @@ hooks.comic = (a) => { if (a === 'cmNext') { nextPanel(); return true; } if (a =
 // tap anywhere on the art = next (big target for small hands)
 document.addEventListener('click', (e) => { if (ui.open !== 'comic' || e.target.closest('button')) return; if (e.target.closest('.cm')) nextPanel(); });
 // ---------------- chapter map ----------------
-const NODE = [null, [14, 70], [32, 46], [50, 66], [68, 40], [86, 22]]; // % positions over the cliff vista (p_intro6)
+const NODE = [null, [14, 70], [32, 46], [50, 66], [68, 40], [86, 22], [88, 58]]; // % positions over the cliff vista (p_intro6)
 export function showMap(h = {}) {
   const c = camp(), cur = currentChapter(), fresh = c.fresh; c.fresh = 0; writeSave();
   const node = (n) => { const C = CHAPTERS[n], lock = !isUnlocked(n), done = !!c.done[n], [x, y] = NODE[n];
@@ -50,8 +50,8 @@ export function showMap(h = {}) {
       <span class="mp-name">${lock ? '???' : esc(C.name)}</span>${!lock ? `<span class="mp-seeds">${[0, 1, 2].map((i) => `<i class="${i < (c.seeds[n] || 0) ? 'on' : ''}"></i>`).join('')}</span>` : ''}</button>`; };
   const path = [1, 2, 3, 4].map((n) => { const [x1, y1] = NODE[n], [x2, y2] = NODE[n + 1]; return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="${isUnlocked(n + 1) ? 'open' : ''}"/>`; }).join('');
   show('map', `<div class="mp"><div class="mp-art"></div><svg class="mp-path" viewBox="0 0 100 100" preserveAspectRatio="none">${path}</svg>
-    ${[1, 2, 3, 4, 5].map(node).join('')}
-    <div class="mp-top"><span>${ic('glimmer', '#a6f05a', 26)}<b>${seedTotal()}/15</b></span><span>${ic('shield', '#ffb13b', 26)}<b>${freedCount()}/4</b></span><span>${ic('star', '#ffe27a', 26)}<b>${doneCount()}/5</b></span>${c.ng ? `<span class="ng">NG+</span>` : ''}</div>
+    ${[1, 2, 3, 4, 5].map(node).join('')}${isUnlocked(6) ? node(6).replace('mp-node', 'mp-node secret') : ''}
+    <div class="mp-top"><span>${ic('glimmer', '#a6f05a', 26)}<b>${seedTotal()}/15</b></span><span>${ic('shield', '#ffb13b', 26)}<b>${freedCount()}/4</b></span><span>${ic('star', '#ffe27a', 26)}<b>${doneCount()}/5</b></span>${c.ng ? `<span class="ng">NG+</span>` : ''}${(c.sparks || 0) > 0 && !isUnlocked(6) ? `<span class="spk">${ic('glimmer', '#ffb36a', 24)}<b>${c.sparks}/5</b></span>` : ''}</div>
     <div class="mp-bot"><button class="big mp-back" data-act="back">${ic('left', '#fff', 22)} Seedhouse</button>
       <button class="big primary mp-play" data-act="mpGo" data-v="${cur}">${ic('play', '#15131f', 22)} Chapter ${cur}</button>
       ${c.ending ? `<button class="big mp-ng ${c.ngOn ? 'on' : ''}" data-act="mpNG">${ic('star', c.ngOn ? '#15131f' : '#ffe27a', 22)} New Game+ ${c.ngOn ? 'ON' : 'OFF'}</button>` : ''}

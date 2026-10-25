@@ -14,7 +14,7 @@ export async function loadGfx(base = 'gfx/') {
     return true;
   } catch (e) { return false; }
 }
-export const STORY_SPR = ['s_moss', 's_root0', 's_root1', 's_blight', 's_boss', 's_boss2', 's_warden'];
+export const STORY_SPR = ['s_moss', 's_root0', 's_root1', 's_blight', 's_boss', 's_boss2', 's_warden', 's_mimic', 's_hunter', 's_shrine', 's_merchant', 's_altar', 's_hollow'];
 export function loadStory(base = 'gfx/') { if (G.storyP) return G.storyP; G.storyP = Promise.all(STORY_SPR.map((n) => loadImg(base + n + '.webp').then((i) => { if (i) G.img[n] = i; }))); return G.storyP; }
 // draw a whole story image so its height is h world units, anchored bottom-centre
 export function sImg(g, n, x, y, h, flip = false, alpha = 1) { const i = G.img[n]; if (!i) return false; const w = i.width * h / i.height; if (alpha !== 1) g.globalAlpha = alpha; if (flip) { g.save(); g.translate(x, 0); g.scale(-1, 1); g.drawImage(i, -w / 2, y - h, w, h); g.restore(); } else g.drawImage(i, x - w / 2, y - h, w, h); if (alpha !== 1) g.globalAlpha = 1; return true; }

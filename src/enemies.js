@@ -8,6 +8,8 @@ import { track, drawRig, regPose, wardenPose, bossPose } from './eanim.js';
 import { save as _save } from './save.js';
 import { sfx } from './audio.js';
 import { diff } from './save.js';
+import * as AI from './ai22.js';
+import { INFO22, DEF22, U22, draw22 } from './foes22.js';
 
 export const ENEMY_INFO = {
   hopper: { name: 'Blotling', tip: 'Blotlings hop at you. Jump over, then strike!' },
@@ -40,6 +42,7 @@ const DEF = {
   dummy: { w: 22, h: 36, hp: 1e9, dmg: 0, light: false, glim: 0 },
   tturret: { w: 26, h: 26, hp: 1e9, dmg: 5, light: false, glim: 0 },
 };
+Object.assign(ENEMY_INFO, INFO22); Object.assign(DEF, DEF22);
 export class Enemy {
   constructor(type, x, y, depth = 0) {
     const d = DEF[type]; Object.assign(this, { type, w: d.w, h: d.h, light: d.light, fly: !!d.fly, glim: d.glim, cdmg: d.dmg });
@@ -56,11 +59,11 @@ export class Enemy {
     const seen = adx < 330 && Math.abs(dy) < 150 && !P.dead;
     if (this.juggle > 0) { this.juggle -= dt; if (this.vy > -400) this.vy -= 1500 * dt * 0.55; } // v1.9 juggle float
     if (this.spinV) { this.spin = (this.spin || 0) + this.spinV * dt; this.spinV *= 1 - dt * 1.5; if ((this.onGround && this.vy >= 0 && !(this.juggle > 0)) || Math.abs(this.spinV) < 1) { this.spinV = 0; this.spin = 0; } }
-    if (this.stun > 0) { this.stun -= dt; this.tele = 0; this.physics(W, dt, true); return; }
+    if (this.stun > 0 && !AI.mashGuard(W, this, P)) { this.stun -= dt; this.tele = 0; this.physics(W, dt, true); return; }
     this.cd -= dt * A;
-    const fn = this['u_' + this.type]; if (fn) fn.call(this, W, dt, P, dx, dy, adx, seen, A);
+    if (!AI.pre(W, this, dt, P, dx, dy, adx, seen)) { const fn = this['u_' + this.type] || U22[this.type]; if (fn) fn.call(this, W, dt, P, dx, dy, adx, seen, A); AI.post(W, this, dt); } // v2.2 AI moves
     // contact damage (not while stunned; dummies harmless)
-    if (this.cdmg && this.type !== 'tturret' && this.type !== 'puffcap' && W.overlapPlayer(this, 4)) W.damagePlayer(this.cdmg * (this.st === 'charge' || this.st === 'swoop' ? 1 : 0.7), this.cx, { name: this.info.name, tip: this.info.tip, parryable: this.st === 'charge' || this.st === 'swoop', src: this });
+    if (this.cdmg && this.type !== 'tturret' && this.type !== 'puffcap' && W.overlapPlayer(this, 4) && !(this.alpha < 0.9)) W.damagePlayer(this.cdmg * (this.st === 'charge' || this.st === 'swoop' || this.st === 'lunge' ? 1 : 0.7 * (diff().contact ?? 1)), this.cx, { name: this.info.name, tip: this.info.tip, parryable: this.st === 'charge' || this.st === 'swoop' || this.st === 'lunge', src: this });
   }
   physics(W, dt, stunned) {
     if (this.fly && !stunned) { const r = moveBody(W.map, this, dt); this.onGround = r.ground; return r; }
@@ -99,7 +102,7 @@ export class Enemy {
   u_puffcap(W, dt, P, dx, dy, adx, seen) {
     this.face = sign(dx) || this.face;
     if (this.st === 'idle' && seen && adx < 340 && this.cd <= 0 && lineClear(W.map, this.cx, this.y + 6, P.cx, P.cy)) { this.st = 'tele'; this.t = 0; sfx('telegraph'); }
-    if (this.st === 'tele') { this.tele = this.t / 0.6; if (this.t > 0.6) { this.st = 'idle'; this.tele = 0; this.cd = 2.2; this.sq = 1.3; const tx = P.cx - this.cx, ty = P.cy - (this.y + 8), d = Math.hypot(tx, ty) || 1; W.spawnEnemyShot(this.cx, this.y + 8, tx / d * 170, ty / d * 170, { dmg: 10, name: this.info.name, tip: this.info.tip }); sfx('enemyShoot'); } }
+    if (this.st === 'tele') { this.tele = this.t / 0.6; if (this.t > 0.6) { this.st = 'idle'; this.tele = 0; this.cd = 2.2; this.sq = 1.3; const tx = P.cx - this.cx, ty = P.cy - (this.y + 8), d = Math.hypot(tx, ty) || 1; AI.volley(W, this, tx / d, ty / d, 170, { dmg: 10, name: this.info.name, tip: this.info.tip }); sfx('enemyShoot'); } }
     this.physics(W, dt);
   }
   u_tturret(W, dt, P, dx, dy, adx) {
@@ -178,7 +181,8 @@ export class Enemy {
   }
   draw(g, W) {
     const X = this.cx, Y = this.y + this.h, t = this.anim;
-    const tele = this.tele; const painted = has(this.type); if (painted) this.drawPainted(g, W);
+    const tele = this.tele; if (DEF22[this.type]) { draw22(g, this); if (tele > 0) this.drawBang(g, X, this.y - 16, tele); return; }
+    const painted = has(this.type); if (painted) this.drawPainted(g, W);
     if (!painted) {
     g.save(); g.translate(X, Y);
     
@@ -247,7 +251,7 @@ export class Enemy {
     if (this.type === 'jelly' && (tele > 0 || this.ring > 0)) { const r = this.ring > 0 ? 30 + this.ring * 55 : 80 * tele; g.strokeStyle = this.ring > 0 ? 'rgba(200,255,255,' + (1 - this.ring) + ')' : 'rgba(255,80,90,' + (0.35 + tele * 0.5) + ')'; g.lineWidth = this.ring > 0 ? 5 : 2.5; g.beginPath(); g.arc(X, this.cy, r, 0, 7); g.stroke(); if (tele > 0) { g.setLineDash([5, 6]); g.strokeStyle = 'rgba(255,80,90,0.5)'; g.beginPath(); g.arc(X, this.cy, 80, 0, 7); g.stroke(); g.setLineDash([]); } }
     if (this.type === 'lurefish' || this.type === 'jelly') drawGlow(g, X + (this.type === 'lurefish' ? this.face * 14 : 0), this.y - (this.type === 'lurefish' ? 4 : -8), 14 + tele * 10, tele > 0 ? '#ff6a7a' : '#9ff6ff', 0.6 + Math.sin(t * 4) * 0.15);
     if (this.flash > 0) drawGlow(g, X, this.cy, Math.max(this.w, this.h) * 0.9, '#ffffff', this.flash * (painted ? 3 : 5));
-    if (tele > 0) this.drawBang(g, X, this.y - 16 - (this.type === 'knight' ? 10 : 0), tele);
+    if (tele > 0) this.drawBang(g, X, this.y - 16 - (this.type === 'knight' ? 10 : 0), tele); AI.draw(g, this);
     if (this.stun > 0 && this.type !== 'dummy') { for (let i = 0; i < 3; i++) { const a = t * 5 + i * 2.1; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(X + Math.cos(a) * 12, this.y - 6 + Math.sin(a) * 4, 2.4, 0, 7); g.fill(); } }
     if (this.hp < this.maxHp && this.maxHp < 1e8) { const w = Math.max(24, this.w + 6); g.fillStyle = 'rgba(10,8,20,0.7)'; g.fillRect(X - w / 2, this.y - 9, w, 4); g.fillStyle = '#ff7aa0'; g.fillRect(X - w / 2, this.y - 9, w * this.hp / this.maxHp, 4); }
   }

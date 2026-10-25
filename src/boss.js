@@ -8,6 +8,7 @@ import { sfx } from './audio.js';
 import { diff } from './save.js';
 import { ENEMY_INFO } from './enemies.js';
 
+const P4 = ['combo', 'rain', 'charge', 'pillars', 'volley', 'slam', 'combo', 'beam'];
 const INK = [[-1.2, 0], [1.2, 0], [0, -1.2], [0, 1.2]];
 function paintSprite(g, n, x, y, H, flip, flash, hotK, src = null) { // ink outline + sprite + red telegraph tint + white hurt flash
   const ink = tinted(n, '#0c0a14'), rim = tinted(n, '#ff5a28'); for (const [dx, dy] of INK) spr(g, n, x + dx * 2.2, y + dy * 2.2, H, 0.5, 1, flip, ink); for (const [dx, dy] of INK) spr(g, n, x + dx * 1.1, y + dy * 1.1, H, 0.5, 1, flip, rim);
@@ -40,7 +41,9 @@ export class Warden extends BigFoe {
       if (W.map.solid(tx, Math.floor((this.y + this.h - 6) / TILE)) || this.t > 0.75) { this.go('rest'); if (this.t > 0) { W.fx.shake(0.2); sfx('thump'); } } }
     else if (this.st === 'leapTele') { this.tele = this.t / 0.7; this.sq = 1 - this.tele * 0.25; if (this.t > 0.7) { const tx = clamp(P.cx, W.room.x + 50, W.room.x + W.room.w - 50); const T = 0.85; this.vx = (tx - this.cx) / T; this.vy = -1500 * T / 2; this.leapX = tx; this.go('leap'); W.addMarker({ kind: 'zone', x: tx - 50, y: this.y + this.h - 26, w: 100, h: 26, life: T }); sfx('jump'); } }
     else if (this.st === 'leap') { const f = this.fall(W, dt); if (f.landed && this.t > 0.2) { this.vx = 0; this.sq = 0.7; W.fx.shake(0.45); sfx('explode'); W.enemyAttack({ x: this.cx - 50, y: this.y + this.h - 30, w: 100, h: 30 }, 16, this, { parryable: false, name: this.info.name, tip: this.info.tip }); W.spawnWave(this.cx, this.y + this.h, -1, 230, this); W.spawnWave(this.cx, this.y + this.h, 1, 230, this); this.go('rest'); } return; }
-    else if (this.st === 'rest') { this.vx = approach(this.vx, 0, 1200 * dt); if (this.t > 0.85) { this.go('idle'); this.cd = 0.9; } }
+    else if (this.st === 'rest') { this.vx = approach(this.vx, 0, 1200 * dt); const D = diff();
+      if (this.t > 0.3 && !this.chained && (D.smart || 0) >= 1 && rand.chance(0.3 + 0.12 * D.smart)) { this.chained = true; this.order++; this.go(this.order % 2 ? 'bashTele' : 'leapTele'); this.t = 0.18; sfx('telegraph'); W.fx.text(this.cx, this.y - 14, '!!', '#ff4a5a', 16); } // v2.2 combo: a second attack right away (still telegraphed)
+      else if (this.t > 0.85) { this.chained = false; this.go('idle'); this.cd = 0.9 / (1 + 0.15 * (D.smart || 0)); } }
     else if (this.st === 'summon') { this.vx = 0; this.tele = Math.min(1, this.t / 0.6); if (this.t > 0.8) { for (const s of [-1, 1]) W.spawnEnemy(this.minion || 'hopper', this.cx + s * 120, this.y + this.h - 30); sfx('roar'); W.fx.shake(0.2); this.go('rest'); } }
     this.fall(W, dt);
   }
@@ -83,27 +86,29 @@ export class Warden extends BigFoe {
 export class Boss extends BigFoe {
   constructor(x, y) { super(x, y, 86, 124, 720); this.type = 'boss'; this.info = ENEMY_INFO.boss; this.glim = 80; this.phase = 1; this.order = 0; this.pending = []; this.beamT = 0; }
   update(W, dt) {
-    const P = W.player, A = diff().aggro * (this.phase === 3 ? 1.15 : 1); this.t += dt; this.anim += dt; this.flash = Math.max(0, this.flash - dt); this.sq = approach(this.sq, 1, dt * 4);
+    const P = W.player, A = (diff().bossAggro ?? diff().aggro) * (this.phase === 4 ? 1.3 : this.phase === 3 ? 1.15 : 1); this.t += dt; this.anim += dt; this.flash = Math.max(0, this.flash - dt); this.sq = approach(this.sq, 1, dt * 4);
     const dx = P.cx - this.cx; const floorY = W.room.y + W.room.h - 2 * TILE;
     // pending delayed hazards (embers, pillars)
     for (const p of this.pending) { p.t -= dt; if (p.t <= 0 && !p.done) { p.done = true; p.fire(); } } this.pending = this.pending.filter((p) => !p.done);
     if (this.st === 'sleep') { this.fall(W, dt); return; }
+    if (this.st === 'fakeDying' || this.st === 'revive') { this.updFake(W, dt, P); this.fall(W, dt); return; }
+    if (this.phase === 4) this.thornFloor(W, dt, floorY);
     if (this.st === 'dying') { this.vx = 0; if (Math.random() < dt * (10 + this.t * 10)) W.fx.pop(this.x + rand.range(0, this.w), this.y + rand.range(0, this.h), 0.8 + this.t * 0.3);
       const beats = [0.35, 0.85, 1.3, 1.7, 2.0]; this._dk = this._dk || 0; // v2.0: escalating death beats -- each one bigger, then the shatter
       if (this._dk < beats.length && this.t > beats[this._dk]) { const k = ++this._dk; this.flash = 0.07; W.fx.flash = Math.max(W.fx.flash, 0.1 + k * 0.05); W.fx.flashColor = '#fff2d0'; W.fx.shake(0.15 + k * 0.06); W.fx.ring(this.cx, this.cy, 60 + k * 30, ['#ffb13b', '#ffe27a', '#ff7ac8'][k % 3], 0.5, 4 + k); W.fx.burst(this.cx, this.cy, 10 + k * 4, { color: ['#ffd0e0', '#ff9ab0', '#ffe27a', '#fff'], kind: 'leaf', min: 80, max: 260 + k * 40, life: 1.1, g: 160 }); sfx(k < beats.length ? 'hitHeavy' : 'finisher'); }
       if (this.t > 2.2) { this.dead = true; W.fx.shatter(this._dr, 5, 1.4); W.fx.flash = Math.max(W.fx.flash, 0.5); W.fx.flashColor = '#fff6e0'; W.fx.shake(0.7); W.fx.ring(this.cx, this.cy, 260, '#ffe27a', 0.9, 10); W.fx.burst(this.cx, this.cy, 60, { color: ['#ffd0e0', '#ff9ab0', '#ffe27a', '#8ff6ff', '#fff'], kind: 'leaf', min: 120, max: 520, life: 1.8, g: 120, size: 7 }); W.hitstop && W.hitstop(0.12); W.onBossDefeated(this); } this.fall(W, dt); return; }
     if (this.poiseBroke > 0) this.poiseBroke -= dt;
     if (this.stun > 0) { this.stun -= dt; this.vx *= 0.9; this.fall(W, dt); return; }
-    const want = this.hp > this.maxHp * 0.66 ? 1 : this.hp > this.maxHp * 0.33 ? 2 : 3;
+    const want = this.phase === 4 ? 4 : this.hp > this.maxHp * 0.66 ? 1 : this.hp > this.maxHp * 0.33 ? 2 : 3;
     if (want > this.phase && this.st !== 'roar') { this.phase = want; this.go('roar'); this.beamT = 0; sfx('roar'); W.fx.shake(0.6); W.fx.ring(this.cx, this.cy, 160, '#ffb13b', 0.6, 8); W.onBossPhase(this.phase); const d = sign(P.cx - this.cx) || 1; P.vx = d * 260; P.vy = -200; }
     if (this.st === 'roar') { this.vx = 0; if (this.t > 1.6) { this.go('idle'); this.cd = 0.6; if (this.phase === 2) this.go('summon'); } }
     else if (this.st === 'intro') { if (this.t > 1.8) { this.go('idle'); this.cd = 0.8; } }
     else if (this.st === 'idle') {
-      this.face = sign(dx) || 1; this.vx = Math.abs(dx) > 120 ? this.face * (this.phase === 3 ? 80 : 55) : 0; this.cd -= dt * A;
-      if (this.cd <= 0) { this.vx = 0; const pool = this.pools ? this.pools[this.phase - 1] : this.phase === 1 ? ['slam', 'volley'] : this.phase === 2 ? ['slam', 'beam', 'volley', 'beam'] : ['pillars', 'charge', 'slam', 'volley']; const a = pool[this.order++ % pool.length]; this.attack(W, a, P, floorY); }
+      this.face = sign(dx) || 1; this.vx = Math.abs(dx) > 120 ? this.face * (this.phase >= 3 ? 80 : 55) : 0; this.cd -= dt * A;
+      if (this.cd <= 0) { this.vx = 0; const pool = this.phase === 4 ? (this.pools && this.pools[3]) || P4 : this.pools ? this.pools[this.phase - 1] : this.phase === 1 ? ['slam', 'volley'] : this.phase === 2 ? ['slam', 'beam', 'volley', 'beam'] : ['pillars', 'charge', 'slam', 'volley']; const a = pool[this.order++ % pool.length]; this.attack(W, a, P, floorY); }
     }
-    else if (this.st === 'slamTele') { this.tele = this.t / 0.9; if (this.t > 0.9) { this.go('slam'); this.sq = 0.75; W.fx.shake(0.55); sfx('explode'); const zx = this.face > 0 ? this.cx + 10 : this.cx - 130; W.enemyAttack({ x: zx, y: floorY - 48, w: 120, h: 48 }, 22, this, { parryable: true, name: this.info.name, tip: 'Parry the fist slam to stun the boss!' }); W.spawnWave(this.cx + this.face * 70, floorY, -1, 250, this); W.spawnWave(this.cx + this.face * 70, floorY, 1, 250, this); W.fx.burst(this.cx + this.face * 70, floorY, 20, { color: ['#ffb13b', '#7d5cff'], angle: -Math.PI / 2, spread: 1.2, max: 300, life: 0.6 }); } }
-    else if (this.st === 'slam') { if (this.t > 0.8) { this.go('idle'); this.cd = 1.0; } }
+    else if (this.st === 'slamTele') { const TT = this.combo ? 0.7 : 0.9; this.tele = this.t / TT; if (this.t > TT) { this.go('slam'); this.sq = 0.75; W.fx.shake(0.55); sfx('explode'); const zx = this.face > 0 ? this.cx + 10 : this.cx - 130; W.enemyAttack({ x: zx, y: floorY - 48, w: 120, h: 48 }, 22, this, { parryable: true, name: this.info.name, tip: 'Parry the fist slam to stun the boss!' }); W.spawnWave(this.cx + this.face * 70, floorY, -1, 250, this); W.spawnWave(this.cx + this.face * 70, floorY, 1, 250, this); W.fx.burst(this.cx + this.face * 70, floorY, 20, { color: ['#ffb13b', '#7d5cff'], angle: -Math.PI / 2, spread: 1.2, max: 300, life: 0.6 }); } }
+    else if (this.st === 'slam') { if (this.t > (this.combo ? 0.45 : 0.8)) { if (this.combo) { const c = this.combo; this.combo = null; this.face = sign(P.cx - this.cx) || 1; this.attack(W, c, P, floorY); } else { this.go('idle'); this.cd = 1.0; } } }
     else if (this.st === 'volleyTele') { this.tele = this.t / 0.6; if (this.t > 0.6) { this.go('volley'); const n = this.phase === 3 ? 5 : 3; for (let i = 0; i < n; i++) { const tx = clamp(P.cx + (i - (n - 1) / 2) * 70 + rand.range(-15, 15), W.room.x + 40, W.room.x + W.room.w - 40); this.lobEmber(W, tx, floorY, 0.95 + i * 0.12); } sfx('enemyShoot'); } }
     else if (this.st === 'volley') { if (this.t > 1.2) { this.go('idle'); this.cd = 0.8; } }
     else if (this.st === 'beamTele') { this.tele = this.t / 1.4; if (this.t > 1.4) { this.go('beam'); sfx('explode'); W.fx.shake(0.4); } }
@@ -124,8 +129,29 @@ export class Boss extends BigFoe {
       this.go('pillarsTele'); const from = P.cx > W.room.x + W.room.w / 2 ? -1 : 1, n = 9, step = (W.room.w - 80) / n;
       for (let i = 0; i < n; i++) { const x = from > 0 ? W.room.x + 40 + i * step : W.room.x + W.room.w - 40 - (i + 1) * step; W.addMarker({ kind: 'zone', x, y: floorY - 40, w: step, h: 40, life: 0.9 + i * 0.13 });
         this.pending.push({ t: 0.9 + i * 0.13, fire: () => { W.enemyAttack({ x, y: floorY - 40, w: step, h: 40 }, 14, this, { parryable: false, name: 'Rising Tide', tip: 'The tide rolls along the red floor. Jump it or hang from a ring!' }); W.fx.burst(x + step / 2, floorY - 6, 6, { color: ['#9ff6ff', '#e8ffff'], g: 500, min: 80, max: 260, angle: -Math.PI / 2, spread: 0.7, life: 0.6, glow: 1 }); if (i % 3 === 0) sfx('explode', 0.25); } }); } }
+    else if (a === 'combo') { this.combo = 'charge'; this.attack(W, 'slam', P, floorY); this.combo = 'charge'; } // v2.2: slam straight into a charge (both marked)
+    else if (a === 'rain') { this.go('pillarsTele'); const from = rand.chance(0.5) ? -1 : 1, n = 8; for (let i = 0; i < n; i++) { const fx = from > 0 ? i / (n - 1) : 1 - i / (n - 1); this.lobEmber(W, W.room.x + 50 + fx * (W.room.w - 100), floorY, 0.9 + i * 0.16); } sfx('enemyShoot'); } // sweeping ember rain
     else if (a === 'pillars') { this.go('pillarsTele'); const xs = [P.cx]; for (let i = 0; i < 3; i++) xs.push(rand.range(W.room.x + 60, W.room.x + W.room.w - 60)); for (const x of xs) { W.addMarker({ kind: 'shadow', x: x - 22, y: floorY - 6, w: 44, h: 8, life: 1.0 }); this.pending.push({ t: 0.75, fire: () => W.dropPillar(x, W.room.y + TILE, floorY, this) }); } }
   }
+  fakeOut(W) { // v2.2 fake death: it falls... then gets back up for a 4th phase with a new arena
+    this.faked = true; this.hp = 1; this.go('fakeDying'); this.vx = 0; this.combo = null; this.pending = []; this.beamT = 0; W.fx.shake(0.6); sfx('roar'); }
+  updFake(W, dt, P) {
+    if (this.st === 'fakeDying') { if (Math.random() < dt * 8) W.fx.pop(this.x + rand.range(0, this.w), this.y + rand.range(0, this.h), 0.7); this.sq = approach(this.sq, 0.82, dt);
+      if (this.t > 1.9) { this.go('revive'); sfx('roar'); W.fx.shake(0.9); W.fx.flash = 0.35; W.fx.flashColor = '#ff3a5a'; W.fx.text(this.cx, this.y - 30, "IT'S NOT OVER!", '#ff5a7a', 22); W.story && (W.story.toast = { t: 3, text: 'It got back up! Watch the floor: stand where it is NOT red.' }); } return; }
+    // revive: refill to 45% while roaring; push the player away so it is fair
+    this.tele = 0.5 + Math.sin(this.t * 20) * 0.5; this.hp = Math.min(this.maxHp * 0.45, this.hp + this.maxHp * 0.45 * dt / 1.3);
+    if (this.t < 0.1) { const d = sign(P.cx - this.cx) || 1; P.vx = d * 280; P.vy = -220; W.fx.ring(this.cx, this.cy, 220, '#ff3a5a', 0.7, 10); }
+    if (this.t > 1.5) { this.hp = Math.round(this.maxHp * 0.45); this.phase = 4; this.go('idle'); this.cd = 1.2; this.thorn = { t: 2.5, on: 0, safe: 1 }; this.sq = 1; W.onBossPhase(4); }
+  }
+  thornFloor(W, dt, floorY) { // arena change: two thirds of the floor sprout thorns; the safe third is never red
+    const T = this.thorn || (this.thorn = { t: 2.5, on: 0, safe: 1 }); if (this.st === 'dying') return; const third = W.room.w / 3;
+    if (T.on > 0) { T.on -= dt; for (let i = 0; i < 3; i++) if (i !== T.safe) W.enemyAttack({ x: W.room.x + i * third, y: floorY - 22, w: third, h: 22 }, 12, this, { parryable: false, name: 'Thorn Floor', tip: 'Thorns grow where the floor glows red. Stand on the safe part or hang from a ring!' }); if (T.on <= 0) T.t = 4.2 / (diff().bossAggro || 1); return; }
+    T.t -= dt; if (T.t <= 0) { let s = rand.int(0, 2); if (s === T.safe) s = (s + 1 + rand.int(0, 1)) % 3; T.safe = s; T.on = 0; T.tele = 1.3; }
+    if (T.tele > 0) { if (!T.marked) { T.marked = true; for (let i = 0; i < 3; i++) if (i !== T.safe) W.addMarker({ kind: 'zone', x: W.room.x + i * third, y: floorY - 26, w: third, h: 26, life: 1.3 }); sfx('telegraph'); W.fx.text(W.room.x + (T.safe + 0.5) * third, floorY - 60, 'SAFE', '#a6f05a', 14); }
+      T.tele -= dt; if (T.tele <= 0) { T.marked = false; T.on = 2.0; sfx('explode', 0.4); W.fx.shake(0.3); T.t = 99; } }
+  }
+  drawThorns(g, W) { const T = this.thorn; if (this.phase !== 4 || !T || !(T.on > 0) || !W.room) return; const floorY = W.room.y + W.room.h - 2 * TILE, third = W.room.w / 3;
+    g.fillStyle = '#5a1f3a'; g.strokeStyle = '#ff7a9a'; g.lineWidth = 1.5; for (let i = 0; i < 3; i++) { if (i === T.safe) continue; const x0 = W.room.x + i * third; for (let x = x0 + 6; x < x0 + third - 6; x += 14) { const h = 14 + ((x * 7) % 9); g.beginPath(); g.moveTo(x - 6, floorY); g.lineTo(x, floorY - h); g.lineTo(x + 6, floorY); g.closePath(); g.fill(); g.stroke(); } } }
   lobEmber(W, tx, floorY, T) {
     const sx = this.cx, sy = this.y + 6; const g = 900; const vx = (tx - sx) / T, vy = (floorY - 8 - sy - 0.5 * g * T * T) / T;
     W.addMarker({ kind: 'circle', x: tx, y: floorY - 2, r: 26, life: T });
@@ -236,6 +262,21 @@ export class Blight extends DrownedBloom {
     if (this.phase >= 3) { // the twist: a small warm light flickers inside the Blight -- Ember is still in there
       const k = 0.6 + Math.sin(t * 7) * 0.25, ex = X + Math.cos(t * 1.3) * 8, ey = Y - H * 0.42 + Math.sin(t * 1.7) * 6;
       g.globalCompositeOperation = 'lighter'; drawGlow(g, ex, ey, 34, '#ffc94a', 0.55 * k); g.fillStyle = '#fff3b0'; g.beginPath(); g.arc(ex, ey, 3.5, 0, 7); g.fill(); g.globalCompositeOperation = 'source-over'; }
+    if (this.stun > 0) for (let i = 0; i < 4; i++) { const a = t * 5 + i * 1.6; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(X + Math.cos(a) * 30, this.y - 30 + Math.sin(a) * 6, 4, 0, 7); g.fill(); }
+  }
+}
+
+// v2.2 secret chapter boss: the Hollow King -- a remix of every boss move, always gets back up once
+export class HollowKing extends Blight {
+  constructor(x, y) { super(x, y); this.type = 'hollow'; this.info = { ...this.info, name: 'The Hollow King', tip: 'Every boss move at once! Watch the red markers and keep moving.' }; this.maxHp = this.hp = 1250; this.glim = 300; this.minion = 'knight'; this.alwaysFake = true;
+    this.pools = [['combo', 'volley', 'tide', 'charge'], ['rain', 'beam', 'tide', 'combo', 'pillars'], ['pillars', 'combo', 'tide', 'rain', 'beam', 'charge'], ['combo', 'rain', 'tide', 'pillars', 'charge', 'beam']]; }
+  draw(g) { const img = G.img.s_hollow; if (!img) { super.draw(g); return; }
+    const X = this.cx, t = this.anim, tele = this.tele || 0, H = 200, bob = Math.sin(t * 2) * 4, Y = this.y + this.h + 6 + bob;
+    g.fillStyle = 'rgba(5,3,10,0.35)'; g.beginPath(); g.ellipse(X, this.y + this.h + 2, 72, 7, 0, 0, 7); g.fill();
+    g.globalCompositeOperation = 'lighter'; drawGlow(g, X, Y - 100, 170, '#ffc94a', 0.1 + tele * 0.1); if (tele > 0) drawGlow(g, X, Y - 110, 80 + tele * 40, '#ff2a3a', 0.3 + tele * 0.45); g.globalCompositeOperation = 'source-over';
+    g.save(); g.translate(X + (tele > 0 ? Math.sin(t * 45) * 1.5 : 0), Y); g.scale(1 / Math.sqrt(this.sq), this.sq); sImg(g, 's_hollow', 0, 0, H, this.face > 0);
+    if (this.flash > 0) { g.globalCompositeOperation = 'lighter'; sImg(g, 's_hollow', 0, 0, H, this.face > 0, Math.min(0.8, this.flash * 4)); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+    g.restore();
     if (this.stun > 0) for (let i = 0; i < 4; i++) { const a = t * 5 + i * 1.6; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(X + Math.cos(a) * 30, this.y - 30 + Math.sin(a) * 6, 4, 0, 7); g.fill(); }
   }
 }

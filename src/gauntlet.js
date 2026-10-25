@@ -44,7 +44,7 @@ export function planRun(W, L) {
     const placed = [];
     for (const k of kinds) {
       if (placed.length >= want) break;
-      const order = spots.slice().sort(() => rng() - 0.5);
+      const order = rng.shuffle(spots.slice()); // v2.2: a real shuffle (a random comparator made sort() order engine-dependent)
       for (const p of order) {
         if (!free(p.x, p.y, 2) || placed.some((q) => Math.abs(q.x - p.x) < 6 && Math.abs(q.y - p.y) < 4)) continue;
         let t = null;

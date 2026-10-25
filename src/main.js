@@ -19,11 +19,14 @@ import { Warden, TideGolem, Boss, DrownedBloom } from './boss.js';
 import * as BR from './brawl.js';
 import * as GA from './gauntlet.js';
 import * as T20 from './traps20.js';
-import { DIFF } from './save.js';
+import { DIFF, ASSIST } from './save.js';
 import * as MS from './missions.js';
 import * as ST from './story.js';
 import * as SU from './storyui.js';
 import * as SW from './storyWorld.js';
+import * as SP from './surprise.js';
+import * as AI22 from './ai22.js';
+import { planSurprises } from './surprisePlan.js';
 import { showLayoutEditor, moveButton } from './layoutEdit.js';
 import { FEEL } from './player.js';
 const STEP = 1 / 60;
@@ -31,20 +34,25 @@ const canvas = document.getElementById('c'); const g = canvas.getContext('2d', {
 const game = {
   state: 'title', chapter: 0, ngRun: 0, world: null, tut: null, bossShown: null, paused: false, dpr: 1, cssW: 0, cssH: 0, perf: { frames: 0, slow: 0, ms: [] }, runStart: 0, god: false,
   bossBar(e) { this.bossShown = e; },
-  saveRunState(W, cellIndex) { save.run = { seed: W.seed, stage: W.stage || 0, cellIndex, hp: W.player.hp, flasks: W.player.flasks, weapon: W.player.weapon, glim: W.runGlim, cleared: [...W.cleared], visited: [...W.visited], opened: [...W.opened], seeds: [...(W.seedsGot || [])], treasures: this.treasures || 0, boss: false, kills: W.player.stats.kills, t: this.runTime(), daily: this.daily || null, af: !!this.areaFlask, ch: W.chapter || 0, ng: this.ngRun || 0 }; this.runStart = performance.now(); writeSave(); },
+  saveRunState(W, cellIndex) { save.run = { seed: W.seed, stage: W.stage || 0, cellIndex, hp: W.player.hp, flasks: W.player.flasks, weapon: W.player.weapon, glim: W.runGlim, cleared: [...W.cleared], visited: [...W.visited], opened: [...W.opened], seeds: [...(W.seedsGot || [])], treasures: this.treasures || 0, boss: false, kills: W.player.stats.kills, t: this.runTime(), daily: this.daily || null, af: !!this.areaFlask, ch: W.chapter || 0, ng: this.ngRun || 0, sp: SP.persist(W) }; this.runStart = performance.now(); writeSave(); },
   runTime() { return (save.run && save.run.t || 0) + (performance.now() - this.runStart) / 1000; },
   openStation(n) { this.paused = true; clearAll(); if (n === 1) UI.showShop(); else if (n === 2) UI.showLoadout(); else if (n === 4) UI.showBoard(); else UI.showJournal(); UI.ui.back = 'game'; },
   useDoor(W) {
     if (W.mode === 'tutorial') { save.progress.tutorialDone = true; writeSave(); this.go('hub'); }
     else if (W.mode === 'hub') { this.paused = true; clearAll(); SU.showMap({ go: (n) => this.startChapter(n), free: () => this.startFree(), back: () => { this.paused = false; clearAll(); } }); } // v2.1: the door opens the chapter map
-    else if (W.mode === 'run') { const P = W.player; save.run = { seed: W.seed, stage: W.stage || 0, hp: P.hp, flasks: P.flasks, weapon: P.weapon, glim: W.runGlim, boss: true, kills: P.stats.kills, rooms: W.visited.size, treasures: this.treasures || 0, t: this.runTime(), daily: this.daily || null, af: !!this.areaFlask, ch: W.chapter || 0, ng: this.ngRun || 0 }; this.runStart = performance.now(); save.progress.bossSeen = true; writeSave(); this.go('boss', { seed: W.seed, stage: W.stage || 0, chapter: W.chapter || 0, player: { hp: P.hp, flasks: P.flasks, weapon: P.weapon }, glim: W.runGlim, kills: P.stats.kills }); }
+    else if (W.mode === 'run') { const P = W.player; save.run = { seed: W.seed, stage: W.stage || 0, hp: P.hp, flasks: P.flasks, weapon: P.weapon, glim: W.runGlim, boss: true, kills: P.stats.kills, rooms: W.visited.size, treasures: this.treasures || 0, t: this.runTime(), daily: this.daily || null, af: !!this.areaFlask, ch: W.chapter || 0, ng: this.ngRun || 0, sp: SP.persist(W) }; this.runStart = performance.now(); save.progress.bossSeen = true; writeSave(); this.go('boss', { seed: W.seed, stage: W.stage || 0, chapter: W.chapter || 0, player: { hp: P.hp, flasks: P.flasks, weapon: P.weapon }, glim: W.runGlim, kills: P.stats.kills }); }
   },
   onDeath(W, info) {
     if (this.world !== W) return;
+    const run = W.mode === 'run' || W.mode === 'boss', note = run ? SP.noteDeath(W) : null, R = W.sp && W.sp.run;
+    if (note === 'assistOn' && R && R.cont < 99) R.cont += ASSIST.cont; // Assist switching on gives 2 more tries
+    if (run && R && save.run && !this.daily && R.cont > 0) { // v2.2 continues: a few tries per chapter, from the last checkpoint
+      const nr = SP.persist(W); if (nr.cont < 99) nr.cont--; nr.deaths++; nr.contUsed++; save.run.sp = nr; save.run.hp = Math.max(save.run.hp || 0, Math.round(W.player.maxHp * 0.6)); writeSave();
+      this.paused = true; UI.showDeath(info, 0, W.runGlim, { next: null, rooms: W.visited.size, kills: W.player.stats.kills, cont: nr.cont, assistOn: note === 'assistOn' }); return; }
     const found = W.runGlim, kept = W.mode === 'run' || W.mode === 'boss' ? Math.round(found * diff().keep * (diff().reward || 1)) : 0;
     save.progress.glimmers += kept; save.progress.totalGlimmers += kept; save.progress.bestDepth = Math.max(save.progress.bestDepth, W.visited.size); save.run = null; writeSave();
     const dly = this.finishDaily(W, false);
-    this.paused = true; UI.showDeath(info, kept, found, { next: ST.nextGoal(W.chapter || 0), rooms: (save.lastRooms || 0) + W.visited.size, kills: W.player.stats.kills, daily: dly });
+    this.paused = true; UI.showDeath(info, kept, found, { outOfTries: !!(R && R.cont === 0 && run), assistOn: note === 'assistOn', next: ST.nextGoal(W.chapter || 0), rooms: (save.lastRooms || 0) + W.visited.size, kills: W.player.stats.kills, daily: dly });
   },
   onVictory(W) {
     if (this.world !== W) return;
@@ -60,7 +68,7 @@ const game = {
     this.paused = true; UI.showVictory(glim, { final: (W.stage || 0) >= 1, kills: W.player.stats.kills, time: fmt(t), stars: sc.stars, bonus: sc.bonus, diffLabel: sc.diffLabel, best: sc.best, bestTime: fmt(sc.bestTime), newVine: sc.newVine, treasures: this.treasures || 0, daily: dly });
   },
   // v1.8 daily challenge: one seeded run per real day + a cosmetic/damage-only modifier; local best kept per day
-  startDaily() { const key = dayKey(), mod = dailyMod(key); this.chapter = 0; this.ngRun = 0; this.daily = { key, seed: dailySeed(key), mod }; this.areaFlask = false; this.carryRooms = 0; this.treasures = 0; save.progress.runs++; save.run = null; writeSave(); this.runStart = performance.now(); this.go('run', { seed: this.daily.seed }); },
+  startDaily() { const key = dayKey(), mod = dailyMod(key); this.chapter = 0; this.spRun = null; this.ngRun = 0; this.daily = { key, seed: dailySeed(key), mod }; this.areaFlask = false; this.carryRooms = 0; this.treasures = 0; save.progress.runs++; save.run = null; writeSave(); this.runStart = performance.now(); this.go('run', { seed: this.daily.seed }); },
   finishDaily(W, win) {
     const d = this.daily; if (!d) return null; this.daily = null;
     const score = dailyScore({ glim: W.runGlim, kills: W.player.stats.kills, rooms: (this.carryRooms || 0) + W.visited.size, critters: [...W.opened].filter((o) => o.startsWith('cr')).length, win });
@@ -79,7 +87,8 @@ const game = {
     this.relayout();
   },
   // ---------------- v2.1 story campaign ----------------
-  beginRun(ch) { this.daily = null; this.areaFlask = false; this.treasures = 0; this.carryRooms = 0; save.progress.runs++; save.run = null; writeSave(); this.runStart = performance.now(); this.chapter = ch; this.ngRun = ch && ST.camp().ngOn ? Math.max(1, ST.camp().ng) : 0; },
+  giveUp() { const W = this.world; if (!W) { this.go('hub'); return; } const kept = Math.round(W.runGlim * diff().keep * (diff().reward || 1)); save.progress.glimmers += kept; save.progress.totalGlimmers += kept; save.run = null; this.spRun = null; writeSave(); this.go('hub'); },
+  beginRun(ch) { this.spRun = null; this.daily = null; this.areaFlask = false; this.treasures = 0; this.carryRooms = 0; save.progress.runs++; save.run = null; writeSave(); this.runStart = performance.now(); this.chapter = ch; this.ngRun = ch && ST.camp().ngOn ? Math.max(1, ST.camp().ng) : 0; },
   startChapter(n) { if (!ST.isUnlocked(n)) return; this.paused = true; clearAll(); SU.playComic('ch' + n + 'start', ST.chapterStart(n), () => { this.beginRun(n); this.go('run', { chapter: n }); }); },
   startFree() { this.beginRun(0); this.go('run', { chapter: 0 }); },
   storyBeat(W) { if (this.world !== W || !W.chapter) return; this.paused = true; clearAll(); SU.playComic('warden' + W.chapter, ST.wardenBeat(W.chapter), () => { this.paused = false; clearAll(); }); },
@@ -87,9 +96,9 @@ const game = {
   chapterVictory(W) {
     const ch = W.chapter; mEvent(W, 'areaDone', { flaskFree: !this.areaFlask });
     const glim = W.runGlim; save.progress.glimmers += glim; save.progress.totalGlimmers += glim; save.progress.wins++; save.progress.bossBeaten++; save.run = null;
-    const r = ST.completeChapter(ch); const c = ST.camp(); if (this.ngRun) c.best['ng' + ch] = true; writeSave();
+    const ms = SP.chapterWin(W); this.spRun = null; const r = ST.completeChapter(ch); const c = ST.camp(); if (this.ngRun) c.best['ng' + ch] = true; writeSave();
     const t = Math.round(this.runTime()), fmt = (t) => Math.floor(t / 60) + 'm ' + String(t % 60).padStart(2, '0') + 's', sc = scoreRun(t, this.treasures || 0); this.lastScore = sc;
-    const show = () => { this.paused = true; UI.showVictory(glim, { title: ch === ST.CH_N ? 'The forest is healed!' : 'Chapter ' + ch + ' clear!', final: ch === ST.CH_N, next: ST.nextGoal(ch), nextCh: ch < ST.CH_N ? ch + 1 : 0, kills: W.player.stats.kills, time: fmt(t), stars: sc.stars, bonus: sc.bonus, diffLabel: sc.diffLabel, best: sc.best, bestTime: fmt(sc.bestTime), newVine: sc.newVine, treasures: this.treasures || 0 }); };
+    const show = () => { this.paused = true; UI.showVictory(glim, { title: ch === ST.CH_N ? 'The forest is healed!' : 'Chapter ' + ch + ' clear!', final: ch === ST.CH_N, next: ST.nextGoal(ch), nextCh: ch < ST.CH_N ? ch + 1 : 0, kills: W.player.stats.kills, time: fmt(t), stars: sc.stars, bonus: sc.bonus, diffLabel: sc.diffLabel, best: sc.best, bestTime: fmt(sc.bestTime), newVine: sc.newVine, treasures: this.treasures || 0, extra: SP.masteryHtml(ms) }); };
     this.paused = true; clearAll(); const end = ST.chapterEnd(ch, ST.rootK());
     SU.playComic('ch' + ch + 'end', ch === ST.CH_N ? ST.FINALE.concat(end.slice(1, 2)) : end, show);
     this.lastChapter = { ch, ...r };
@@ -102,9 +111,9 @@ UI.initUI({
   play() { initAudio(); const c = ST.camp(); const go = () => { if (!save.progress.tutorialDone) game.go('tutorial'); else game.go('hub'); }; if (!c.intro) { c.intro = true; writeSave(); SU.playComic('intro', ST.INTRO, go, { auto: 6000 }); } else go(); },
   playChapter(v) { game.startChapter(+v); },
   editLayout() { showLayoutEditor(() => UI.showSettings(UI.ui.back)); },
-  continueRun() { initAudio(); const r = save.run; if (!r) return; game.daily = r.daily ? { ...r.daily, mod: DAILY_MODS.find((m) => m.id === r.daily.mod.id) || r.daily.mod } : null; game.areaFlask = !!r.af; game.chapter = r.ch || 0; game.ngRun = r.ng || 0; game.runStart = performance.now(); game.treasures = r.treasures || 0; if (r.boss) game.go('boss', { seed: r.seed, stage: r.stage || 0, chapter: r.ch || 0, player: { hp: r.hp, flasks: r.flasks, weapon: r.weapon }, glim: r.glim, kills: r.kills }); else game.go('run', { seed: r.seed, stage: r.stage || 0, chapter: r.ch || 0, cellIndex: r.cellIndex, player: { hp: r.hp, flasks: r.flasks, weapon: r.weapon }, glim: r.glim, cleared: r.cleared, visited: r.visited, opened: r.opened, seeds: r.seeds, kills: r.kills }); },
+  continueRun() { initAudio(); const r = save.run; if (!r) return; game.spRun = null; /* v2.2: the saved run carries its own boons/tries */ game.daily = r.daily ? { ...r.daily, mod: DAILY_MODS.find((m) => m.id === r.daily.mod.id) || r.daily.mod } : null; game.areaFlask = !!r.af; game.chapter = r.ch || 0; game.ngRun = r.ng || 0; game.runStart = performance.now(); game.treasures = r.treasures || 0; if (r.boss) game.go('boss', { seed: r.seed, stage: r.stage || 0, chapter: r.ch || 0, player: { hp: r.hp, flasks: r.flasks, weapon: r.weapon }, glim: r.glim, kills: r.kills }); else game.go('run', { seed: r.seed, stage: r.stage || 0, chapter: r.ch || 0, cellIndex: r.cellIndex, player: { hp: r.hp, flasks: r.flasks, weapon: r.weapon }, glim: r.glim, cleared: r.cleared, visited: r.visited, opened: r.opened, seeds: r.seeds, kills: r.kills }); },
   resume() { UI.close(); game.paused = false; clearAll(); },
-  toHub() { game.go('hub'); }, startDaily() { initAudio(); game.startDaily(); }, toTitle() { game.state = 'title'; game.world = null; UI.showTitle(); playSong('hub'); },
+  toHub() { game.go('hub'); }, giveUp() { game.giveUp(); }, startDaily() { initAudio(); game.startDaily(); }, toTitle() { game.state = 'title'; game.world = null; UI.showTitle(); playSong('hub'); },
   leaveRun() { const W = game.world; game.onDeath(W, { name: 'giving up', tip: 'No worries! Your kept glimmers are safe in the Seedhouse.' }); },
   skipTutorial() { save.progress.tutorialDone = true; writeSave(); game.go('hub'); },
   replayTutorial() { game.go('tutorial'); },
@@ -150,7 +159,7 @@ function render(dt, alpha = 1) {
   const rs = ch / (W.viewH || VIEW_H); const lerpS = W.lerpBegin ? W.lerpBegin(alpha) : null; W.draw(g, cw, ch, rs); W.lerpEnd && W.lerpEnd(lerpS);
   if (game.tut) { if (W.wt) g.setTransform(W.wt[0], 0, 0, W.wt[0], W.wt[1], W.wt[2]); else g.setTransform(rs, 0, 0, rs, -W.camx * rs, -W.camy * rs); game.tut.drawWorld(g); }
   const s = game.dpr * Math.max(0.8, Math.min(1.25, game.cssH / 412));
-  g.setTransform(1, 0, 0, 1, 0, 0); if (W.daily && W.daily.mod.tint) { g.fillStyle = W.daily.mod.tint; g.fillRect(0, 0, cw, ch); } SW.drawScreen(g, W, cw, ch, s); drawHUD(g, W, cw, ch, s); drawMissionHUD(g, W, cw, ch, s);
+  g.setTransform(1, 0, 0, 1, 0, 0); if (W.daily && W.daily.mod.tint) { g.fillStyle = W.daily.mod.tint; g.fillRect(0, 0, cw, ch); } SW.drawScreen(g, W, cw, ch, s); SP.drawScreen(g, W, cw, ch, s); drawHUD(g, W, cw, ch, s); drawMissionHUD(g, W, cw, ch, s);
   g.setTransform(game.dpr, 0, 0, game.dpr, 0, 0);
   if (!UI.isOpen()) { const P = W.player; drawTouch(g, W.t, P.gadgets.map((k) => GADGETS[k].icon), { skill1: P.gcd[0] / GADGETS[P.gadgets[0]].cd, skill2: P.gadgets[1] ? P.gcd[1] / GADGETS[P.gadgets[1]].cd : 0, dash: P.dashCd > 0 ? P.dashCd / 0.38 : 0 }, P.flasks); game.tut && game.tut.drawScreen(g); }
 }
@@ -197,7 +206,7 @@ boot(); initInput(canvas); resize(); UI.showTitle(); requestAnimationFrame(frame
 // --------- test API (used by automated tests; harmless for players) ---------
 addEventListener('rs-pausemap', () => game.drawPauseMap());
 window.__RS = {
-  story: ST, storyUI: SU, startChapter: (n) => game.startChapter(n), skipComic: () => SU.skipComic(), FEEL, moveButton, layoutEditor: () => showLayoutEditor(() => UI.close()),
+  SP, AI22, planSurprises, story: ST, storyUI: SU, startChapter: (n) => game.startChapter(n), skipComic: () => SU.skipComic(), FEEL, moveButton, layoutEditor: () => showLayoutEditor(() => UI.close()),
   foes: { Enemy, Warden, TideGolem, Boss, DrownedBloom }, BR, GA, T20, DIFF, MS, toast, WEAPONS, trapPhase, TRAP_TIMING, TRAP_DMG,
   game, save, input, TILE, gfx: G, writeSave, loadSave: boot, missions, continueRun: () => document.querySelector('[data-act="continueRun"]').click(), layout: () => input.layout,
   get W() { return game.world; }, supports() { return game.world ? game.world.auditSupports() : null; },

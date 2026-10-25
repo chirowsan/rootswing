@@ -25,3 +25,6 @@ key(S + 's_root1.jpg', 's_root1', maxw=520, extra=['--lo', '30', '--hi', '80'])
 key(S + 's_blight.jpg', 's_blight', green=True, maxw=520)
 for n in ['boss_body', 'boss2_body', 'warden']:
     key('art/src/' + n + '.jpg', 's_' + n.replace('_body', ''), green=True, maxw=420)
+# v2.2 surprise art (mimic, hunter, shrine, merchant Pip, boon altar, Hollow King)
+for n, w in [('s_mimic', 300), ('s_hunter', 340), ('s_shrine', 320), ('s_merchant', 320), ('s_altar', 300), ('s_hollow', 440)]:
+    key('art/v22/' + n + '.jpg', n, green=True, maxw=w)

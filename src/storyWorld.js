@@ -1,6 +1,6 @@
 // v2.1 story inside the world: chapter wardens/bosses, Memory Leaf pickups, the hub's Elder Moss + Great Root + freed Wardens,
 // chapter tint/weather, and the warden "freed" story beat. Kept out of world.js so v2.0 code stays put.
-import { Warden, Boss, TideGolem, DrownedBloom, Blight } from './boss.js';
+import { Warden, Boss, TideGolem, DrownedBloom, Blight, HollowKing } from './boss.js';
 import { WARDENS } from './gauntlet.js';
 import { G, sImg } from './gfx.js';
 import { drawGlow, drawIcon } from './art.js';
@@ -31,6 +31,7 @@ export function chapterWarden(W, x, y, depth) {
 export function chapterBoss(W, x, y) {
   const n = W.chapter;
   if (n === 5) return new Blight(x, y);
+  if (n === 6) return new HollowKing(x, y);
   if (n === 3) { const b = new Boss(x, y); b.info = { ...b.info, name: 'Thornstack', tip: 'It charges more often. Jump over, then hit its back!' }; b.maxHp = b.hp = 820; b.auraVar = '#ff6a3a'; b.glim = 110;
     b.pools = [['slam', 'volley', 'charge'], ['slam', 'beam', 'charge', 'volley'], ['pillars', 'charge', 'slam', 'volley', 'beam']]; return b; }
   if (n === 4) { const b = new DrownedBloom(x, y); b.info = { ...b.info, name: 'Storm Bloom', tip: 'More bubbles! Stay moving, then strike.' }; b.maxHp = b.hp = 980; b.auraVar = '#5ad8ff'; b.glim = 140; b.minion = 'moth';

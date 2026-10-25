@@ -78,6 +78,7 @@ export function showSettings(back) {
   show('settings', `<div class="card wide"><h2>Settings</h2><div class="scroll">
   ${row('Game speed', seg('speed', [[0.7, 'Very calm'], [0.8, 'Calm'], [0.9, 'Steady'], [1, 'Full']]), 'Slower = easier to control')}
   ${row('Difficulty', seg('difficulty', [['relaxed', 'Relaxed'], ['normal', 'Normal'], ['hard', 'Hard'], ['nightmare', 'Nightmare']]), 'Harder = more traps + foes, more stars')}
+  ${row('Assist', seg('assist', [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']]), 'Assist makes foes gentler. Auto turns it on after 4 knock-outs in a chapter')}
   ${row('Hook aim help', seg('hookAssist', [['true', 'On'], ['false', 'Off']]))}
   ${row('Screen shake', seg('shake', [['off', 'Off'], ['reduced', 'Low'], ['full', 'Full']]))}
   ${row('Left thumb', seg('leftStyle', [['stick', 'Stick'], ['pads', '◀ ▶ Buttons']]))}
@@ -142,7 +143,13 @@ function countUp() {
 }
 export function showDeath(info, kept, found, stats) {
   info = info && info.name ? info : ENEMY_INFO.thorns;
-  show('death', `<div class="res-art death-art"></div><div class="res death"><h2>Sprig needs a rest</h2>
+  if (stats.cont !== undefined) { // v2.2: a continue - try again from the last checkpoint
+    show('death', `<div class="res-art death-art"></div><div class="res death"><h2>Knocked out!</h2>
+  <div class="cause"><div class="who">By <b>${info.name}</b></div><div class="tip">${ic('glimmer', '#ffe27a', 18)} ${info.tip}</div></div>
+  <div class="tries">${stats.cont >= 99 ? 'Tries left: <b>∞</b>' : 'Tries left: ' + '<i class="try"></i>'.repeat(stats.cont) + '<i class="try off"></i>'.repeat(Math.max(0, 3 - stats.cont))}</div>
+  ${stats.assistOn ? '<div class="assist-note">🌱 Assist is ON: foes are a bit gentler now. You can change it in Settings.</div>' : ''}
+  <div class="col"><button class="big primary" data-act="continueRun">${ic('play', '#15131f', 22)} Try again${stats.cont < 99 ? ' (' + stats.cont + ' left)' : ''}</button><button class="big" data-act="giveUp">${ic('door', '#fff', 20)} Give up</button></div></div>`, 'results'); return; }
+  show('death', `<div class="res-art death-art"></div><div class="res death"><h2>${stats.outOfTries ? 'Out of tries!' : 'Sprig needs a rest'}</h2>${stats.outOfTries ? '<p class="sp-sub">The chapter starts over. Each try you get better!</p>' : ''}${stats.assistOn ? '<div class="assist-note">🌱 Assist is ON: foes are a bit gentler now.</div>' : ''}
   <div class="res-glim">${ic('glimmer', '#ffe27a', 30)}<b data-count="${kept}">0</b><span>glimmers kept${found !== kept ? ` <small>(of ${found} found)</small>` : ''}</span></div>
   <div class="cause"><div class="who">Knocked out by <b>${info.name}</b></div><div class="tip">${ic('glimmer', '#ffe27a', 18)} ${info.tip}</div></div>
   <div class="stats"><div><b data-count="${stats.rooms}">0</b>rooms explored</div><div><b data-count="${stats.kills}">0</b>baddies popped</div></div>
@@ -159,7 +166,7 @@ export function showVictory(glim, stats) {
   <div class="res-glim">${ic('glimmer', '#ffe27a', 30)}<b data-count="${glim}">0</b></div>
   <div class="stats"><div><b>${stats.time}</b>⏱${stats.best ? ' <b class="first">BEST!</b>' : ''}</div><div><b>${stats.bestTime || stats.time}</b>🏆</div><div><b data-count="${stats.kills}">0</b>${ic('attack', '#fff', 16)}</div><div><b>${stats.treasures || 0}</b>${ic('glimmer', '#ffe27a', 16)}</div></div>
   ${stats.newVine ? `<div class="new-vine"><span style="background:linear-gradient(90deg,${stats.newVine.dark},${stats.newVine.light},${stats.newVine.dark})"></span>${ic('hook', stats.newVine.light, 22)} NEW!</div>` : ''}
-  ${nextHtml(stats.next)}${dailyHtml(stats.daily)}${unlockHtml()}
+  ${stats.extra || ''}${nextHtml(stats.next)}${dailyHtml(stats.daily)}${unlockHtml()}
   <div class="col">${stats.nextCh ? `<button class="big primary" data-act="playChapter" data-v="${stats.nextCh}">${ic('play', '#15131f', 22)} Chapter ${stats.nextCh}</button>` : ''}<button class="big ${stats.nextCh ? '' : 'primary'}" data-act="toHub">${ic('door', stats.nextCh ? '#fff' : '#15131f', 22)} Home to the Seedhouse</button></div></div>`, 'results');
   countUp();
 }

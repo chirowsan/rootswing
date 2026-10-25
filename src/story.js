@@ -16,7 +16,9 @@ export const CHAPTERS = [
   { n: 4, name: 'Stormcanopy', stage: 1, warden: 'stormhide', wardName: 'Stormhide Warden', boss: 'Storm Bloom', sky: 'c_sky', hue: 60, col: '#5ad8ff', tint: 'rgba(40,60,140,0.13)', parts: 'rain',
     mod: { foes: 1.2, arenas: 1, aggro: 1.1, elite: 0.04 }, reward: ['up:flask1', 'pet:squirrel', 'cape:sky'], hint: 'Stormmoths swoop. Dash through, then strike!' },
   { n: 5, name: 'Heart of the Forest', stage: 1, warden: 'shadow', wardName: 'Shadow Warden', boss: 'The Blight', sky: 'm_sky', hue: 200, col: '#c08aff', tint: 'rgba(70,20,110,0.16)', parts: 'ash',
-    mod: { hp: 1.15, foes: 1.25, elite: 0.08, aggro: 1.15, arenas: 1 }, reward: ['cape:gold', 'hat:crown', 'vine:rainbow'], hint: 'The Blight is sad, not evil. Be brave!' },
+    mod: { hp: 1.15, foes: 1.25, elite: 0.08, aggro: 1.15, arenas: 1 }, reward: ['cape:gold', 'hat:crown', 'vine:rainbow'], hint: 'The Blight is sad, not evil. Be brave!' },  // v2.2 secret chapter: opens after the Blight, or early with 5 Ember Sparks from hidden rooms
+  { n: 6, name: 'The Hollow Root', stage: 1, warden: 'shadow', wardName: 'Hollow Warden', boss: 'The Hollow King', sky: 'm_sky', hue: 250, col: '#ff7ac8', tint: 'rgba(40,10,60,0.22)', parts: 'ash', secret: true,
+    mod: { hp: 1.25, foes: 1.3, elite: 0.12, aggro: 1.2, arenas: 1 }, reward: ['vine:rainbow'], hint: 'Something hollow lives under the Root. It copies the Blight... and cheats!' },
 ];
 export const NGP = { hp: 1.35, dmgTaken: 1.3, trap: 1.3, foes: 1.3, elite: 0.1 };
 // 10 Memory Leaves (2 per chapter): read in the Journal, they slowly reveal who the Blight really is
@@ -36,7 +38,8 @@ export const CLUES = { 1: 'A Warden whispers: "Long ago, a little light lived by
   2: 'Tide Golem: "I saw a little light hiding near the Furnace long ago..."',
   3: 'Thornback: "The Blight cries at night. It sounds... sad."',
   4: 'Stormhide: "Ember built the Furnace to keep the Root warm in winter."',
-  5: 'The Shadow Warden fades: "Please... help my friend."' };
+  5: 'The Shadow Warden fades: "Please... help my friend."',
+  6: 'The Hollow King cracks open... inside is a tiny, warm Ember Spark. "Thank you," it glows.' };
 // ---------- comic panels (bg = gfx/<name>.webp; over = sprite overlay; mix = root growth blend) ----------
 const P = (bg, cap, o = {}) => ({ bg, cap, ...o });
 export const INTRO = [
@@ -51,12 +54,12 @@ export function chapterStart(n) {
   const C = CHAPTERS[n];
   return [
     P(C.sky, C.name, { title: 'Chapter ' + n, hue: C.hue || 0 }),
-    P(n === 5 ? 'p_ward5' : 'p_ward' + n, n === 5 ? 'The Blight waits in the Heart of the Forest.' : 'The ' + C.wardName + ' guards this place. Free them!', { fit: 'contain' }),
+    P(n >= 5 ? 'p_ward5' : 'p_ward' + n, n === 6 ? 'Deep under the Great Root, something hollow is stirring...' : n === 5 ? 'The Blight waits in the Heart of the Forest.' : 'The ' + C.wardName + ' guards this place. Free them!', { fit: 'contain' }),
     P('g_sky', MOSS + ': "' + C.hint + '"', { over: 's_moss', icons: ['seed3', 'warden1', 'door'] }),
   ];
 }
 export function wardenBeat(n) {
-  if (n === 5) return [P('p_ward5', 'The Shadow Warden fades away...', { fit: 'contain' }), P('p_intro6', CLUES[5])];
+  if (n >= 5) return [P('p_ward5', n === 6 ? 'The Hollow Warden crumbles into ash...' : 'The Shadow Warden fades away...', { fit: 'contain' }), P('p_intro6', CLUES[5])];
   return [P('p_free' + n, 'You freed the ' + CHAPTERS[n].wardName + '!'), P('p_free' + n, CLUES[n], { zoom: 1 })];
 }
 export function chapterEnd(n, k) {
@@ -86,7 +89,7 @@ export function ensureCampaign(p = save.progress) {
 }
 export const camp = () => ensureCampaign(save.progress);
 export const chapterDone = (n) => !!camp().done[n];
-export const isUnlocked = (n) => n >= 1 && n <= camp().unlocked;
+export const isUnlocked = (n) => n === 6 ? !!(camp().done[5] || (camp().sparks || 0) >= 5) : n >= 1 && n <= camp().unlocked;
 export const seedTotal = () => { const s = camp().seeds; let t = 0; for (let n = 1; n <= CH_N; n++) t += Math.min(SEEDS_PER, s[n] || 0); return t; };
 export const freedCount = () => [1, 2, 3, 4].filter((n) => camp().freed[n]).length;
 export const doneCount = () => [1, 2, 3, 4, 5].filter((n) => camp().done[n]).length;
