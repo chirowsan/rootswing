@@ -199,3 +199,14 @@ button.boon .curse{font-size:min(3.3vh,13px);color:#ff9ab0;font-weight:800}
 .mastery .ms{opacity:.5}.mastery .ms.on{opacity:1;color:#ffe27a}.mastery .ms.new em{font-style:normal;color:#9dff8a}
 .mp-node.secret .mp-dot{box-shadow:0 0 0 4px #ff7ac8,0 0 24px #ff7ac8;animation:spkPulse 1.6s ease-in-out infinite}
 @keyframes spkPulse{50%{box-shadow:0 0 0 6px #ffb36a,0 0 34px #ff7ac8}}
+/* v2.3 polish pass: hit targets, no-wrap segments, sticky result actions, scroll hints */
+.seg{flex-wrap:nowrap;flex-shrink:0}
+.seg button{min-height:44px;padding:6px 11px;white-space:nowrap}
+.row .lab{flex:1;min-width:0}
+@media (max-width:700px){.seg button{padding:6px 8px;font-size:13px}.row{gap:8px}}
+.up button,button.danger,.ggrid button,.le-bar button{min-height:44px}
+button.big{min-height:46px}
+.res .col{position:sticky;bottom:0;padding-top:6px;background:linear-gradient(180deg,rgba(13,11,22,0),rgba(13,11,22,.92) 30%);z-index:2}
+.res{padding-bottom:max(6px,env(safe-area-inset-bottom))}
+.scroll{-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 22px),transparent);mask-image:linear-gradient(180deg,#000 calc(100% - 22px),transparent);padding-bottom:18px}
+@media (max-height:430px){.res .next-goal{font-size:13px;padding:4px 10px}.res .stars{margin:-4px 0}}
