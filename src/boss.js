@@ -2,7 +2,7 @@
 import { TILE, clamp, sign, approach, rand, lerp } from './util.js';
 import { moveBody, groundBelow } from './physics.js';
 import { PAL, drawGlow } from './art.js';
-import { has, spr, tinted, hasE, shaded } from './gfx.js';
+import { G, has, spr, tinted, hasE, shaded, sImg } from './gfx.js';
 import { track, drawRig, wardenPose, bossPose } from './eanim.js';
 import { sfx } from './audio.js';
 import { diff } from './save.js';
@@ -217,5 +217,25 @@ export class DrownedBloom extends Boss { // final boss: Furnace fight rules, new
     for (const ex of [-14, 14]) drawGlow(g, ex, -H * 0.64, 9, tele > 0 ? '#ff3a4a' : '#bffcff', 0.9);
     g.globalCompositeOperation = 'source-over'; g.restore();
     if (this.stun > 0) for (let i = 0; i < 4; i++) { const a = t * 5 + i * 1.6; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(X + Math.cos(a) * 30, this.y - 20 + Math.sin(a) * 6, 4, 0, 7); g.fill(); }
+  }
+}
+
+// v2.1 story: the Blight -- final boss of the campaign (Heart of the Forest). Same fight rules as the Drowned Bloom, mixed attack pools, new face.
+export class Blight extends DrownedBloom {
+  constructor(x, y) { super(x, y); this.type = 'blight'; this.info = { ...ENEMY_INFO.drowned, name: 'The Blight', tip: 'When it glows red, get ready to jump or dash. Hit it after each attack!' }; this.maxHp = this.hp = 1100; this.glim = 200; this.minion = 'moth';
+    this.pools = [['slam', 'volley', 'tide', 'charge'], ['beam', 'volley', 'tide', 'slam', 'pillars'], ['pillars', 'charge', 'tide', 'volley', 'beam', 'slam']]; }
+  draw(g) { if (!G.img.s_blight) return super.draw(g);
+    const X = this.cx, t = this.anim, tele = this.tele || 0, H = 196, bob = Math.sin(t * 2.2) * 5, Y = this.y + this.h + 8 + bob;
+    const glow = clamp(0.5 + Math.sin(t * 4) * 0.15 + tele * 0.5 + (this.beamT > 0 ? 0.6 : 0), 0, 1.4);
+    g.fillStyle = 'rgba(5,3,10,0.35)'; g.beginPath(); g.ellipse(X, this.y + this.h + 2, 70, 7, 0, 0, 7); g.fill();
+    g.globalCompositeOperation = 'lighter'; drawGlow(g, X, Y - 100, 170, '#8a3cff', 0.12 + glow * 0.1); if (tele > 0) drawGlow(g, X, Y - 110, 80 + tele * 40, '#ff2a3a', 0.3 + tele * 0.45); g.globalCompositeOperation = 'source-over';
+    const sx = 1 / Math.sqrt(this.sq), sy = this.sq * (1 + Math.sin(t * 1.8) * 0.02);
+    g.save(); g.translate(X + (tele > 0 ? Math.sin(t * 45) * 1.5 : 0), Y); g.scale(sx, sy); sImg(g, 's_blight', 0, 0, H, this.face < 0);
+    if (this.flash > 0) { g.globalCompositeOperation = 'lighter'; sImg(g, 's_blight', 0, 0, H, this.face < 0, Math.min(0.8, this.flash * 4)); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+    g.restore();
+    if (this.phase >= 3) { // the twist: a small warm light flickers inside the Blight -- Ember is still in there
+      const k = 0.6 + Math.sin(t * 7) * 0.25, ex = X + Math.cos(t * 1.3) * 8, ey = Y - H * 0.42 + Math.sin(t * 1.7) * 6;
+      g.globalCompositeOperation = 'lighter'; drawGlow(g, ex, ey, 34, '#ffc94a', 0.55 * k); g.fillStyle = '#fff3b0'; g.beginPath(); g.arc(ex, ey, 3.5, 0, 7); g.fill(); g.globalCompositeOperation = 'source-over'; }
+    if (this.stun > 0) for (let i = 0; i < 4; i++) { const a = t * 5 + i * 1.6; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(X + Math.cos(a) * 30, this.y - 30 + Math.sin(a) * 6, 4, 0, 7); g.fill(); }
   }
 }

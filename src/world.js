@@ -21,6 +21,7 @@ import { Traps } from './traps.js';
 import { computeSupports, auditSupports } from './supports.js';
 import { buildGuides, drawGuidesBack, drawGuidesFront } from './guides.js';
 import { attachMissions, updateMissions, drawCritters, drawBoard } from './missionsWorld.js';
+import * as SW from './storyWorld.js';
 import { initSeeds, spawnSeed, updateSeeds, drawSeeds, drawGate, bumpGate } from './objective.js';
 
 export const ANCHOR_GLOW = '#5ff2e8'; // v1.2: every hook anchor glows the same cyan
@@ -38,7 +39,7 @@ export class World {
     this.game = game; this.mode = mode; this.fx = new FX(); this.quake = (p, d) => BR.quake(this, p, d); this.fx.cap = (game && game.lowPerf) || (save.settings && save.settings.quality === 'low') ? 220 : 480; this.t = 0; this.events = []; this.listeners = [];
     this.enemies = []; this.shots = []; this.bombs = []; this.waves = []; this.markers = []; this.pickups = []; this.props = []; this.anchors = []; this.sentries = []; this.pillars = []; this.lights = [];
     this.hs = 0; this.slow = 0; this.fight = null; this.runGlim = opts.glim || 0; this.cleared = new Set(opts.cleared || []); this.visited = new Set(opts.visited || []); this.opened = new Set(opts.opened || []);
-    let L; this.seed = opts.seed ?? ((Math.random() * 1e9) | 0); this.stage = opts.stage || 0; // stage 0 = Overpass (-> Furnace), stage 1 = Drowned Glowroots (-> Drowned Bloom)
+    let L; this.seed = opts.seed ?? ((Math.random() * 1e9) | 0); this.stage = opts.stage || 0; this.chapter = (mode === 'run' || mode === 'boss') ? (opts.chapter || 0) : 0; // stage 0 = Overpass (-> Furnace), stage 1 = Drowned Glowroots (-> Drowned Bloom)
     if (mode === 'tutorial') { L = buildFixed(TUTORIAL); this.biome = BIOMES.overpass; }
     else if (mode === 'hub') { L = buildFixed(HUB); this.biome = BIOMES.hub; }
     else if (mode === 'boss') { L = buildFixed(BOSS_ROOM); this.biome = this.stage ? BIOMES.caverns : BIOMES.boss; }
@@ -62,7 +63,7 @@ export class World {
     this.map.sup = computeSupports(this.map, this.anchors, L.traps || []);
     for (let y = 0; y < this.map.h; y++) for (let x = 0; x < this.map.w; x++) { const c = this.map.get(x, y); if (c === '^' || c === 'v' || c === '~') this.hazTiles.push({ x, y, c }); }
     this.viewH = viewHFor(mode); this.heroK = heroKFor(mode); this.bossIntro = mode === 'boss'; this.countdown = mode === 'run' || mode === 'boss' ? 1.6 : 0; this.fade = 1;
-    this._L = L; attachMissions(this); this._L = null; // v1.8 missions: trackers, lost critters, hub friends
+    this._L = L; attachMissions(this); this._L = null; SW.initWorld(this, opts); // v1.8 missions: trackers, lost critters, hub friends
     playSong(mode === 'hub' ? 'hub' : mode === 'boss' ? 'boss' : mode === 'tutorial' ? 'calm' : this.stage ? 'caverns' : 'biome');
   }
   spawnEntity(s) {
@@ -77,8 +78,8 @@ export class World {
       case 'S': this.props.push({ kind: 'shrine', x: wx - 16, y: wy - 44, w: 32, h: 44, id: 'S' + s.x + '_' + s.y }); this.lights.push({ x: wx, y: wy - 30, lantern: true }); break;
       case 'f': E('moth'); break; case 't': E('puffcap'); break; case 'k': E('knight'); break; case 'b': E('bomber'); break; case 'h': E('charger'); break; case 'j': E('hopper'); break;
       case 'd': E('dummy'); break; case 'q': E('tturret'); break;
-      case 'M': if (!this.cleared.has(ci)) { const w = this.stage ? new TideGolem(wx, wy, depth) : new Warden(wx, wy, depth); w.cell = ci; GA.dressWarden(this, w); this.enemies.push(w); } break;
-      case 'X': { const b = this.stage ? new DrownedBloom(wx, wy) : new Boss(wx, wy); b.cell = -1; this.enemies.push(b); this.boss = b; break; }
+      case 'M': if (!this.cleared.has(ci)) { const w = this.chapter ? SW.chapterWarden(this, wx, wy, depth) : this.stage ? new TideGolem(wx, wy, depth) : new Warden(wx, wy, depth); w.cell = ci; if (!this.chapter) GA.dressWarden(this, w); this.enemies.push(w); } break;
+      case 'X': { const b = this.chapter ? SW.chapterBoss(this, wx, wy) : this.stage ? new DrownedBloom(wx, wy) : new Boss(wx, wy); b.cell = -1; this.enemies.push(b); this.boss = b; break; }
       case 'c': this.props.push({ kind: 'chest', x: wx - 14, y: wy - 22, w: 28, h: 22, id: 'c' + s.x + '_' + s.y, open: this.opened.has('c' + s.x + '_' + s.y) }); break;
       case 'g': for (let i = 0; i < 5; i++) this.pickups.push({ kind: 'glim', x: wx + (i - 2) * 9, y: wy - 16 - Math.abs(i - 2) * 4, vx: 0, vy: 0, t: 1, float: true }); break;
       case 'F': this.props.push({ kind: 'fountain', x: wx - 18, y: wy - 40, w: 36, h: 40, id: 'F' + s.x + '_' + s.y, open: this.opened.has('F' + s.x + '_' + s.y) }); break;
@@ -126,11 +127,17 @@ export class World {
   snapCamera() { this.camYT = undefined; const t = this.camTarget(); this.cam.x = t.x; this.cam.y = t.y; this.cam.vx = this.cam.vy = 0; }
   camTarget() {
     const P = this.player, VW = this.viewW || 760, VH = this.viewH || VIEW_H;
-    const lt = P.face * 44 + clamp(P.vx * 0.2, -56, 56); this.look = (this.look || 0) + (lt - (this.look || 0)) * 0.035; // eased, velocity-led look-ahead
+    const lt = P.face * 44 + clamp(P.vx * 0.2, -56, 56); this.look = (this.look || 0) + (lt - (this.look || 0)) * (Math.abs(P.vx) > 150 ? 0.05 : 0.03); // eased, velocity-led look-ahead (v2.1: catches up faster at full run)
     let x = P.cx + this.look - VW / 2;
     const want = P.cy - VH * 0.55 + (P.vy > 380 ? 36 : 0); // vertical deadzone: hold height through jumps, follow on landing, band exit or long falls
     if (this.camYT === undefined || P.onGround || P.hook.s === 'swing' || P.hook.s === 'zip') this.camYT = want; else { const B = 46; if (want < this.camYT - B) this.camYT = want + B; else if (want > this.camYT + B * 0.5) this.camYT = want - B * 0.5; }
     let y = this.camYT;
+    { // v2.1 look down / up: hold down (or up) while standing still to peek; long falls lead the camera downward
+      const still = P.onGround && Math.abs(P.vx) < 20 && !P.atk; const ly = still && input.my > 0.5 ? 1 : still && input.my < -0.5 ? -1 : 0;
+      this.peekT = ly ? (this.peekT || 0) + 1 / 60 : 0; const pt = this.peekT > 0.35 ? ly * (ly > 0 ? 96 : 64) : 0;
+      const fl = !P.onGround && P.vy > 300 ? clamp((P.vy - 300) * 0.25, 0, 70) : 0;
+      this.peek = (this.peek || 0) + ((pt + fl) - (this.peek || 0)) * 0.06; y += this.peek;
+    }
     const R = this.fight ? this.fight.room : this.room;
     if (R.w <= VW) x = R.x + R.w / 2 - VW / 2; else x = clamp(x, R.x, R.x + R.w - VW);
     if (R.h <= VH) y = R.y + R.h / 2 - VH / 2; else y = clamp(y, R.y, R.y + R.h - VH);
@@ -152,7 +159,7 @@ export class World {
     const ax = P.cx, ay = P.cy;
     for (const e of this.enemies) { if (e.dead) continue; const near = Math.abs(e.cx - ax) < 640 && Math.abs(e.cy - ay) < 420; if (near || e.boss && e.st !== 'sleep') e.update(this, dt); }
     this.enemies = this.enemies.filter((e) => !e.dead);
-    this.updateShots(dt); this.updateBombs(dt); this.updateWaves(dt); this.updatePillars(dt); this.updateSentries(dt); this.updatePickups(dt); this.traps.update(dt); this.arenas.update(dt); updateSeeds(this, dt); updateMissions(this, dt);
+    this.updateShots(dt); this.updateBombs(dt); this.updateWaves(dt); this.updatePillars(dt); this.updateSentries(dt); this.updatePickups(dt); SW.update(this, dt); input.ctx = this.ctxIcon(this.player); this.traps.update(dt); this.arenas.update(dt); updateSeeds(this, dt); updateMissions(this, dt);
     for (const m of this.markers) m.t += dt; this.markers = this.markers.filter((m) => m.t < m.life);
     for (const p of this.props) if (p.kind === 'trigger' && !p.fired && Math.abs(P.cx - p.x) < 20 && Math.abs(P.cy - p.y) < 120) { p.fired = true; this.emit('trigger', p.n); }
     if (this.movesHint > 0) this.movesHint -= dt; else if (this.mode === 'hub' && this.t > 1) { const P = this.player; for (const e of this.enemies) if (e.type === 'dummy' && !e.dead && Math.abs(e.cx - P.cx) < 110 && Math.abs(e.cy - P.cy) < 60) { this.movesHint = this.movesHintMax = 4; break; } } // near the hub dummy: show the moves card
@@ -183,16 +190,18 @@ export class World {
   }
   // ---------------- interaction ----------------
   interactable(p) {
-    for (const o of this.props) { if (o.open || o.kind === 'trigger' || o.kind === 'shrine') continue; if (rectsOverlap({ x: p.x - 14, y: p.y - 10, w: p.w + 28, h: p.h + 20 }, o)) return o; }
+    for (const o of this.props) { if (o.open || o.kind === 'trigger' || o.kind === 'shrine') continue; if (rectsOverlap({ x: p.x - 14, y: p.y - 10, w: p.w + 28, h: p.h + 20 }, o)) { if ((o.kind === 'moss' || o.kind === 'station') && this.enemies.some((e) => !e.dead && Math.abs(e.cx - p.cx) < 150 && Math.abs(e.cy - p.cy) < 90)) continue; return o; } } // v2.1: fighting next to Moss/a station never opens a menu
     return null;
   }
+  ctxIcon(p) { const o = p && p.onGround && this.interactable(p); if (!o) return null; return { door: 'door', station: 'gear', moss: 'eye', chest: 'gift', fountain: 'flask', pedestal: 'key' }[o.kind] || null; } // v2.1 contextual Attack icon
   tryInteract(p) {
     const o = this.interactable(p); if (!o || !p.onGround) return false;
-    if (o.kind === 'chest' || o.kind === 'fountain' || o.kind === 'pedestal') this.game.treasures = (this.game.treasures || 0) + 1;
+    if (o.kind === 'chest' || o.kind === 'fountain' || o.kind === 'pedestal') { this.game.treasures = (this.game.treasures || 0) + 1; SW.onTreasure(this, o); }
     if (o.kind === 'chest') { o.open = true; this.opened.add(o.id); sfx('chest'); this.fx.burst(o.x + 14, o.y + 4, 20, { color: ['#ffe27a', '#fff'], max: 200, kind: 'star', g: 200 }); this.dropGlims(o.x + 14, o.y, rand.int(10, 16)); if (rand.chance(0.5)) this.pickups.push({ kind: 'heart', x: o.x + 14, y: o.y - 10, vx: rand.range(-60, 60), vy: -200, t: 0 }); this.emit('chest'); return true; }
     if (o.kind === 'fountain') { o.open = true; this.opened.add(o.id); p.flasks = p.maxFlasks; p.healLeft += p.maxHp * 0.3; sfx('flask'); this.fx.burst(o.x + 18, o.y + 10, 30, { color: ['#9ff0ff', '#e8ffff'], g: -60, max: 160, kind: 'star', life: 1 }); this.fx.text(o.x + 18, o.y - 10, 'Flasks refilled!', '#bff', 13); return true; }
     if (o.kind === 'pedestal') { o.open = true; this.opened.add(o.id); p.weapon = o.weapon; sfx('unlock'); this.fx.ring(o.x + 14, o.y, 50, WEAPONS[o.weapon].color, 0.5, 5); this.fx.text(o.x + 14, o.y - 16, WEAPONS[o.weapon].name + '!', WEAPONS[o.weapon].color, 14); this.emit('weapon'); return true; }
     if (o.kind === 'station') { this.game.openStation(o.n); return true; }
+    if (o.kind === 'moss') { sfx('ui'); this.game.openMoss && this.game.openMoss(); return true; }
     if (o.kind === 'door') { if (this.mode === 'run' && bumpGate(this, o)) return true; sfx('door'); this.game.useDoor(this); return true; }
     return false;
   }
@@ -313,7 +322,7 @@ export class World {
   onMinibossDefeated(e) {
     for (const [x, y] of this.gates || []) this.setTile(x, y, '.'); this.gates = []; this.fight = null; this.game.bossBar(null); sfx('victory'); playSong(this.stage ? 'caverns' : 'biome');
     this.fx.text(e.cx, e.y - 30, e.info.name + ' defeated!', '#ffe27a', 18); this.dropGlims(e.cx, e.cy, 10); this.pickups.push({ kind: 'heart', x: e.cx, y: e.cy - 20, vx: 0, vy: -250, t: 0, big: true });
-    save.progress.minibossBeaten = (save.progress.minibossBeaten || 0) + 1; this.emit('miniboss');
+    save.progress.minibossBeaten = (save.progress.minibossBeaten || 0) + 1; this.emit('miniboss'); SW.onWardenDown(this, e);
   }
   onBossPhase(n) { BR.cine(this, { x: this.boss.cx, y: this.boss.cy, life: 1.5, zoom: 1.14, label: n === 2 ? 'PHASE 2' : 'FINAL PHASE', col: '#ffb13b' }); BR.bonus(this, 'PHASE ' + n, 40, '#ffb13b'); this.emit('bossPhase', n); }
   onBossDefeated(b) { this.fx.pop(b.cx, b.cy, 3); this.fx.flash = 0.8; this.fx.flashColor = '#fff6d8'; this.dropGlims(b.cx, b.cy, 40); this.fight = null; this.game.bossBar(null); sfx('victory'); this.bloomT = 0.01; this.emit('bossDefeated'); setTimeout(() => this.game.onVictory(this), 2600); }
@@ -395,6 +404,7 @@ export class World {
       else if (!k.float) { k.vy = Math.min(k.vy + 900 * dt, 400); k.vx *= 1 - 2 * dt; const nx = k.x + k.vx * dt, ny = k.y + k.vy * dt; if (this.map.solidPx(nx, k.y)) k.vx = -k.vx * 0.3; else k.x = nx; const c = this.map.get(Math.floor(k.x / TILE), Math.floor((ny + 4) / TILE)); if (k.vy > 0 && (c === '#' || c === 'B' || c === 'G' || c === '=')) { k.vy = -k.vy * 0.3; if (Math.abs(k.vy) < 40) { k.vy = 0; k.vx *= 0.8; } } else if (this.map.solidPx(k.x, ny - 4)) k.vy = 0; else k.y = ny; }
       if (d < 18 && !P.dead) { k.dead = true;
         if (k.kind === 'glim') { this.runGlim++; this.emit('glim'); sfx('pickup', 0.03); this.fx.burst(k.x, k.y, 3, { color: PAL.glimmer, max: 60, g: 0, life: 0.3, glow: 1 }); }
+        else if (k.kind === 'lore') SW.pickLore(this, k);
         else { const h = k.big ? P.maxHp * 0.5 : P.maxHp * 0.15; P.healLeft += h; sfx('flask'); this.fx.text(P.cx, P.y - 8, '+' + Math.round(h), '#9ff0b0', 14); } }
     }
     this.pickups = this.pickups.filter((k) => !k.dead);
@@ -437,6 +447,7 @@ export class World {
     // lanterns light behind tiles
     if (!lo) for (const l of this.lights) if (l.x > vx0 - 100 && l.x < vx1 + 100 && l.y > vy0 - 100 && l.y < vy1 + 100) drawGlow(g, l.x, l.y + 10, 110 + Math.sin(this.t * 2 + l.x) * 6, B.light, 0.35);
     // background dark mass behind level (inside rooms only for runs)
+    if (this.mode === 'hub') SW.drawHubBack(g, this);
     // tiles
     const CS = CHUNK_T * TILE; const c0 = Math.floor(vx0 / CS), c1 = Math.floor(vx1 / CS), r0 = Math.floor(vy0 / CS), r1 = Math.floor(vy1 / CS);
     for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
@@ -578,6 +589,7 @@ export class World {
     if (s.life < 2 && Math.sin(this.t * 20) > 0) drawGlow(g, s.x, s.y - 10, 16, '#a6e47a', 0.6);
   }
   drawPickup(g, k) {
+    if (k.kind === 'lore') return SW.drawLore(g, this, k);
     const bob = k.float ? Math.sin(this.t * 3 + k.x) * 3 : 0;
     if (has('glim') && k.kind === 'glim') { const y = k.y + bob, sc = 1 + Math.sin(this.t * 6 + k.x) * 0.08; g.globalCompositeOperation = 'lighter'; drawGlow(g, k.x, y, 12, PAL.glimmer, 0.7); g.globalCompositeOperation = 'source-over'; spr(g, 'glim', k.x, y + 5 * sc, 10 * sc, 0.5, 1); return; }
     if (has('flask') && k.kind !== 'glim') { const y = k.y + Math.sin(this.t * 3 + k.x) * 2, h = k.big ? 20 : 15; drawGlow(g, k.x, y, 18, '#ff8aa0', 0.55); spr(g, 'flask', k.x, y + h / 2, h, 0.5, 1); return; }
@@ -588,7 +600,7 @@ export class World {
     const t = this.t, P = this.player, near = this.interactable(P);
     for (const o of this.props) {
       if (this.offV && this.offV(o.x, o.y, o.w || 0, o.h || 0)) continue;
-      if (this.drawPropPainted(g, o)) {}
+      if ((o.kind === 'moss' || o.kind === 'friend') && SW.drawStoryProp(g, this, o)) {} else if (this.drawPropPainted(g, o)) {}
       else if (o.kind === 'chest') { g.fillStyle = '#15131f'; g.beginPath(); g.roundRect(o.x - 1, o.y - 1 + (o.open ? 6 : 0), o.w + 2, o.h + 2 - (o.open ? 6 : 0), 4); g.fill(); g.fillStyle = '#9a6a42'; g.fillRect(o.x + 1, o.y + 8, o.w - 2, o.h - 9); g.fillStyle = o.open ? '#5c3a24' : '#b8783a'; g.fillRect(o.x + 1, o.y + 1 + (o.open ? 5 : 0), o.w - 2, 8 - (o.open ? 4 : 0)); g.fillStyle = '#ffd36b'; g.fillRect(o.x + o.w / 2 - 3, o.y + 6, 6, 6); if (!o.open) drawGlow(g, o.x + o.w / 2, o.y + 6, 24, '#ffd36b', 0.3 + Math.sin(t * 3) * 0.1); }
       else if (o.kind === 'fountain') { g.fillStyle = '#15131f'; g.beginPath(); g.roundRect(o.x - 2, o.y + 18, o.w + 4, 24, 6); g.fill(); g.fillStyle = '#6a7488'; g.beginPath(); g.roundRect(o.x, o.y + 20, o.w, 20, 5); g.fill(); g.fillStyle = '#6a7488'; g.fillRect(o.x + 14, o.y + 2, 8, 20); if (!o.open) { g.fillStyle = '#7ff0ff'; g.fillRect(o.x + 4, o.y + 20, o.w - 8, 5); drawGlow(g, o.x + 18, o.y + 14, 34, '#7ff0ff', 0.5); if (Math.random() < 0.2) this.fx.burst(o.x + 18, o.y + 2, 1, { color: '#bff', min: 20, max: 60, g: 300, angle: -Math.PI / 2, spread: 0.6, life: 0.6, size: 2.5 }); } }
       else if (o.kind === 'pedestal') { g.fillStyle = '#15131f'; g.fillRect(o.x - 1, o.y + 14, o.w + 2, 17); g.fillStyle = '#6a7488'; g.fillRect(o.x + 1, o.y + 15, o.w - 2, 15); if (!o.open) { const w = WEAPONS[o.weapon]; drawGlow(g, o.x + 14, o.y + 2 + Math.sin(t * 2) * 3, 26, w.color, 0.6); drawIcon(g, w.icon, o.x + 14, o.y + 2 + Math.sin(t * 2) * 3, 20, w.color); } }

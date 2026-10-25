@@ -32,7 +32,7 @@ export function updateSeeds(W, dt) {
     if (Math.abs(P.cx - s.x) < 26 && Math.abs(P.cy - s.y) < 34 && !P.dead) {
       s.got = true; W.seedsGot.add(s.id); const n = seedCount(W); W.seedBanner = 2.2;
       sfx('secret'); W.fx.ring(s.x, s.y, 70, SEED_COL, 0.6, 6); W.fx.burst(s.x, s.y, 30, { color: [SEED_COL, SEED_GOLD, '#ffffff'], max: 260, kind: 'star', g: 80, life: 0.9, size: 6 });
-      W.hitstop(0.06); W.emit('seed', n);
+      W.zoomKick(0.4); W.emit('seed', n); // v2.1: hit-stop is reserved for hits; a pickup gets a soft zoom instead
       if (n >= NEED) { W.gateOpenT = 0.01; sfx('unlock'); W.fx.flash = 0.5; W.fx.flashColor = '#eaffc8'; W.fx.shake(0.25); W.emit('gateOpen'); }
     }
   }

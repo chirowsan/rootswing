@@ -14,6 +14,18 @@ import { palOf, STYLES } from './weapons.js';
 import { MV, GAUGE_MAX, trail, lash, decal, wave, leaves, petals, gain } from './combat.js';
 
 const C = HERO; // unchanged values (moved to physics.js in v1.5 so the validator shares them)
+// v2.1 modern feel: every number here only ADDS capability on top of HERO (the reach validator models the v2.0 minimum, so it stays a safe lower bound)
+export const FEEL = {
+  TURN_K: 1.8,      // ground turn-around: reversing uses 1.8x accel (no ice-skating, no 80s instant flip)
+  AIR_ACC: 1500,    // air steering accel (v2.0: 1200) -- intentional mid-air corrections
+  AIR_TURN_K: 1.35, // air reversal boost
+  APEX_V: 95, APEX_G: 0.5, // apex hang: |vy| < 95 with jump held -> half gravity (v2.0: 70 / 0.6)
+  FALL_G: 1.3, FAST_FALL: 780, // hold down in the air: faster, intentional drop (v2.0: none)
+  DASH_BUF: 0.13, ATK_BUF: 0.16, // input buffers (jump/hook buffers already existed: diff().buffer, 0.16)
+  DASH_JUMP_K: 1.3, // jump out of a dash keeps 1.3x run speed (dash-jump)
+  WIND_TURN: 0.09,  // attack wind-up can still be turned around for 90 ms
+  LAND_KEEP: 1,     // landing keeps horizontal speed
+};
 export const HERO_K = 1.22; // v1.2 visual scale of the hero rig around the feet (hitbox unchanged)
 export const HERO_PX = 47 / 223; // v1.3 world units per painted-frame pixel (idle frame = 44 units tall before HERO_K)
 // front-fist anchor in frame pixels per painted pose (weapon grip); measured from the annotated sheets
@@ -37,15 +49,23 @@ export class Player {
   get busy() { return this.dead || this.respawnT > 0; }
   update(W, dt) {
     this.t += dt; const D = diff();
-    for (const k of ['coyote', 'jumpBuf', 'wallCoyote', 'wallLock', 'dashCd', 'iframes', 'hurtT', 'flash', 'parryT', 'parryLock', 'comboT', 'freeJump', 'drop', 'mantleT', 'hookBuf', 'critT', 'counterT', 'dashEnd', 'perfCd', 'airStepT']) this[k] = Math.max(0, this[k] - dt);
+    for (const k of ['coyote', 'jumpBuf', 'wallCoyote', 'wallLock', 'dashCd', 'iframes', 'hurtT', 'flash', 'parryT', 'parryLock', 'comboT', 'freeJump', 'drop', 'mantleT', 'hookBuf', 'critT', 'counterT', 'dashEnd', 'perfCd', 'airStepT', 'dashBuf', 'atkBuf', 'skidT', 'turnT']) this[k] = Math.max(0, this[k] - dt);
     this.gcd = this.gcd.map((v) => Math.max(0, v - dt));
     this.sx = lerp(this.sx, 1, Math.min(1, dt * 12)); this.sy = lerp(this.sy, 1, Math.min(1, dt * 12));
+    { // v2.1 animation layer: smoothed lean that reads acceleration (leans into a start, back on a skid) + a damped spring for hat/cape secondary motion
+      const acc = (this.vx - (this._pvx ?? this.vx)) / Math.max(dt, 1e-4); this._pvx = this.vx;
+      const lt = this.skidT > 0 ? -sign(this.vx) * 0.16 : clamp(this.vx / 900 + clamp(acc, -2500, 2500) * 0.00003, -0.22, 0.22);
+      this.leanS = lerp(this.leanS || 0, lt, Math.min(1, dt * 14));
+      const ht = clamp(-this.vx / 600 - (this.onGround ? 0 : this.vy / 1400), -0.5, 0.5); this.hatV = ((this.hatV || 0) + (90 * (ht - (this.hatA || 0)) - 9 * (this.hatV || 0)) * dt); this.hatA = clamp((this.hatA || 0) + this.hatV * dt, -0.6, 0.6);
+      if (!this.onGround && Math.abs(this.vy) < FEEL.APEX_V && this.dashT <= 0 && this.hook.s === 'none') { this.sy = lerp(this.sy, 0.95, dt * 6); this.sx = lerp(this.sx, 1.04, dt * 6); } // apex float pose
+    }
     this.updateScarf(dt);
     if (this.dead) { this.deadT += dt; this.vx *= 0.9; return; }
     if (this.respawnT > 0) { this.respawnT -= dt; if (this.respawnT <= 0) { this.x = this.safe.x; this.y = this.safe.y; this.vx = this.vy = 0; this.iframes = 1.2; W.fx.burst(this.cx, this.cy, 16, { color: ['#bff7a0', '#fff'], max: 160, g: -50, life: 0.5 }); } return; }
     const mx = input.mx, my = input.my;
-    if (Math.abs(mx) > 0.1 && (!this.atk || this.atk.phase === 'rec') && this.dashT <= 0 && this.hook.s !== 'swing') this.face = sign(mx); // v1.4: can turn during attack recovery
+    if (Math.abs(mx) > 0.1 && (!this.atk || this.atk.phase === 'rec' || (this.atk.phase === 'wind' && this.atk.t < FEEL.WIND_TURN && this.atk.kind !== 'special' && this.atk.kind !== 'plunge')) && this.dashT <= 0 && this.hook.s !== 'swing') this.face = sign(mx); // v2.1: a wind-up can still be aimed // v1.4: can turn during attack recovery
     if (pressed('jump')) this.jumpBuf = D.buffer;
+    if (pressed('dash')) this.dashBuf = FEEL.DASH_BUF; if (pressed('attack')) this.atkBuf = FEEL.ATK_BUF;
     if (pressed('hook')) this.hookBuf = 0.16; // v1.4: buffered hook (fires as soon as an attack can be cancelled / after a zip)
     if (this.jumpBuf > 0 && !this.canCancel()) this.jumpBuf = Math.max(this.jumpBuf, dt * 2); // keep a jump pressed mid-swing alive until recovery
     // healing over time
@@ -56,7 +76,7 @@ export class Player {
     if (this.hook.s !== 'none') { this.updateHook(W, dt, mx, my); if (this.hook.s === 'swing' || this.hook.s === 'none') this.updateAttack(W, dt, mx, my); this.postMove(W, dt); return; }
     // actions
     if (this.hookBuf > 0 && this.canCancel()) { this.atk = null; this.queued = false; this.hookBuf = 0; this.fireHook(W, mx, my); } // v1.4: hook cancels attack recovery / air attacks
-    if (pressed('dash') && this.dashCd <= 0 && (this.onGround || this.airDash || this.coyote > 0)) this.startDash(W, mx);
+    if (this.dashBuf > 0 && this.dashCd <= 0 && this.parryLock <= 0 && (this.onGround || this.airDash || this.coyote > 0)) { this.dashBuf = 0; this.startDash(W, mx); } // v2.1: buffered dash (fires the moment the cooldown ends)
     this.swapCd = Math.max(0, (this.swapCd || 0) - dt); this.swapBuf = Math.max(0, (this.swapBuf || 0) - dt); if (pressed('swap')) this.swapBuf = 0.3; // v2.0 quick-swap (buffered; cancels recovery)
     if (this.swapBuf > 0 && this.swapCd <= 0 && (!this.atk || this.atk.phase === 'rec') && this.atk?.kind !== 'special') { this.swapBuf = 0; this.atk = null; this.swapStyle(W); }
     if (pressed('parry') && this.parryLock <= 0 && this.dashT <= 0) { this.parryT = D.parry; this.parryLock = D.parry + 0.14; this.atk = null; this.vx *= 0.3; sfx('block'); W.emit('parryTry'); }
@@ -66,21 +86,26 @@ export class Player {
     this.updateAttack(W, dt, mx, my);
     if (this.dashT > 0) {
       this.dashT -= dt; this.vx = this.dashDir * C.DASH; this.vy = 0;
+      if (this.jumpBuf > 0 && (this.onGround || this.coyote > 0) && this.dashT < C.DASH_T - 0.03) { this.dashT = 0; this.dashEnd = 0.15; this.vx = this.dashDir * C.RUN * FEEL.DASH_JUMP_K; this.doJump(W); W.emit('dashJump'); } // v2.1: dash-jump cancel keeps momentum
       if (Math.random() < 0.7) W.fx.burst(this.cx - this.dashDir * 8, this.cy + 6, 1, { color: '#e8fff0', min: 10, max: 40, g: 0, life: 0.25, size: 5 });
-      if (this.dashT <= 0) { this.vx = this.dashDir * C.RUN * 0.9; this.dashEnd = 0.15; } // v1.9: short window after a dash for the dash-slash
+      if (this.dashT <= 0 && this.vy === 0) { this.vx = this.dashDir * C.RUN * 0.9; this.dashEnd = 0.15; } // v1.9: short window after a dash for the dash-slash
     } else {
       // horizontal
       const mm = WEAPONS[this.weapon].moveMul, slow = this.atk ? (!this.onGround ? 1 : this.atk.phase === 'rec' ? Math.max(mm, 0.85) : Math.max(mm, mm * 0.5 + 0.35)) : this.parryLock > 0 ? 0.1 : this.flaskT > 0 ? 0.4 : 1;
       const target = mx * C.RUN * slow;
       if (this.wallLock > 0) { if (mx && sign(mx) !== sign(this.vx)) this.vx = approach(this.vx, target, C.ACC_A * 0.45 * dt); } // v1.4: wall-jump keeps its kick but a stick back toward the wall is honoured gently
-      else if (this.onGround) this.vx = approach(this.vx, target, (Math.abs(target) > Math.abs(this.vx) ? C.ACC_G : this.atk ? C.DEC_G * 0.55 : C.DEC_G) * dt);
+      else if (this.onGround) { const rev = target && this.vx && sign(target) !== sign(this.vx);
+        if (rev) this.turnT = 0.14; const boost = rev || (this.turnT > 0 && target && Math.abs(this.vx) < Math.abs(target));
+        if (rev && Math.abs(this.vx) > 120 && this.skidT <= 0) { this.skidT = 0.18; W.fx.dust(this.cx + sign(this.vx) * 6, this.y + this.h, 4, { dir: sign(this.vx), speed: 70, size: 3.6, life: 0.35 }); sfx('step'); W.emit('skid'); } // v2.1 skid puff
+        this.vx = approach(this.vx, target, (boost ? (this.atk ? C.DEC_G * 1.2 : C.ACC_G * FEEL.TURN_K) : Math.abs(target) > Math.abs(this.vx) ? C.ACC_G : this.atk ? C.DEC_G * 0.55 : C.DEC_G) * dt); }
       else if (Math.abs(this.vx) > C.RUN && sign(this.vx) === sign(target || this.vx) && Math.abs(target) <= Math.abs(this.vx)) this.vx = approach(this.vx, target || sign(this.vx) * C.RUN, (target ? 160 : 520) * dt); // keep fling momentum in the air
-      else this.vx = approach(this.vx, target, C.ACC_A * dt);
+      else this.vx = approach(this.vx, target, FEEL.AIR_ACC * (target && this.vx && sign(target) !== sign(this.vx) ? FEEL.AIR_TURN_K : 1) * dt); // v2.1 intentional air control
       if (this.hurtT > 0) this.vx *= 0.98;
       // gravity (lighter at the jump apex while held for floaty control)
-      let g = this.vy > 0 ? C.GRAV_FALL : C.GRAV; if (Math.abs(this.vy) < 70 && held('jump')) g *= 0.6;
+      let g = this.vy > 0 ? C.GRAV_FALL : C.GRAV; if (Math.abs(this.vy) < FEEL.APEX_V && held('jump')) g *= FEEL.APEX_G; // v2.1 tuned apex hang
+      const ff = !this.onGround && this.vy > 0 && input.my > 0.5 && !this.wallDir && !this.atk; if (ff) g *= FEEL.FALL_G; // v2.1 fast fall
       if (this.atk && !this.onGround && this.atk.kind === 'air' && this.atk.phase !== 'rec' && this.vy > 0 && (this.airHang += dt) < 0.22) g *= 0.7; // v1.4: only a tiny hang (keeps momentum + gravity)
-      this.vy = Math.min(this.vy + g * dt, C.MAXFALL);
+      this.vy = Math.min(this.vy + g * dt, ff ? FEEL.FAST_FALL : C.MAXFALL);
       // wall slide
       this.wallDir = 0;
       if (!this.onGround) { for (const d of [-1, 1]) if (touchingWall(W.map, this, d)) this.wallDir = d; }
@@ -105,7 +130,9 @@ export class Player {
     this.onGround = r.ground || (this.vy >= 0 && !!groundBelow(W.map, this) && this.drop <= 0 && this.hook.s !== 'zip');
     if (this.onGround && !wasGround) W.emit('land');
     if (this.onGround) { this.coyote = diff().coyote; this.airDash = true; this.wallJumping = false; this.airHang = 0; this.airHover = 0; if (!wasGround && this.atk && this.atk.kind === 'air' && this.atk.phase !== 'active') { this.atk = null; } } // landing cancels an air swing cleanly
-    if (r.ground && !wasGround && prevVy > 160) { this.sy = 0.72; this.sx = 1.25; sfx('land'); W.fx.dust(this.cx, this.y + this.h, prevVy > 420 ? 8 : 5, { speed: 50 + Math.min(80, prevVy * 0.12), size: prevVy > 420 ? 5 : 3.8, life: 0.5 }); W.fx.burst(this.cx, this.y + this.h, 4, { color: '#d9d2c0', min: 30, max: 90, angle: -Math.PI / 2, spread: 1.4, g: 200, life: 0.35 }); }
+    if (r.ground && !wasGround && prevVy > 60 && prevVy <= 160) { sfx('step'); this.sy = 0.88; this.sx = 1.1; } // v2.1 soft-landing tick
+    if (r.ground && !wasGround && prevVy > 160) { if (prevVy > 420) vibrate(12); this.sy = 0.72; this.sx = 1.25; sfx('land'); W.fx.dust(this.cx, this.y + this.h, prevVy > 420 ? 8 : 5, { speed: 50 + Math.min(80, prevVy * 0.12), size: prevVy > 420 ? 5 : 3.8, life: 0.5 }); W.fx.burst(this.cx, this.y + this.h, 4, { color: '#d9d2c0', min: 30, max: 90, angle: -Math.PI / 2, spread: 1.4, g: 200, life: 0.35 }); }
+    if (this.dashT > 0 && this.hook.s === 'none' && (r.wallL || r.wallR) && this.vy >= 0) this.tryMantle(W, r.wallL ? -1 : 1); // v2.1: a dash into a knee-high lip steps up instead of stopping dead
     // ledge assist: pop up onto a ledge we barely missed
     if (!this.onGround && this.hook.s === 'none' && this.dashT <= 0) {
       const dir = (r.wallL ? -1 : r.wallR ? 1 : 0) || (Math.abs(input.mx) > 0.3 && touchingWall(W.map, this, sign(input.mx)) ? sign(input.mx) : 0);
@@ -231,7 +258,8 @@ export class Player {
   // ---------------- combat ----------------
   updateAttack(W, dt, mx, my) {
     const wpn = WEAPONS[this.weapon];
-    if (pressed('attack') && this.parryLock <= 0 && this.flaskT <= 0) {
+    const atkP = pressed('attack') || (this.atkBuf > 0 && !held('attack') && !this.atk && this.dashT <= 0 && this.hurtT <= 0); // v2.1: a tap during parry/flask/hurt/dash is kept for 160 ms
+    if (atkP && this.parryLock <= 0 && this.flaskT <= 0) { this.atkBuf = 0;
       if (W.tryInteract(this)) { /* used as interact */ }
       else if ((this.dashT > 0 || this.dashEnd > 0) && !this.atk && this.weapon !== 'bow' && this.dashSlashes < 1 && this.hook.s === 'none') this.startDashSlash(W); // v1.9 dash + tap
       else if (this.dashT > 0) { /* dash owns the frame */ }
@@ -415,7 +443,7 @@ export class Player {
     if (has('head')) this.drawRig(g, W);
     else {
     g.save(); g.translate(X, Y);
-    let lean = clamp(this.vx / 900, -0.18, 0.18); if (h.s === 'swing') lean = Math.atan2(h.hx - X, -(h.hy - this.cy)) * 0.6;
+    let lean = this.leanS || 0; if (h.s === 'swing') lean = Math.atan2(h.hx - X, -(h.hy - this.cy)) * 0.6;
     if (this.dead) { lean = 0; g.rotate(Math.min(1.4, this.deadT * 4) * -f); }
     g.rotate(lean); g.scale(this.sx * f, this.sy);
     const run = this.onGround && Math.abs(this.vx) > 20, ph = this.runPh;
@@ -568,7 +596,7 @@ export class Player {
     const fi = this.fist(p.n);
     if (p.wa === null || !fi) this.frameWeapon(g, p, F[4] - 30, F[5] + 6, this.weapon === 'bow' ? 1.75 : 1.95, 0.95, 0.72); // sheathed across the back
     const wr = missions().wardrobe; g.drawImage(capeSheet(H, wr.cape) || H.img, F[0], F[1], F[2], F[3], 0, 0, F[2], F[3]);
-    if (wr.hat && wr.hat !== 'none' && !this.dead) { const hm = p.n.startsWith('c_') && G.hero.hand && G.hero.hand[p.n]; if (hm && hm[3]) { g.save(); g.translate(F[4], F[5] - 30); g.rotate(hm[3] * 0.012); g.translate(-F[4], -(F[5] - 30)); } drawHat(g, wr.hat, F[4] - 12, F[5] - 47, 4.4, 1); if (hm && hm[3]) g.restore(); } // v1.8: earned hat rides the hood on every frame
+    if (wr.hat && wr.hat !== 'none' && !this.dead) { const hm = p.n.startsWith('c_') && G.hero.hand && G.hero.hand[p.n]; const hr = (hm && hm[3] ? hm[3] * 0.012 : 0) + (this.hatA || 0) * 0.5 * (this.face || 1); if (hr) { g.save(); g.translate(F[4], F[5] - 30); g.rotate(hr); g.translate(-F[4], -(F[5] - 30)); } drawHat(g, wr.hat, F[4] - 12, F[5] - 47, 4.4, 1); if (hr) g.restore(); } // v1.8 hat rides the hood; v2.1 hat spring (secondary motion)
     if (p.wa !== null && fi) this.frameWeapon(g, p, fi[0], fi[1], p.wa, 1);
     if (this.flash > 0) { g.globalAlpha = Math.min(0.85, this.flash * 3 + 0.2); g.drawImage(heroFlash(p.n), 0, 0); }
     g.restore(); g.globalAlpha = 1;
@@ -598,7 +626,7 @@ export class Player {
     if (!this._off || this._off.width !== Sz) { const mk = () => { const c = document.createElement('canvas'); c.width = c.height = Sz; return c; }; this._off = mk(); this._tmp = mk(); }
     const off = this._off, o = off.getContext('2d'); o.setTransform(1, 0, 0, 1, 0, 0); o.clearRect(0, 0, Sz, Sz); o.globalCompositeOperation = 'source-over';
     o.setTransform(rs, 0, 0, rs, U / 2 * rs, U * 0.68 * rs);
-    let lean = clamp(this.vx / 900, -0.18, 0.18); if (h.s === 'swing') lean = Math.atan2(h.hx - X, -(h.hy - this.cy)) * 0.6;
+    let lean = this.leanS || 0; if (h.s === 'swing') lean = Math.atan2(h.hx - X, -(h.hy - this.cy)) * 0.6;
     if (this.hurtT > 0) lean = -f * 0.25;
     if (this.dead) { lean = 0; o.rotate(Math.min(1.4, this.deadT * 4) * -f); }
     o.rotate(lean); o.scale(this.sx * f, this.sy);

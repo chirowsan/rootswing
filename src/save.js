@@ -42,4 +42,10 @@ export const DIFF = { // v2.0: hp/ramp/rampDmg scale foes, trap/foes/elite/arena
   nightmare: { dmgTaken: 1.9, dmgDealt: 0.9, parry: 0.14, coyote: 0.09, buffer: 0.12, keep: 0.5, aggro: 1.45, hp: 1.6, ramp: 0.13, rampDmg: 0.08, trap: 2.0, foes: 2.2, elite: 0.28, arenas: 3, ambush: 4, waves: 3, reward: 2, stars: 2, label: 'Nightmare' },
 };
 DIFF.tough = DIFF.hard; // v1.x saves
-export const diff = () => DIFF[save.settings.difficulty] || DIFF.normal;
+export const runMod = { m: null }; // v2.1: chapter + NG+ extras for the current run (set by story.setRunMod)
+let _dB = null, _dM = null, _dC = null;
+export const diff = () => { const b = DIFF[save.settings.difficulty] || DIFF.normal, m = runMod.m; if (!m) return b;
+  if (_dB === b && _dM === m) return _dC; const o = { ...b };
+  for (const k in m) o[k] = k === 'elite' || k === 'arenas' ? b[k] + m[k] : b[k] * m[k];
+  o.trap = Math.min(o.trap, Math.max(b.trap, 2.0)); o.foes = Math.min(o.foes, Math.max(b.foes, 2.2)); o.elite = Math.min(o.elite, 0.35); o.arenas = Math.min(o.arenas, 3); // stay inside the v2.0 nightmare envelope the reach tests prove
+  _dB = b; _dM = m; _dC = o; return o; };

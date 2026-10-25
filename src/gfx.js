@@ -9,10 +9,15 @@ export async function loadGfx(base = 'gfx/') {
     if (!imgs[0]) return false;
     try { const [hm, hi] = await Promise.all([fetch(base + 'hero.json').then((r) => r.json()), loadImg(base + 'hero.webp')]); if (hi && hm) G.hero = { img: hi, f: hm.f, gait: hm.gait || {}, hand: hm.hand || {}, cache: new Map() }; } catch (e) { G.hero = null; }
     try { const [em, ei] = await Promise.all([fetch(base + 'enemies.json').then((r) => r.json()), loadImg(base + 'enemies.webp')]); if (ei && em) G.en = { img: ei, f: em.f, cache: new Map() }; } catch (e) { G.en = null; }
+    loadStory(base); // v2.1 story sprites (Moss, Great Root, Blight) stream in after the core art; never blocks boot
     G.atlas = imgs[0]; names.forEach((n, i) => { if (imgs[i + 1]) G.img[n] = imgs[i + 1]; }); G.spr = meta.spr; G.ready = true; G.ver++;
     return true;
   } catch (e) { return false; }
 }
+export const STORY_SPR = ['s_moss', 's_root0', 's_root1', 's_blight', 's_boss', 's_boss2', 's_warden'];
+export function loadStory(base = 'gfx/') { if (G.storyP) return G.storyP; G.storyP = Promise.all(STORY_SPR.map((n) => loadImg(base + n + '.webp').then((i) => { if (i) G.img[n] = i; }))); return G.storyP; }
+// draw a whole story image so its height is h world units, anchored bottom-centre
+export function sImg(g, n, x, y, h, flip = false, alpha = 1) { const i = G.img[n]; if (!i) return false; const w = i.width * h / i.height; if (alpha !== 1) g.globalAlpha = alpha; if (flip) { g.save(); g.translate(x, 0); g.scale(-1, 1); g.drawImage(i, -w / 2, y - h, w, h); g.restore(); } else g.drawImage(i, x - w / 2, y - h, w, h); if (alpha !== 1) g.globalAlpha = 1; return true; }
 export const has = (n) => G.ready && !!G.spr[n];
 export const sprAspect = (n) => { const s = G.spr[n]; return s ? s[2] / s[3] : 1; };
 // draw sprite n so its height is h world units with anchor (ax, ay) in 0..1 at (x, y)

@@ -19,11 +19,13 @@ export function initUI(handlers) {
 export const ui = { open: null };
 export function isOpen() { return !!ui.open; }
 export function close() { root.innerHTML = ''; root.className = ''; ui.open = null; }
-function show(name, html, cls = '') { ui.open = name; root.className = 'show ' + cls; root.innerHTML = html; focusIdx = 0; paintIcons(); markFocus(); }
+export const hooks = {}; // v2.1: story screens (comic, map, moss, control prompt) claim their own button actions
+export function show(name, html, cls = '') { ui.open = name; root.className = 'show ' + cls; root.innerHTML = html; focusIdx = 0; paintIcons(); markFocus(); }
 function paintIcons() { root.querySelectorAll('canvas[data-icon]').forEach((c) => { const s = +c.dataset.size || 28, d = Math.min(2, devicePixelRatio || 1); c.width = c.height = s * d; c.style.width = c.style.height = s + 'px'; const g = c.getContext('2d'); g.scale(d, d); const n = c.dataset.icon; if (n.startsWith('spr:') && has(n.slice(4))) spr(g, n.slice(4), s / 2, s * 0.94, s * 0.86, 0.5, 1); else if (n.startsWith('hero:')) drawHeroPreview(g, s, n.slice(5)); else if (n.startsWith('hatx:')) drawHat(g, n.slice(5), s / 2, s * 0.68, s / 19, 1); else drawIcon(g, n.startsWith('spr:') ? 'pet' : n, s / 2, s / 2, s * 0.8, c.dataset.color || '#fff'); }); }
 function drawHeroPreview(g, s, spec) { const H = G.hero; if (!H) return; const [cape, hat] = spec.split(','), F = H.f.idle0, k = s * 0.9 / F[3]; g.save(); g.translate(s / 2 - F[2] * k / 2, s * 0.05); g.scale(k, k); g.drawImage(capeSheet(H, cape) || H.img, F[0], F[1], F[2], F[3], 0, 0, F[2], F[3]); drawHat(g, hat, F[4] - 12, F[5] - 47, 4.4, 1); g.restore(); }
-const ic = (name, color = '#fff', size = 28) => `<canvas data-icon="${name}" data-color="${color}" data-size="${size}"></canvas>`;
+export const ic = (name, color = '#fff', size = 28) => `<canvas data-icon="${name}" data-color="${color}" data-size="${size}"></canvas>`;
 function act(a, v, el) {
+  if (ui.open && hooks[ui.open] && hooks[ui.open](a, v, el)) return;
   if (a === 'set') { const [k, val] = v.split(':'); save.settings[k] = isNaN(+val) ? val : +val; writeSave(); applyVolumes(); onAct.relayout && onAct.relayout(); showSettings(ui.back); return; }
   if (a === 'settings') { showSettings(ui.open); return; }
   if (a === 'back') { if (ui.back === 'pause') showPause(ui.pauseCtx); else if (ui.back === 'title') showTitle(); else { close(); onAct.resume && onAct.resume(); } return; }
@@ -84,6 +86,7 @@ export function showSettings(back) {
   ${row('Stick size', seg('stickSize', [[0.8, 'Small'], [1, 'Medium'], [1.25, 'Large']]))}
   ${row('Stick see-through', `<input type="range" min="0.15" max="0.9" step="0.05" value="${s.stickOpacity ?? 0.5}" data-k="stickOpacity">`)}
   ${row('Button size', seg('ctrlSize', [[0.85, 'Small'], [1, 'Medium'], [1.2, 'Large']]))}
+  ${row('Button places', `<button data-act="editLayout">Move buttons</button>`, 'Drag each button where your thumb likes it')}
   ${row('Button see-through', `<input type="range" min="0.2" max="0.9" step="0.05" value="${s.ctrlOpacity}" data-k="ctrlOpacity">`)}
   ${row('Vibration', seg('haptics', [['true', 'On'], ['false', 'Off']]))}
   ${row('Music', `<input type="range" min="0" max="1" step="0.05" value="${s.music}" data-k="music">`)}
@@ -109,10 +112,14 @@ export function showLoadout() {
   show('loadout', `<div class="card wide"><h2>${ic('blade', '#bfe8ff', 26)} Weapon Rack</h2><div class="scroll"><div class="wgrid">${ws}</div><h3>Gadgets</h3><div class="ggrid">${gs}${p.gadgets.length > 1 ? `<button data-act="swapGadgets">⇄ Swap</button>` : ''}</div></div>
   <div class="col"><button class="big primary" data-act="back">Done</button></div></div>`);
 }
+export const storyApi = { journal: () => '', next: () => null }; // filled by storyui.js (keeps ui.js free of story imports)
+function journalStory() { return storyApi.journal(); }
+function nextHtml(n) { return n ? `<div class="next-goal">${ic(n.icon, '#ffe27a', 24)}<b>${n.t}</b></div>` : ''; }
 export function showJournal() {
   const p = save.progress;
   show('journal', `<div class="card"><h2>${ic('heart', '#ff9ab0', 26)} Sprig's Journal</h2>
   <div class="stats"><div><b>${p.runs}</b>runs</div><div><b>${p.wins}</b>wins</div><div><b>${p.totalGlimmers}</b>glimmers found</div><div><b>${p.minibossBeaten}</b>Wardens beaten</div></div>
+  ${journalStory()}
   <div class="col"><button class="big" data-act="replayTutorial">${ic('jump', '#fff', 22)} Practice again</button><button class="big primary" data-act="back">Done</button></div></div>`);
 }
 // v1.2 painted results screens: full-bleed key art, count-up glimmers, unlock progress
@@ -139,21 +146,21 @@ export function showDeath(info, kept, found, stats) {
   <div class="res-glim">${ic('glimmer', '#ffe27a', 30)}<b data-count="${kept}">0</b><span>glimmers kept${found !== kept ? ` <small>(of ${found} found)</small>` : ''}</span></div>
   <div class="cause"><div class="who">Knocked out by <b>${info.name}</b></div><div class="tip">${ic('glimmer', '#ffe27a', 18)} ${info.tip}</div></div>
   <div class="stats"><div><b data-count="${stats.rooms}">0</b>rooms explored</div><div><b data-count="${stats.kills}">0</b>baddies popped</div></div>
-  ${dailyHtml(stats.daily)}${unlockHtml()}
+  ${nextHtml(stats.next)}${dailyHtml(stats.daily)}${unlockHtml()}
   <div class="col"><button class="big primary" data-act="toHub">${ic('door', '#15131f', 22)} Back to the Seedhouse</button></div></div>`, 'results');
   countUp();
 }
 export function showVictory(glim, stats) {
   const first = save.progress.wins === 1, st = stats.stars || 1;
   const star = (on, i) => `<span class="star${on ? ' on' : ''}" style="animation-delay:${0.4 + i * 0.35}s"><svg viewBox="0 0 24 24" width="54" height="54"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.2l7.1-.6z" fill="${on ? '#ffe27a' : '#3a3450'}" stroke="#15131f" stroke-width="1.6" stroke-linejoin="round"/></svg></span>`;
-  show('victory', `<div class="res-art win-art"></div><div class="res win"><h2>${stats.final ? 'The Great Root is restored!' : 'The furnace is calm!'}</h2>
+  show('victory', `<div class="res-art win-art"></div><div class="res win"><h2>${stats.title || (stats.final ? 'The Great Root is restored!' : 'The furnace is calm!')}</h2>
   <div class="root-restored">${['#a6f05a', '#8ff6ff', '#ffa6d8', '#ffe27a'].map((c, i) => `<i style="background:${c};animation-delay:${i * 0.15}s"></i>`).join('')}</div>
   <div class="stars">${[0, 1, 2].map((i) => star(i < st, i)).join('')}</div>${stats.bonus ? `<b class="first">${stats.diffLabel} bonus: +${stats.bonus} ★</b>` : ''}${first ? '<b class="first">First victory!</b>' : ''}
   <div class="res-glim">${ic('glimmer', '#ffe27a', 30)}<b data-count="${glim}">0</b></div>
   <div class="stats"><div><b>${stats.time}</b>⏱${stats.best ? ' <b class="first">BEST!</b>' : ''}</div><div><b>${stats.bestTime || stats.time}</b>🏆</div><div><b data-count="${stats.kills}">0</b>${ic('attack', '#fff', 16)}</div><div><b>${stats.treasures || 0}</b>${ic('glimmer', '#ffe27a', 16)}</div></div>
   ${stats.newVine ? `<div class="new-vine"><span style="background:linear-gradient(90deg,${stats.newVine.dark},${stats.newVine.light},${stats.newVine.dark})"></span>${ic('hook', stats.newVine.light, 22)} NEW!</div>` : ''}
-  ${dailyHtml(stats.daily)}${unlockHtml()}
-  <div class="col"><button class="big primary" data-act="toHub">${ic('door', '#15131f', 22)} Home to the Seedhouse</button></div></div>`, 'results');
+  ${nextHtml(stats.next)}${dailyHtml(stats.daily)}${unlockHtml()}
+  <div class="col">${stats.nextCh ? `<button class="big primary" data-act="playChapter" data-v="${stats.nextCh}">${ic('play', '#15131f', 22)} Chapter ${stats.nextCh}</button>` : ''}<button class="big ${stats.nextCh ? '' : 'primary'}" data-act="toHub">${ic('door', stats.nextCh ? '#fff' : '#15131f', 22)} Home to the Seedhouse</button></div></div>`, 'results');
   countUp();
 }
 export function showRotate(on) { $('#rotate').style.display = on ? 'flex' : 'none'; }

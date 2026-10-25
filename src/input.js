@@ -64,6 +64,8 @@ export function computeLayout(w, h) {
     stickHome: { x: 118 * s, y: h - 104 * s }, stickR: 58 * s * (save.settings.stickSize || 1),
     padL: { x: 70 * s, y: h - 74 * s, r: 44 * s }, padR: { x: 180 * s, y: h - 74 * s, r: 44 * s }, padD: { x: 125 * s, y: h - 168 * s, r: 30 * s },
   };
+  const bp = save.settings.btnPos || {}; // v2.1 custom positions (drag editor), clamped on-screen
+  for (const k in bp) { const p = L[k], o = bp[k]; if (!p || !Array.isArray(o)) continue; const r = p.r || L.stickR; p.x = clamp(p.x + o[0] * s, r, w - r); p.y = clamp(p.y + o[1] * s, r, h - r); }
   input.layout = L; input.w = w; input.h = h; return L;
 }
 const RIGHT_BTNS = ['jump', 'attack', 'dash', 'hook', 'parry', 'skill1', 'skill2', 'flask', 'pause'];
@@ -180,9 +182,9 @@ export function drawTouch(g, t, gadgetIcons, cooldowns = {}, flasks = 0) {
   // right side buttons
   for (const b of ['jump', 'attack', 'dash', 'hook', 'parry', 'skill1', 'skill2', 'flask', 'pause']) {
     if (input.visible[b] === false) continue;
-    const p = L[b]; ring(p.x, p.y, p.r, input.held[b], input.highlight[b]);
+    const p = L[b]; const pr = p.r * (input.held[b] ? 1.08 : 1); ring(p.x, p.y, pr, input.held[b], input.highlight[b] || (b === 'attack' && !!input.ctx)); // v2.1: pressed buttons pop; Attack glows when it will interact
     g.globalAlpha = Math.min(1, a * 2.1);
-    const icon = b === 'skill1' ? gadgetIcons[0] : b === 'skill2' ? gadgetIcons[1] : b;
+    const icon = b === 'skill1' ? gadgetIcons[0] : b === 'skill2' ? gadgetIcons[1] : b === 'attack' && input.ctx ? input.ctx : b; // v2.1 contextual button
     drawIcon(g, icon, p.x, p.y, p.r * 0.95, { attack: '#ffd2b0', jump: '#d8ffc8', hook: '#ffe6a0', dash: '#c8fff4', parry: '#d8f0ff' }[b] || '#fff4dc');
     const cd = cooldowns[b]; if (cd > 0) { g.globalAlpha = 0.6; g.fillStyle = '#000'; g.beginPath(); g.moveTo(p.x, p.y); g.arc(p.x, p.y, p.r, -Math.PI / 2, -Math.PI / 2 + cd * Math.PI * 2); g.fill(); }
     if (b === 'flask') { g.globalAlpha = 1; g.fillStyle = '#fff'; g.font = `bold ${13 * L.s}px system-ui,sans-serif`; g.textAlign = 'center'; g.fillText(String(flasks), p.x + p.r * 0.85, p.y + p.r * 0.95); }
