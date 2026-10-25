@@ -1,0 +1,929 @@
+{
+ "note": "tools/diff-bot.mjs, seed 4242+ch, skilled-kid bot, ch1-5, 2026-10-24. v21 = v2.1.0 build, v22 = v2.2.0.",
+ "v21": {
+  "relaxed": [
+   {
+    "ch": 1,
+    "dif": "relaxed",
+    "hits": 4,
+    "dmg": 36,
+    "deaths": 0,
+    "frames": 84614,
+    "flasks": 0,
+    "cells": 32,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 0,
+     "dmg": 0,
+     "frames": 1299
+    },
+    "bossWon": true,
+    "sec": 1410,
+    "bossSec": 22,
+    "hpLostPerMin": 2
+   },
+   {
+    "ch": 2,
+    "dif": "relaxed",
+    "hits": 11,
+    "dmg": 354.5,
+    "deaths": 1,
+    "frames": 88768,
+    "flasks": 8,
+    "cells": 35,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 0,
+     "dmg": 0,
+     "frames": 1859
+    },
+    "bossWon": true,
+    "sec": 1479,
+    "bossSec": 31,
+    "hpLostPerMin": 14
+   },
+   {
+    "ch": 3,
+    "dif": "relaxed",
+    "hits": 3,
+    "dmg": 29,
+    "deaths": 0,
+    "frames": 81810,
+    "flasks": 0,
+    "cells": 35,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 0,
+     "dmg": 0,
+     "frames": 1836
+    },
+    "bossWon": true,
+    "sec": 1364,
+    "bossSec": 31,
+    "hpLostPerMin": 1
+   },
+   {
+    "ch": 4,
+    "dif": "relaxed",
+    "hits": 0,
+    "dmg": 263,
+    "deaths": 1,
+    "frames": 77531,
+    "flasks": 6,
+    "cells": 33,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 1,
+     "dmg": 7,
+     "frames": 1984
+    },
+    "bossWon": true,
+    "sec": 1292,
+    "bossSec": 33,
+    "hpLostPerMin": 12
+   },
+   {
+    "ch": 5,
+    "dif": "relaxed",
+    "hits": 2,
+    "dmg": 152,
+    "deaths": 0,
+    "frames": 97290,
+    "flasks": 4,
+    "cells": 36,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 0,
+     "dmg": 0,
+     "frames": 2097
+    },
+    "bossWon": true,
+    "sec": 1622,
+    "bossSec": 35,
+    "hpLostPerMin": 6
+   }
+  ],
+  "normal": [
+   {
+    "ch": 1,
+    "dif": "normal",
+    "hits": 12,
+    "dmg": 188,
+    "deaths": 0,
+    "frames": 86790,
+    "flasks": 4,
+    "cells": 32,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 1,
+     "dmg": 10,
+     "frames": 1901
+    },
+    "bossWon": true,
+    "sec": 1447,
+    "bossSec": 32,
+    "hpLostPerMin": 8
+   },
+   {
+    "ch": 2,
+    "dif": "normal",
+    "hits": 20,
+    "dmg": 286,
+    "deaths": 0,
+    "frames": 96477,
+    "flasks": 4,
+    "cells": 35,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 0,
+     "dmg": 0,
+     "frames": 2258
+    },
+    "bossWon": true,
+    "sec": 1608,
+    "bossSec": 38,
+    "hpLostPerMin": 11
+   },
+   {
+    "ch": 3,
+    "dif": "normal",
+    "hits": 31,
+    "dmg": 289,
+    "deaths": 1,
+    "frames": 85701,
+    "flasks": 6,
+    "cells": 35,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 0,
+     "dmg": 0,
+     "frames": 2092
+    },
+    "bossWon": true,
+    "sec": 1428,
+    "bossSec": 35,
+    "hpLostPerMin": 12
+   },
+   {
+    "ch": 4,
+    "dif": "normal",
+    "hits": 4,
+    "dmg": 907,
+    "deaths": 4,
+    "frames": 89482,
+    "flasks": 20,
+    "cells": 33,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 0,
+     "dmg": 0,
+     "frames": 2243
+    },
+    "bossWon": true,
+    "sec": 1491,
+    "bossSec": 37,
+    "hpLostPerMin": 36
+   },
+   {
+    "ch": 5,
+    "dif": "normal",
+    "hits": 13,
+    "dmg": 609.5,
+    "deaths": 3,
+    "frames": 102308,
+    "flasks": 10,
+    "cells": 36,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 1,
+     "dmg": 10,
+     "frames": 2535
+    },
+    "bossWon": true,
+    "sec": 1705,
+    "bossSec": 42,
+    "hpLostPerMin": 21
+   }
+  ],
+  "hard": [
+   {
+    "ch": 1,
+    "dif": "hard",
+    "hits": 20,
+    "dmg": 341,
+    "deaths": 1,
+    "frames": 81208,
+    "flasks": 6,
+    "cells": 32,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 1,
+     "dmg": 10,
+     "frames": 2018
+    },
+    "bossWon": true,
+    "sec": 1353,
+    "bossSec": 34,
+    "hpLostPerMin": 15
+   },
+   {
+    "ch": 2,
+    "dif": "hard",
+    "hits": 18,
+    "dmg": 1017.5,
+    "deaths": 5,
+    "frames": 89854,
+    "flasks": 20,
+    "cells": 35,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 0,
+     "dmg": 0,
+     "frames": 2254
+    },
+    "bossWon": true,
+    "sec": 1498,
+    "bossSec": 38,
+    "hpLostPerMin": 41
+   },
+   {
+    "ch": 3,
+    "dif": "hard",
+    "hits": 40,
+    "dmg": 661,
+    "deaths": 2,
+    "frames": 89537,
+    "flasks": 14,
+    "cells": 35,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 2,
+     "dmg": 32,
+     "frames": 2180
+    },
+    "bossWon": true,
+    "sec": 1492,
+    "bossSec": 36,
+    "hpLostPerMin": 27
+   },
+   {
+    "ch": 4,
+    "dif": "hard",
+    "hits": 93,
+    "dmg": 6723,
+    "deaths": 36,
+    "frames": 40400,
+    "flasks": 144,
+    "cells": 33,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 1,
+     "dmg": 17,
+     "frames": 2381
+    },
+    "bossWon": true,
+    "sec": 673,
+    "bossSec": 40,
+    "hpLostPerMin": 599
+   },
+   {
+    "ch": 5,
+    "dif": "hard",
+    "hits": 21,
+    "dmg": 778,
+    "deaths": 3,
+    "frames": 101740,
+    "flasks": 14,
+    "cells": 36,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 0,
+     "dmg": 0,
+     "frames": 2696
+    },
+    "bossWon": true,
+    "sec": 1696,
+    "bossSec": 45,
+    "hpLostPerMin": 28
+   }
+  ],
+  "nightmare": [
+   {
+    "ch": 1,
+    "dif": "nightmare",
+    "hits": 20,
+    "dmg": 523.5,
+    "deaths": 2,
+    "frames": 85665,
+    "flasks": 10,
+    "cells": 32,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 2,
+     "dmg": 38,
+     "frames": 2038
+    },
+    "bossWon": true,
+    "sec": 1428,
+    "bossSec": 34,
+    "hpLostPerMin": 22
+   },
+   {
+    "ch": 2,
+    "dif": "nightmare",
+    "hits": 36,
+    "dmg": 1746.5,
+    "deaths": 8,
+    "frames": 92239,
+    "flasks": 36,
+    "cells": 35,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 1,
+     "dmg": 11,
+     "frames": 2379
+    },
+    "bossWon": true,
+    "sec": 1537,
+    "bossSec": 40,
+    "hpLostPerMin": 68
+   },
+   {
+    "ch": 3,
+    "dif": "nightmare",
+    "hits": 62,
+    "dmg": 1430,
+    "deaths": 7,
+    "frames": 95802,
+    "flasks": 28,
+    "cells": 35,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 1,
+     "dmg": 23,
+     "frames": 2200
+    },
+    "bossWon": true,
+    "sec": 1597,
+    "bossSec": 37,
+    "hpLostPerMin": 54
+   },
+   {
+    "ch": 4,
+    "dif": "nightmare",
+    "hits": 19,
+    "dmg": 2705.5,
+    "deaths": 14,
+    "frames": 90014,
+    "flasks": 62,
+    "cells": 33,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 3,
+     "dmg": 69,
+     "frames": 2705
+    },
+    "bossWon": true,
+    "sec": 1500,
+    "bossSec": 45,
+    "hpLostPerMin": 108
+   },
+   {
+    "ch": 5,
+    "dif": "nightmare",
+    "hits": 27,
+    "dmg": 1026.5,
+    "deaths": 5,
+    "frames": 100513,
+    "flasks": 20,
+    "cells": 36,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 1,
+     "dmg": 23,
+     "frames": 2767
+    },
+    "bossWon": true,
+    "sec": 1675,
+    "bossSec": 46,
+    "hpLostPerMin": 37
+   }
+  ]
+ },
+ "v22": {
+  "relaxed": [
+   {
+    "ch": 1,
+    "dif": "relaxed",
+    "hits": 2,
+    "dmg": 17,
+    "deaths": 0,
+    "frames": 79762,
+    "flasks": 0,
+    "cells": 32,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 0,
+     "dmg": 0,
+     "frames": 1443
+    },
+    "bossWon": true,
+    "sec": 1329,
+    "bossSec": 24,
+    "hpLostPerMin": 1
+   },
+   {
+    "ch": 2,
+    "dif": "relaxed",
+    "hits": 9,
+    "dmg": 96,
+    "deaths": 0,
+    "frames": 87786,
+    "flasks": 2,
+    "cells": 35,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 1,
+     "dmg": 11,
+     "frames": 1787
+    },
+    "bossWon": true,
+    "sec": 1463,
+    "bossSec": 30,
+    "hpLostPerMin": 4
+   },
+   {
+    "ch": 3,
+    "dif": "relaxed",
+    "hits": 6,
+    "dmg": 34,
+    "deaths": 0,
+    "frames": 92011,
+    "flasks": 0,
+    "cells": 35,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 0,
+     "dmg": 0,
+     "frames": 1501
+    },
+    "bossWon": true,
+    "sec": 1534,
+    "bossSec": 25,
+    "hpLostPerMin": 1
+   },
+   {
+    "ch": 4,
+    "dif": "relaxed",
+    "hits": 0,
+    "dmg": 507.5,
+    "deaths": 2,
+    "frames": 84359,
+    "flasks": 12,
+    "cells": 33,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 2,
+     "dmg": 10,
+     "frames": 1778
+    },
+    "bossWon": true,
+    "sec": 1406,
+    "bossSec": 30,
+    "hpLostPerMin": 22
+   },
+   {
+    "ch": 5,
+    "dif": "relaxed",
+    "hits": 2,
+    "dmg": 143,
+    "deaths": 0,
+    "frames": 81977,
+    "flasks": 4,
+    "cells": 36,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 0,
+     "hits": 2,
+     "dmg": 15,
+     "frames": 1960
+    },
+    "bossWon": true,
+    "sec": 1366,
+    "bossSec": 33,
+    "hpLostPerMin": 6
+   }
+  ],
+  "normal": [
+   {
+    "ch": 1,
+    "dif": "normal",
+    "hits": 33,
+    "dmg": 570,
+    "deaths": 3,
+    "frames": 84432,
+    "flasks": 12,
+    "cells": 32,
+    "maxHp": 100,
+    "hot": [
+     "8:2:{\"Blotling\":2}"
+    ],
+    "boss": {
+     "deaths": 1,
+     "hits": 9,
+     "dmg": 174,
+     "frames": 3576
+    },
+    "bossWon": true,
+    "sec": 1407,
+    "bossSec": 60,
+    "hpLostPerMin": 24
+   },
+   {
+    "ch": 2,
+    "dif": "normal",
+    "hits": 25,
+    "dmg": 435.5,
+    "deaths": 2,
+    "frames": 91431,
+    "flasks": 8,
+    "cells": 35,
+    "maxHp": 100,
+    "boss": {
+     "deaths": 1,
+     "hits": 11,
+     "dmg": 212,
+     "frames": 3723
+    },
+    "bossWon": true,
+    "sec": 1524,
+    "bossSec": 62,
+    "hpLostPerMin": 17
+   },
+   {
+    "ch": 3,
+    "dif": "normal",
+    "hits": 25,
+    "dmg": 529,
+    "deaths": 5,
+    "frames": 98647,
+    "flasks": 8,
+    "cells": 35,
+    "maxHp": 100,
+    "hot": [
+     "9:4:{\"Rustbrute\":4}"
+    ],
+    "boss": {
+     "deaths": 1,
+     "hits": 11,
+     "dmg": 203,
+     "frames": 3525
+    },
+    "bossWon": true,
+    "sec": 1644,
+    "bossSec": 59,
+    "hpLostPerMin": 19
+   },
+   {
+    "ch": 4,
+    "dif": "normal",
+    "hits": 17,
+    "dmg": 1476.5,
+    "deaths": 8,
+    "frames": 88802,
+    "flasks": 36,
+    "cells": 33,
+    "maxHp": 100,
+    "hot": [
+     "12:2:{\"tile~\":2}",
+     "13:2:{\"tile~\":2}",
+     "14:3:{\"tile~\":3}"
+    ],
+    "boss": {
+     "deaths": 0,
+     "hits": 5,
+     "dmg": 86,
+     "frames": 2349
+    },
+    "bossWon": true,
+    "sec": 1480,
+    "bossSec": 39,
+    "hpLostPerMin": 60
+   },
+   {
+    "ch": 5,
+    "dif": "normal",
+    "hits": 20,
+    "dmg": 1280,
+    "deaths": 6,
+    "frames": 102296,
+    "flasks": 34,
+    "cells": 36,
+    "maxHp": 100,
+    "hot": [
+     "4:2:{\"tile~\":2}",
+     "12:2:{\"tile~\":2}"
+    ],
+    "boss": {
+     "deaths": 1,
+     "hits": 11,
+     "dmg": 208,
+     "frames": 4090
+    },
+    "bossWon": true,
+    "sec": 1705,
+    "bossSec": 68,
+    "hpLostPerMin": 45
+   }
+  ],
+  "hard": [
+   {
+    "ch": 1,
+    "dif": "hard",
+    "hits": 34,
+    "dmg": 727.5,
+    "deaths": 4,
+    "frames": 83666,
+    "flasks": 20,
+    "cells": 32,
+    "maxHp": 100,
+    "hot": [
+     "11:2:{\"Fizzpot\":2}"
+    ],
+    "boss": {
+     "deaths": 4,
+     "hits": 28,
+     "dmg": 698.5,
+     "frames": 6616
+    },
+    "bossWon": true,
+    "sec": 1394,
+    "bossSec": 110,
+    "hpLostPerMin": 31
+   },
+   {
+    "ch": 2,
+    "dif": "hard",
+    "hits": 24,
+    "dmg": 809,
+    "deaths": 6,
+    "frames": 99947,
+    "flasks": 18,
+    "cells": 35,
+    "maxHp": 100,
+    "hot": [
+     "5:2:{\"Kettle Knight\":2}"
+    ],
+    "boss": {
+     "deaths": 3,
+     "hits": 22,
+     "dmg": 524.5,
+     "frames": 5260
+    },
+    "bossWon": true,
+    "sec": 1666,
+    "bossSec": 88,
+    "hpLostPerMin": 29
+   },
+   {
+    "ch": 3,
+    "dif": "hard",
+    "hits": 55,
+    "dmg": 1399,
+    "deaths": 10,
+    "frames": 91224,
+    "flasks": 36,
+    "cells": 35,
+    "maxHp": 100,
+    "hot": [
+     "7:2:{\"Fizzpot\":2}",
+     "13:2:{\"Thornling\":1,\"Fizzpot\":1}",
+     "16:2:{\"Rustbrute\":2}",
+     "17:2:{\"Rustbug\":2}"
+    ],
+    "boss": {
+     "deaths": 3,
+     "hits": 18,
+     "dmg": 446.5,
+     "frames": 4994
+    },
+    "bossWon": true,
+    "sec": 1520,
+    "bossSec": 83,
+    "hpLostPerMin": 55
+   },
+   {
+    "ch": 4,
+    "dif": "hard",
+    "hits": 10,
+    "dmg": 1125.5,
+    "deaths": 7,
+    "frames": 87178,
+    "flasks": 28,
+    "cells": 33,
+    "maxHp": 100,
+    "hot": [
+     "13:2:{\"tile~\":2}",
+     "14:3:{\"tile~\":3}"
+    ],
+    "boss": {
+     "deaths": 4,
+     "hits": 25,
+     "dmg": 615.5,
+     "frames": 6670
+    },
+    "bossWon": true,
+    "sec": 1453,
+    "bossSec": 111,
+    "hpLostPerMin": 46
+   },
+   {
+    "ch": 5,
+    "dif": "hard",
+    "hits": 11,
+    "dmg": 1785,
+    "deaths": 12,
+    "frames": 102527,
+    "flasks": 44,
+    "cells": 36,
+    "maxHp": 100,
+    "hot": [
+     "4:3:{\"tile~\":3}",
+     "13:3:{\"tile~\":3}",
+     "14:3:{\"tile~\":3}"
+    ],
+    "boss": {
+     "deaths": 3,
+     "hits": 26,
+     "dmg": 552,
+     "frames": 6303
+    },
+    "bossWon": true,
+    "sec": 1709,
+    "bossSec": 105,
+    "hpLostPerMin": 63
+   }
+  ],
+  "nightmare": [
+   {
+    "ch": 1,
+    "dif": "nightmare",
+    "hits": 35,
+    "dmg": 861.5,
+    "deaths": 7,
+    "frames": 82766,
+    "flasks": 24,
+    "cells": 32,
+    "maxHp": 100,
+    "hot": [
+     "4:3:{\"Rustbug\":3}",
+     "11:2:{\"Fizzpot\":2}"
+    ],
+    "boss": {
+     "deaths": 1,
+     "hits": 7,
+     "dmg": 273,
+     "frames": 3282
+    },
+    "bossWon": true,
+    "sec": 1379,
+    "bossSec": 55,
+    "hpLostPerMin": 37
+   },
+   {
+    "ch": 2,
+    "dif": "nightmare",
+    "hits": 40,
+    "dmg": 1876,
+    "deaths": 15,
+    "frames": 91968,
+    "flasks": 58,
+    "cells": 35,
+    "maxHp": 100,
+    "hot": [
+     "4:2:{\"Shellback\":2}",
+     "8:3:{\"tile~\":3}",
+     "11:5:{\"Shellback\":3,\"Stormmoth\":2}",
+     "12:2:{\"Shellback\":2}"
+    ],
+    "boss": {
+     "deaths": 3,
+     "hits": 18,
+     "dmg": 584,
+     "frames": 4168
+    },
+    "bossWon": true,
+    "sec": 1533,
+    "bossSec": 69,
+    "hpLostPerMin": 73
+   },
+   {
+    "ch": 3,
+    "dif": "nightmare",
+    "hits": 54,
+    "dmg": 1566,
+    "deaths": 14,
+    "frames": 94267,
+    "flasks": 44,
+    "cells": 35,
+    "maxHp": 100,
+    "hot": [
+     "11:3:{\"Smogmoth\":1,\"Blotling\":2}",
+     "12:4:{\"Rustbug\":2,\"Rustbrute\":2}",
+     "13:3:{\"Kettle Knight\":2,\"Rustbug\":1}"
+    ],
+    "boss": {
+     "deaths": 3,
+     "hits": 11,
+     "dmg": 327,
+     "frames": 3946
+    },
+    "bossWon": true,
+    "sec": 1571,
+    "bossSec": 66,
+    "hpLostPerMin": 60
+   },
+   {
+    "ch": 4,
+    "dif": "nightmare",
+    "hits": 32,
+    "dmg": 1676.5,
+    "deaths": 15,
+    "frames": 89667,
+    "flasks": 50,
+    "cells": 33,
+    "maxHp": 100,
+    "hot": [
+     "5:2:{\"Shellback\":2}",
+     "8:2:{\"Blotling\":2}",
+     "9:5:{\"Shellback\":2,\"Kettle Knight\":3}",
+     "13:2:{\"tile~\":2}",
+     "14:3:{\"tile~\":3}"
+    ],
+    "boss": {
+     "deaths": 6,
+     "hits": 27,
+     "dmg": 857,
+     "frames": 5685
+    },
+    "bossWon": true,
+    "sec": 1494,
+    "bossSec": 95,
+    "hpLostPerMin": 67
+   },
+   {
+    "ch": 5,
+    "dif": "nightmare",
+    "hits": 35,
+    "dmg": 2756,
+    "deaths": 19,
+    "frames": 109934,
+    "flasks": 92,
+    "cells": 36,
+    "maxHp": 100,
+    "hot": [
+     "4:2:{\"tile~\":2}",
+     "12:2:{\"tile~\":2}",
+     "13:2:{\"tile~\":2}",
+     "14:3:{\"tile~\":3}",
+     "16:5:{\"Smogmoth\":1,\"Shellback\":1,\"Kettle Knight\":3}",
+     "17:2:{\"Glowjelly\":1,\"Lurefish\":1}"
+    ],
+    "boss": {
+     "deaths": 8,
+     "hits": 35,
+     "dmg": 1071,
+     "frames": 7374
+    },
+    "bossWon": true,
+    "sec": 1832,
+    "bossSec": 123,
+    "hpLostPerMin": 90
+   }
+  ]
+ }
+}

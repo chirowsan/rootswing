@@ -45,7 +45,7 @@ export const DIFF = { // v2.0: hp/ramp/rampDmg scale foes, trap/foes/elite/arena
   normal: { dmgTaken: 1.45, dmgDealt: 1.0, parry: 0.2, coyote: 0.12, buffer: 0.15, keep: 0.7, aggro: 1.3, hp: 1.2, ramp: 0.1, rampDmg: 0.06, trap: 1.25, foes: 1.35, elite: 0.16, arenas: 1, ambush: 2, waves: 2, reward: 1, stars: 0, label: 'Normal',
     contact: 1.2, iframes: 0.7, flaskHeal: 0.38, heart: 0.03, chestHeart: 0.25, ckFlask: 1, tokens: 2, smart: 1, feint: 0.22, cont: 3, bossHp: 1.35, bossAggro: 1.25, orb: 0.07, surprise: 1 },
   hard: { dmgTaken: 1.85, dmgDealt: 0.95, parry: 0.16, coyote: 0.1, buffer: 0.13, keep: 0.6, aggro: 1.5, hp: 1.5, ramp: 0.12, rampDmg: 0.08, trap: 1.6, foes: 1.7, elite: 0.24, arenas: 2, ambush: 3, waves: 3, reward: 1.5, stars: 1, label: 'Hard',
-    contact: 1.3, iframes: 0.6, flaskHeal: 0.32, heart: 0.015, chestHeart: 0.15, ckFlask: 1, tokens: 3, smart: 2, feint: 0.32, cont: 2, bossHp: 1.7, bossAggro: 1.45, orb: 0.06, surprise: 1.15 },
+    contact: 1.3, iframes: 0.6, flaskHeal: 0.32, heart: 0.015, chestHeart: 0.15, ckFlask: 1, tokens: 3, smart: 2, feint: 0.32, cont: 2, bossHp: 1.95, bossAggro: 1.55, orb: 0.06, surprise: 1.15 },
   nightmare: { dmgTaken: 2.3, dmgDealt: 0.9, parry: 0.13, coyote: 0.09, buffer: 0.12, keep: 0.5, aggro: 1.7, hp: 1.9, ramp: 0.14, rampDmg: 0.1, trap: 2.0, foes: 2.2, elite: 0.3, arenas: 3, ambush: 4, waves: 3, reward: 2, stars: 2, label: 'Nightmare',
     contact: 1.4, iframes: 0.5, flaskHeal: 0.28, heart: 0, chestHeart: 0.1, ckFlask: 0, tokens: 4, smart: 3, feint: 0.42, cont: 1, bossHp: 2.0, bossAggro: 1.65, orb: 0.05, surprise: 1.3 },
 };

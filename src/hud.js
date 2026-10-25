@@ -44,7 +44,7 @@ function gaugeRing(g, P, x, y, r, s) { // v1.9 Bloom gauge: a petal ring around 
   g.restore();
 }
 export function drawMovesHint(g, W, w, h, s) { // v1.9 icon-only moves card (no words: kids 5-10)
-  const T = W.movesHint || 0; if (T <= 0) return; const al = Math.min(1, T * 2, (W.movesHintMax || 8) - T + 0.001 > 0 ? Math.min(1, ((W.movesHintMax || 8) - T) * 3) : 1);
+  const T = W.movesHint || 0; if (T <= 0 || (W.story && W.story.banner > 0)) return; /* v2.2: never under the chapter title */ const al = Math.min(1, T * 2, (W.movesHintMax || 8) - T + 0.001 > 0 ? Math.min(1, ((W.movesHintMax || 8) - T) * 3) : 1);
   const rows = [['attack', 'x5'], ['attack', 'hold'], ['up', 'attack'], ['jump', 'down', 'attack'], ['dash', 'attack'], ['parry', 'attack'], ['flower', 'hold']];
   const cs = 22 * s, gap = 8 * s, widths = rows.map((r) => r.length * cs + (r.length - 1) * 3 * s), tw = widths.reduce((a, b) => a + b, 0) + gap * (rows.length - 1) + 16 * s;
   const x0 = w / 2 - tw / 2, y0 = h * 0.2; g.save(); g.globalAlpha = al * 0.95;

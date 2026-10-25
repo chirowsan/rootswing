@@ -254,7 +254,7 @@ function crumble(W, delay, dt) { // planks under Sprig shake (telegraph) then fa
 export function update(W, dt) {
   const S = W.sp; if (!S) return; S.t += dt; const P = W.player, D = diff(); if (S.banner && (S.banner.t -= dt) <= 0) S.banner = null; if (S.orbCd > 0) S.orbCd -= dt;
   if (!S.run) return;
-  if (S.pending > 0 && (S.pending -= dt) <= 0 && !P.dead) offerBoons(W, S.pendingWhy || 'Pick a boon!');
+  if (S.pending > 0 && !(W.story && W.story.beatT > 0) && (S.pending -= dt) <= 0 && !P.dead) offerBoons(W, S.pendingWhy || 'Pick a boon!');
   for (const ev of S.active) { if (ev.leave && ev.k !== 'ambush' && ev.k !== 'fireflies') ev.done = 1; if (!ev.done) updEvent(W, ev, dt); }
   S.active = S.active.filter((e) => !e.done); if (!S.active.some((e) => e.k === 'set:dark')) S.dark = Math.max(0, S.dark - dt * 2);
   for (const l of S.later) if ((l.t -= dt) <= 0) { l.done = 1; spawn(W, l.type, l.x, l.y); } S.later = S.later.filter((l) => !l.done);
@@ -340,8 +340,8 @@ export function drawWorld(g, W) {
 }
 export function drawScreen(g, W, cw, ch, s) {
   const S = W.sp; if (!S) return; g.save(); g.textAlign = 'center';
-  if (S.banner) { const B = S.banner, a = Math.min(1, B.t * 2, (3.2 - B.t) * 5), w = Math.min(cw * 0.86, 520 * s); g.globalAlpha = a; g.fillStyle = 'rgba(10,8,18,0.72)'; g.beginPath(); g.roundRect(cw / 2 - w / 2, ch * 0.3 - 30 * s, w, B.sub ? 62 * s : 44 * s, 16 * s); g.fill(); g.strokeStyle = B.col; g.lineWidth = 2.5 * s; g.stroke();
-    g.fillStyle = B.col; g.font = `900 ${21 * s}px system-ui,sans-serif`; g.fillText(B.text, cw / 2, ch * 0.3 - 2 * s); if (B.sub) { g.fillStyle = '#fff'; g.font = `700 ${12.5 * s}px system-ui,sans-serif`; g.fillText(B.sub, cw / 2, ch * 0.3 + 19 * s); } g.globalAlpha = 1; }
+  if (S.banner) { const B = S.banner, by = W.story && W.story.banner > 0 ? 0.42 : 0.3, a = Math.min(1, B.t * 2, (3.2 - B.t) * 5), w = Math.min(cw * 0.86, 520 * s); g.globalAlpha = a; g.fillStyle = 'rgba(10,8,18,0.72)'; g.beginPath(); g.roundRect(cw / 2 - w / 2, ch * by - 30 * s, w, B.sub ? 62 * s : 44 * s, 16 * s); g.fill(); g.strokeStyle = B.col; g.lineWidth = 2.5 * s; g.stroke();
+    g.fillStyle = B.col; g.font = `900 ${21 * s}px system-ui,sans-serif`; g.fillText(B.text, cw / 2, ch * by - 2 * s); if (B.sub) { g.fillStyle = '#fff'; g.font = `700 ${12.5 * s}px system-ui,sans-serif`; g.fillText(B.sub, cw / 2, ch * by + 19 * s); } g.globalAlpha = 1; }
   if (S.run && W.mode !== 'hub') { const x = cw - 40 * s, y = 96 * s, col = { S: '#ffe27a', A: '#9dff8a', B: '#8ff6ff', C: '#ffb3c8' }[S.rank]; g.fillStyle = 'rgba(10,8,18,0.55)'; g.beginPath(); g.roundRect(x - 26 * s, y - 20 * s, 52 * s, 42 * s, 10 * s); g.fill(); g.fillStyle = '#cfc8e0'; g.font = `800 ${8.5 * s}px system-ui`; g.fillText('RANK', x, y - 7 * s); g.fillStyle = col; g.font = `900 ${20 * s}px system-ui`; g.fillText(S.rank, x, y + 14 * s);
     const R = S.run; let yy = y + 32 * s; if (R.cont < 99) { g.fillStyle = 'rgba(10,8,18,0.55)'; g.beginPath(); g.roundRect(x - 26 * s, yy - 12 * s, 52 * s, 20 * s, 8 * s); g.fill(); g.fillStyle = '#ffd0dc'; g.font = `800 ${10 * s}px system-ui`; g.fillText('♥ x' + R.cont, x, yy + 2 * s); yy += 24 * s; }
     if (R.boons.length) { const u = [...new Set(R.boons)]; u.forEach((b, i) => { const bx = x + 14 * s - (i % 3) * 18 * s, by = yy + Math.floor(i / 3) * 18 * s; g.fillStyle = BOONS[b].c; g.globalAlpha = 0.9; g.beginPath(); g.arc(bx, by, 7 * s, 0, 7); g.fill(); g.globalAlpha = 1; drawIcon(g, BOONS[b].i, bx, by, 9 * s, '#15131f'); }); }
