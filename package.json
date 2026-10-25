@@ -1,6 +1,6 @@
 {
   "name": "rootswing",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "private": true,
   "type": "module",
   "description": "Rootswing - an original grappling-hook roguelite platformer",

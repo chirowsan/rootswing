@@ -60,3 +60,8 @@ Baseline numbers (shots/v24/before/feel.json): attach jerk 50 px/s/frame, pump m
 - tests/v24 re-run after the swing fix: 25/25 (drift 0, jerk 50, pump 318→580, release 501→712 px/s, 554 px).
 - Strips/plots regenerated: release strip shows a clean launch arc into a landing roll; pump trace has no slack spikes.
 - Final honest scores: swing 8.5, whip 8.5, bow 8.5 (see report for what keeps each from 9+).
+
+## Phase 6 — full suite (clean, sequential, no builds in between)
+- run-all 111/111, v21 32/32, v22 34/34, v23 21/21, v24 25/25, reach validator 0 chunk problems.
+## Phase 8 — ship
+- Bumped 2.4.0 / versionCode 16 (package.json, mobile/package.json, build.gradle). Android build started.
