@@ -129,7 +129,7 @@ export class Player {
   }
   postMove(W, dt) {
     const wasGround = this.onGround, prevVy = this.vy, prevVx = this.vx;
-    const r = moveBody(W.map, this, dt, { drop: this.drop > 0, corner: this.vy < -120 });
+    const r = this.hook.s === 'swing' ? { ground: false } : moveBody(W.map, this, dt, { drop: this.drop > 0, corner: this.vy < -120 }); // v2.4: the swing integrator already moved the body (was moving twice per step => rope jitter + energy drift)
     this.onGround = r.ground || (this.vy >= 0 && !!groundBelow(W.map, this) && this.drop <= 0 && this.hook.s !== 'zip');
     if (this.onGround && !wasGround) W.emit('land');
     if (this.onGround) { this.coyote = diff().coyote; this.airDash = true; this.wallJumping = false; this.airHang = 0; this.airHover = 0; if (!wasGround && this.atk && this.atk.kind === 'air' && this.atk.phase !== 'active') { this.atk = null; } } // landing cancels an air swing cleanly

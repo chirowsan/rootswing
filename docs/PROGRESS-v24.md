@@ -44,3 +44,19 @@ Baseline numbers (shots/v24/before/feel.json): attach jerk 50 px/s/frame, pump m
 - [step] Unlock: STYLES += bow (swap cycles 4), REWARDS gets 'wpn:bow' after 'cape:sky'; shop item still works. saveVer 24 migration: veterans past the bow's slot get it as their first open mission's reward; nothing else touched.
 - [fix] bowCd undefined → never fired (undefined <= 0 is false). Fixed with !(bowCd > 0).
 - [tests] tests/v24.mjs written (25 checks). First run: tap-DPS blade 36 / hammer 59 (unchanged v2.0 hammer) / whip 41 / bow 31.
+
+## Phase 7 — feel-director review (Oct 25, 2026)
+### Iteration 1 (shots/v24/bow1: plots.png, *-strip.png)
+- Swing (no input): energy kept (drift −3.7%), but the PUMP trace showed saw-tooth spikes every half-swing.
+- Whip: 4 cracks visible as tip-speed spikes (2–7k px/s), hits f7/25/45/67. Bow: quick arc vs charged lifted arc, draw k ramps linearly to 1 in ~0.55 s.
+- Scores: swing 7.5 (pump spikes = rope going slack above the anchor then snapping), whip 8.5, bow 8.5.
+### Iteration 2 (shots/v24/iter2)
+- Root cause of the pump spikes (debug /tmp/pumpdbg.mjs): Player.postMove called moveBody AGAIN after swingStep, so on a rope the body moved twice per step (a bug since v1.x). The constraint then yanked it back every frame → hidden jitter, energy gain/loss, slack + snap at the top of big pumps.
+- Fixes: postMove skips the move while swinging; swing gravity scale SWING.G_K = 1.3 (true pendulum would be floaty once the double move was gone); pumping is energy-capped at ARC_MAX 0.9 (~85°) so the rope never goes slack from pumping.
+- Result: free-swing drift 0%, peak decay −5% over 3 swings, attach jerk 50, pump 322→580 smooth (0 snaps, was 4), release 504→713 px/s, 552 px carry (v2.3: 448).
+- Scores: swing 8.5, whip 8.5, bow 8.5.
+### Iteration 3 (shots/v24/iter3)
+- Tried widening the whip finisher's tip zone so an 85 px finisher crits; no change (the overhead slam passes the dummy with the inner vine, the tip lands beyond) → reverted; finisher crits only at full range by design.
+- tests/v24 re-run after the swing fix: 25/25 (drift 0, jerk 50, pump 318→580, release 501→712 px/s, 554 px).
+- Strips/plots regenerated: release strip shows a clean launch arc into a landing roll; pump trace has no slack spikes.
+- Final honest scores: swing 8.5, whip 8.5, bow 8.5 (see report for what keeps each from 9+).
